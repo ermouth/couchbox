@@ -1,5 +1,4 @@
 const Promise = require('bluebird');
-const crypto = require('crypto');
 const vm = require('vm');
 const sugar = require('sugar');
 const lib = require('../lib');
@@ -13,10 +12,7 @@ const libContext = {
 
 class Hook {
   onProps(props = {}) {
-    let md5sum = crypto.createHash('md5');
-    md5sum.update(JSON.stringify(props));
-    const sum = md5sum.digest('hex');
-    md5sum = null;
+    const sum = lib.hash(props);
     if (this.md5sum === sum) return null;
     this.md5sum = sum;
 
@@ -26,34 +22,40 @@ class Hook {
     this.attachments = props.attachments || false;
     this.conflicts = props.conflicts || false;
 
-    if (props.lambda) {
+    this.compileLambda(props.lambda);
+  }
 
-      const lambdaScope = {};
-
-      let script;
+  compileLambda(lambdaSrc) {
+    if (lambdaSrc) {
       try {
-        script = new vm.Script(`
+        this.script = new vm.Script(`
           result = new Promise(function (resolve, reject) {
-            return (${props.lambda}).bind(lambdaScope)(change, doc);
+            return (${lambdaSrc}).call(lambdaScope, change);
           });
         `);
       } catch(e) {
+        this.script = null;
         log(e);
       }
-
-      this.lambda = (change, doc) => {
-        const boxScope = Object.assign({}, libContext, {
-          lambdaScope,
-          change, doc,
-          result: null
-        });
-        const context = new vm.createContext(boxScope);
-        script.runInContext(context);
-        return boxScope.result;
-      };
-    } else {
-      this.lambda = function(){ return; };
     }
+
+    if (!this.script) {
+      this.lambda = new Function();
+      return null;
+    }
+
+    const lambdaScope = {};
+
+    this.lambda = (change) => {
+      const boxScope = Object.assign({}, libContext, {
+        lambdaScope,
+        change,
+        result: null
+      });
+      const context = new vm.createContext(boxScope);
+      this.script.runInContext(context);
+      return boxScope.result;
+    };
   }
 
   constructor(props = {}) {
@@ -64,8 +66,8 @@ class Hook {
     return this.md5sum;
   }
 
-  run(change, doc) {
-    return this.lambda(change, doc).timeout(this.timeout);
+  run(change) {
+    return this.lambda(change).timeout(this.timeout);
   }
 
   end() {
