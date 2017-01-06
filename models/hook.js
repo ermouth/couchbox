@@ -10,6 +10,8 @@ const libContext = {
   isArray: Array.isArray
 };
 
+const availableGlobals = Object.keys(libContext).concat(['resolve', 'reject']);
+
 class Hook {
   onProps(props = {}) {
     const sum = lib.hash(props);
@@ -22,29 +24,36 @@ class Hook {
     this.attachments = props.attachments || false;
     this.conflicts = props.conflicts || false;
 
-    this.compileLambda(props.lambda);
+    this.isGood = !!this.compileLambda(props.lambda);
   }
 
   compileLambda(lambdaSrc) {
+    const lambdaScope = {};
+
     if (lambdaSrc) {
-      try {
-        this.script = new vm.Script(`
-          result = new Promise(function (resolve, reject) {
-            return (${lambdaSrc}).call(lambdaScope, change);
-          });
-        `);
-      } catch(e) {
+      if (lib.validateGlobals(lambdaSrc, { available: availableGlobals.concat(Object.keys(lambdaScope)) })) {
+        try {
+          this.script = new vm.Script(`
+            result = new Promise(function (resolve, reject) {
+              return (${lambdaSrc}).call(lambdaScope, change);
+            });
+          `);
+        } catch(e) {
+          this.script = null;
+          log(e);
+        }
+      } else {
         this.script = null;
-        log(e);
+        log('Bad globals');
       }
     }
 
     if (!this.script) {
-      this.lambda = new Function();
+      this.lambda = (change) => {
+        return new Promise(function(resolve, reject) { return resolve(); });
+      };
       return null;
     }
-
-    const lambdaScope = {};
 
     this.lambda = (change) => {
       const boxScope = Object.assign({}, libContext, {
@@ -56,6 +65,7 @@ class Hook {
       this.script.runInContext(context);
       return boxScope.result;
     };
+    return true;
   }
 
   constructor(props = {}) {

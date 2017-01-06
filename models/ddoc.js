@@ -63,7 +63,7 @@ class DDoc {
 
   onChange(change) {
     const filterHooks = this.filtersIndex.filter(filterKey => this.filters[filterKey].filter(change));
-    return filterHooks.map(hookKey => this.hooks[hookKey].run(change));
+    return filterHooks.filter(hookKey => this.hooks[hookKey].isGood).map(hookKey => this.hooks[hookKey].run(change));
   }
 }
 
