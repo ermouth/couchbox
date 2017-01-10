@@ -1,16 +1,29 @@
-// config
+const cluster = require('cluster');
 const config = require('./config');
 
-const DB = require('./models/db');
+if (cluster.isMaster) {
+  // init master
+  require('./master')(cluster);
+} else {
 
+  // init props
+  let workerProps;
+  try {
+    workerProps = JSON.parse(process.env.workerProps);
+  } catch(e) {
+    throw new Error('Error parse worker props');
+  }
 
-const dbs = {};
-Object.keys(config.couchdb.hooks).forEach((dbdocKey) => {
-  const dbdoc = dbdocKey.split(/\//);
-  const db = dbdoc[0];
-  const ddoc = dbdoc[1];
-  const props = config.couchdb.hooks[dbdocKey].split(/s+/);
-
-  if (!dbs[db]) dbs[db] = new DB(db);
-  dbs[db].addDDoc(ddoc, props);
-});
+  // init worker
+  if (workerProps) {
+    switch (workerProps.forkType) {
+      case 'db':
+        require('./workerDB')(cluster, workerProps);
+        break;
+      default:
+        process.exit();
+    }
+  } else {
+    process.exit();
+  }
+}

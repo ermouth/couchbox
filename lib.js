@@ -1,13 +1,7 @@
+require('sugar');
 const crypto = require('crypto');
-const vm = require('vm');
 const Promise = require('bluebird');
-const sugar = require('sugar');
 const UglifyJS = require('uglify-js');
-
-const log = module.exports.log = function log(msg) {
-  const time = new Date();
-	console.log(`${time.iso()}: ${JSON.stringify(msg)}`);
-};
 
 const hash = module.exports.hash = function hash(data) {
   // TODO: use more quickly hash function
@@ -18,20 +12,28 @@ const hash = module.exports.hash = function hash(data) {
   return sum;
 };
 
+const parseJSON = module.exports.parseJSON = function parseJSON(json) {
+  let result;
+  try {
+    result = JSON.parse(json);
+  } catch (e) {
+    result = undefined;
+  }
+  return result;
+};
+
+function coverFunction(funcSrc) {
+  return '(' + funcSrc + ')';
+}
+
+function uglifyParse(funcSrc) {
+  return UglifyJS.parse(coverFunction(funcSrc));;
+}
+
 const getGlobals = module.exports.getGlobals = function getGlobals(funcSrc) {
   if (!funcSrc) return null;
 
-  let ast;
-
-  try {
-    ast = UglifyJS.parse(`(${funcSrc})`);
-  } catch (e) {
-    log('ERROR parse');
-  }
-
-  if (!ast) {
-    return null;
-  }
+  const ast = uglifyParse(funcSrc);
 
   ast.figure_out_scope();
   if (typeof(ast.globals) == "object" && ast.globals._size) {
@@ -42,35 +44,28 @@ const getGlobals = module.exports.getGlobals = function getGlobals(funcSrc) {
 
 const validateGlobals = module.exports.validateGlobals = function validateGlobals(funcSrc, params = {}) {
   const globals = getGlobals(funcSrc);
-  if (!globals) {
-    return false;
-  }
-
-  let isGood = true;
+  const errors = [];
   if (params.available && params.available.length) {
     const available = {};
     params.available.forEach(key => { available[key] = true; })
     for (let i = globals.length; i--;) {
       if (!available[globals[i]]) {
-        isGood = false;
-        break;
+        errors.push(globals[i]);
       }
     }
   } else if (params.inaccessible && params.inaccessible.length) {
-
+    const inaccessible = {};
+    params.inaccessible.forEach(key => { inaccessible[key] = true; })
+    for (let i = globals.length; i--;) {
+      if (inaccessible[globals[i]]) {
+        errors.push(globals[i]);
+      }
+    }
   }
-  return isGood;
+  return errors.length ? errors : false;
 };
 
-const makeFunc =module.exports.makeFunc = function makeFunc(lambdaString, options = {}) {
-  if (!lambdaString) {
-    return function(){ return; };
-  }
-  let lambda;
-  try {
-    lambda = eval(`(${lambdaString})`);
-  } catch(e) {
-    console.error(e);
-  }
-  return lambda;
+const makeFunc = module.exports.makeFunc = function makeFunc(funcSrc) {
+  uglifyParse(funcSrc);
+  return eval(coverFunction(funcSrc));
 };

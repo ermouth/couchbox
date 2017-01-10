@@ -1,27 +1,29 @@
 const Promise = require('bluebird');
 const lib = require('../lib');
 
-class Filter {
-  onProps(props = {}) {
-    const sum = lib.hash(props);
-    if (this.md5sum === sum) return null;
-    this.md5sum = sum;
+function Filter(name, lambda, params) {
+  const { logger } = params;
+  const log = logger.getLog({ prefix: 'Filter '+ name });
 
-    this.lambda = lib.makeFunc(props.lambda);
+  let _lambda;
+  let isGood = false;
+
+  try {
+    _lambda = lib.makeFunc(lambda);
+    isGood = true;
+  } catch(error) {
+    isGood = false;
+    log(error);
   }
 
-  constructor(name, props = {}) {
-    this.name = name;
-    this.onProps(props);
+  function filter(change) {
+    return isGood && !!_lambda(change);
   }
 
-  filter(change, doc) {
-    return !!this.lambda(change, doc);
-  }
-
-  getHash() {
-    return this.md5sum;
-  }
+  return {
+    isGood: () => !!isGood,
+    filter
+  };
 }
 
 module.exports = Filter;

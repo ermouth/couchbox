@@ -1,88 +1,78 @@
 const Promise = require('bluebird');
 const vm = require('vm');
-const sugar = require('sugar');
 const lib = require('../lib');
-const log = lib.log;
+require('sugar');
+
+const HOOK_MODES = {
+  'parallel': 'parallel',
+  'transitive': 'transitive',
+  'sequential': 'sequential',
+}
+const HOOK_DEFAULT_TIMEOUT = 10e3;
+const HOOK_DEFAULT_MODE = HOOK_MODES['transitive'];
+
 
 const libContext = {
-  Promise, setTimeout,
-  log,
+  Error, setTimeout,
+  Promise,
   isArray: Array.isArray
 };
-
 const availableGlobals = Object.keys(libContext).concat(['resolve', 'reject']);
 
-class Hook {
-  onProps(props = {}) {
-    const sum = lib.hash(props);
-    if (this.md5sum === sum) return null;
-    this.md5sum = sum;
 
-    this.mode = props.mode || 'transitive';
-    this.timeout = props.timeout || 10e3;
-    this.since = props.since || 'now';
-    this.attachments = props.attachments || false;
-    this.conflicts = props.conflicts || false;
+function Hook(name, props = {}, params = {}) {
+  const { logger } = params;
+  const log = logger.getLog({ prefix: 'Hook '+ name });
 
-    this.isGood = !!this.compileLambda(props.lambda);
-  }
+  const mode = props.mode && HOOK_MODES[props.mode] ? props.mode : HOOK_DEFAULT_MODE;
+  const timeout = props.timeout && props.timeout > 0 ? props.timeout : HOOK_DEFAULT_TIMEOUT;
+  const since = props.since && props.since > 0 ? props.since : 'now';
+  const attachments = props.attachments || false;
+  const conflicts = props.conflicts || false;
 
-  compileLambda(lambdaSrc) {
-    const lambdaScope = {};
+  let _script;
+  let _lambda;
+  let isGood = false;
 
-    if (lambdaSrc) {
-      if (lib.validateGlobals(lambdaSrc, { available: availableGlobals.concat(Object.keys(lambdaScope)) })) {
-        try {
-          this.script = new vm.Script(`
-            result = new Promise(function (resolve, reject) {
-              return (${lambdaSrc}).call(lambdaScope, change);
-            });
-          `);
-        } catch(e) {
-          this.script = null;
-          log(e);
-        }
-      } else {
-        this.script = null;
-        log('Bad globals');
+  function _compileLambda(lambdaSrc) {
+    const lambdaScope = { log };
+
+    const validationResult = lib.validateGlobals(lambdaSrc, { available: availableGlobals.concat(Object.keys(lambdaScope)) });
+    if (validationResult && validationResult.length) {
+      throw new Error('Bad function validation: '+ JSON.stringify(validationResult));
+    }
+
+    _script = new vm.Script('new Promise((resolve, reject) => (' + lambdaSrc + ').call(lambdaScope, change) );');
+
+    _lambda = (change) => {
+      const boxScope = Object.assign({}, libContext, { lambdaScope, change });
+      let result;
+      try {
+        result = _script.runInNewContext(boxScope);
+      } catch(err) {
+        result = undefined;
+        console.error(err);
       }
-    }
-
-    if (!this.script) {
-      this.lambda = (change) => {
-        return new Promise(function(resolve, reject) { return resolve(); });
-      };
-      return null;
-    }
-
-    this.lambda = (change) => {
-      const boxScope = Object.assign({}, libContext, {
-        lambdaScope,
-        change,
-        result: null
-      });
-      const context = new vm.createContext(boxScope);
-      this.script.runInContext(context);
-      return boxScope.result;
+      return result;
     };
-    return true;
   }
 
-  constructor(props = {}) {
-    this.onProps(props);
+  try {
+    _compileLambda(props.lambda);
+    isGood = true;
+  } catch (error) {
+    isGood = false;
+    log(error);
   }
 
-  getHash() {
-    return this.md5sum;
+  function run(change) {
+    return _lambda(change).timeout(timeout);
   }
 
-  run(change) {
-    return this.lambda(change).timeout(this.timeout);
-  }
-
-  end() {
-    log('end hook');
-  }
+  return {
+    isGood: () => !!isGood,
+    run
+  };
 }
 
 module.exports = Hook;

@@ -1,70 +1,61 @@
 const Promise = require('bluebird');
 const lib = require('../lib');
-const log = lib.log;
 
 const Filter = require('./filter');
 const Hook = require('./hook');
 
-class DDoc {
-  constructor(db, name, props = []) {
-    this.db = db;
-    this.name = name;
-    this.props = props;
+function DDoc(db, name, props = [], params = {}) {
+  const { logger } = params;
+  const log = logger.getLog({ prefix: 'DDoc '+ name });
 
-    this.hooks = {};
-    this.filters = {};
-    this.filtersIndex = [];
-  }
+  const hooks = {};
+  const filters = {};
+  const filtersIndex = [];
 
-  update() {
+  function init() {
     return new Promise((resolve, reject) => {
-      this.db.get(`_design/${this.name}`, (err, body) => {
+      db.get('_design/'+ name, (err, body) => {
         if (err) {
-          log(err);
-          return reject(err);
-        }
-        if (this._rev === body._rev) {
           return reject(err);
         }
 
-        if (body.filters) {
-          this.filtersIndex = Object.keys(body.filters);
-          this.filtersIndex.forEach(filterKey => {
-            this.filters[filterKey] = new Filter(filterKey, body.filters[filterKey]);
-          });
-        }
-
-        if (body.hooks) {
-          Object.keys(body.hooks).forEach(filterKey => {
-            if (this.filters[filterKey]) {
-              const oldHook = this.hooks[filterKey];
-              const hook = new Hook(body.hooks[filterKey]);
-              if (oldHook) {
-                if (oldHook.getHash() === hook.getHash()) return null;
-                oldHook.end();
+        if (body.filters && body.hooks) {
+          Object.keys(body.filters).forEach(filterKey => {
+            if (!body.hooks[filterKey]) return null;
+            const filter = new Filter(filterKey, body.filters[filterKey], { logger });
+            if (filter && filter.isGood()) {
+              const hook = new Hook(filterKey, body.hooks[filterKey], { logger });
+              if (hook && hook.isGood()) {
+                filtersIndex.push(filterKey);
+                hooks[filterKey] = hook;
+                filters[filterKey] = filter;
               }
-              this.hooks[filterKey] = hook;
             }
           });
         }
 
-        return resolve(true);
+        return resolve(name);
       });
     });
   }
 
-  stop() {
-    log(`Stop ddoc: ${this.name}`);
-    return new Promise((resolve, reject) => {
-      // TODO: stop process
-      return resolve(true);
+  function filter(change) {
+    const filterHooks = filtersIndex.filter(filterKey => {
+      let filterResult = false;
+      try {
+        filterResult = filters[filterKey].filter(change.doc);
+      } catch(error) {
+        filterResult = false;
+        log(error);
+      }
+      return filterResult;
     });
-  };
-
-  onChange(change) {
-    const filterHooks = this.filtersIndex.filter(filterKey => this.filters[filterKey].filter(change));
-    return filterHooks.filter(hookKey => this.hooks[hookKey].isGood).map(hookKey => this.hooks[hookKey].run(change));
+    return filterHooks.map(hookKey => hooks[hookKey]);
   }
+
+  return {
+    init, filter
+  };
 }
 
 module.exports = DDoc;
