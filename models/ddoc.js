@@ -1,12 +1,17 @@
 const Promise = require('bluebird');
 const lib = require('../lib');
+const Logger = require('../utils/log');
 
 const Filter = require('./filter');
 const Hook = require('./hook');
 
-function DDoc(db, name, props = [], params = {}) {
-  const { logger } = params;
-  const log = logger.getLog({ prefix: 'DDoc '+ name });
+function DDoc(db, name, methods = [], props = {}) {
+  const { conf } = props;
+  const logger = new Logger({
+    prefix: 'DDoc '+ name,
+    logger: props.logger
+  });
+  const log = logger.getLog();
 
   const hooks = {};
   const filters = {};
@@ -22,9 +27,9 @@ function DDoc(db, name, props = [], params = {}) {
         if (body.filters && body.hooks) {
           Object.keys(body.filters).forEach(filterKey => {
             if (!body.hooks[filterKey]) return null;
-            const filter = new Filter(filterKey, body.filters[filterKey], { logger });
+            const filter = new Filter(filterKey, body.filters[filterKey], { logger, conf });
             if (filter && filter.isGood()) {
-              const hook = new Hook(filterKey, body.hooks[filterKey], { logger });
+              const hook = new Hook(filterKey, body.hooks[filterKey], { logger, conf });
               if (hook && hook.isGood()) {
                 filtersIndex.push(filterKey);
                 hooks[filterKey] = hook;

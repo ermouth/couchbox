@@ -8,13 +8,18 @@ const couchdb = require('../couchdb');
 const DDoc = require('./ddoc');
 
 
-function DB(name, ddocs, params = {}) {
-  const { logger } = params;
-  const log = logger.getLog({ prefix: 'DB '+ name });
+function DB(name, ddocs, props = {}) {
+  const { conf } = props;
+  const logger = new Logger({
+    prefix: 'DB '+ name,
+    logger: props.logger
+  });
+  const log = logger.getLog();
 
-  const _onProcess = params.onProcess || new Function();
-  const _onClosing = params.onClosing || new Function();
-  const _onClose = params.onClose || new Function();
+  const _onProcess = props.onProcess || new Function();
+  const _onEnd = props.onEnd || new Function();
+  const _onStopFollow = props.onStopFollow || new Function();
+  const _onClose = props.onClose || new Function();
 
   const db = couchdb.connect(name);
   const _ddocs = {};
@@ -26,8 +31,12 @@ function DB(name, ddocs, params = {}) {
     seq: 0
   };
 
+  let started = false;
   let feed;
 
+  function isStarted() {
+    return !!started;
+  }
   function hasFeed() {
     return feed && !feed.dead;
   }
@@ -39,6 +48,7 @@ function DB(name, ddocs, params = {}) {
   }
 
   function init(since = 'now') {
+    log('Init');
     feed = db.follow({ since, include_docs: true });
     return Promise.all(Object.keys(ddocs).map(_ddocMap))
         .catch(_onDDocsError)
@@ -47,28 +57,30 @@ function DB(name, ddocs, params = {}) {
 
   const close = function _close(callback) {
     if (hasFeed()) {
-      log('stop feed');
+      log('Stop feed');
       feed.stop();
-      _onClosing(state.seq);
+      _onStopFollow(state.seq);
     }
     if (hasTasks() || hasProcesses()) {
       setTimeout(() => { _close(callback); }, 100);
     } else {
-      log('close');
+      started = false;
+      log('Close');
       _onClose(state.seq);
       if (callback) callback();
     }
-  }
+  };
 
   function _ddocMap(ddocKey) {
-    _ddocs[ddocKey] = new DDoc(db, ddocKey, ddocs[ddocKey], { logger });
+    _ddocs[ddocKey] = new DDoc(db, ddocKey, ddocs[ddocKey], { logger, conf });
     return _ddocs[ddocKey].init();
   }
 
   function _onDDocsError(error) {
-    console.error(error);
+    log({ error });
   }
   function _onDDocsReady(ddocsRes) {
+    started = true;
     _ddocsKeys = ddocsRes;
     feed.on('change', _onDocChange);
     feed.follow();
@@ -84,6 +96,8 @@ function DB(name, ddocs, params = {}) {
   }
 
   function _onDDoc(change) {
+    log('Stop on ddoc change');
+    _onEnd(state.seq);
     close();
   }
 
@@ -116,12 +130,12 @@ function DB(name, ddocs, params = {}) {
     if (result && result.code === 200) {
 
     }
-    log('activeHooks: '+ state.activeHooks);
+    log('Hooks: '+ state.activeHooks);
   }
 
   return {
     init, close,
-    hasFeed, hasTasks, hasProcesses
+    isStarted, hasFeed, hasTasks, hasProcesses
   };
 }
 

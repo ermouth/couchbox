@@ -5,97 +5,152 @@ const couchdb = require('./couchdb');
 
 require('sugar');
 
+
 module.exports = function initMaster(cluster) {
-  const logger = new Logger({
-    prefix: 'Master '+ process.pid
-  });
+  const logger = new Logger({ prefix: 'Master '+ process.pid });
   const log = logger.getLog();
-
-  log('started');
-
+  log('Started');
 
   // detect exit
   process.on('SIGINT', onClose);
-  process.on('exit', () => {
-    log('close');
-  });
+  process.on('exit', () => { log('Close'); });
+
+  // send message to worker
+  function sendMessage(pid, msg, data) {
+    processes[pid].send({ msg, data });
+  }
+
 
   let isClosing = false;
+  let configUpdateTimeout;
   const processes = {};
   const dbs = {};
-  let hooksConfig = {};
+  const dbProcesses = {};
+  const couchConfig = {
+    hookTimeout: config.system.hookTimeout,
+    hooks: {}
+  };
 
-  function getConfig() {
-    couchdb.auth()
-      .then(() => {
-        return couchdb.loadConfig().then(onConfig);
-      })
-      .catch(error => {
-        log({ error });
-      });
+  function loadConfig() {
+    couchdb.loadConfig().then(onConfig);
   }
 
   function onConfig(newConfig) {
     let needToUpdate = false;
     Object.keys(newConfig.hooks).forEach(dbKey => {
-      if(hooksConfig[dbKey] !== newConfig.hooks[dbKey]) needToUpdate = true;
+      if (couchConfig.hooks[dbKey] !== newConfig.hooks[dbKey]) needToUpdate = true;
     });
-    if (!needToUpdate) return null;
-    log('Update hooks config');
-    hooksConfig = newConfig.hooks;
-    updateWorkers();
-  };
+    if (newConfig.couchdb && newConfig.couchdb.os_process_timeout && +newConfig.couchdb.os_process_timeout !== couchConfig.hookTimeout) {
+      needToUpdate = true;
+    }
+    if (needToUpdate) {
+      log('Update hooks config');
+      couchConfig.hooks = newConfig.hooks;
+      couchConfig.hookTimeout = +newConfig.couchdb.os_process_timeout;
+      updateWorkers();
+    }
+    if (!isClosing) configUpdateTimeout = setTimeout(() => { loadConfig(); }, config.system.cofigUpdateTimeout);
+  }
 
   function updateWorkers() {
-    log('Update hooks config');
-    Object.keys(hooksConfig).forEach((dbdocKey) => {
+    log('Update workers');
+    const dbsTmp = {};
+    Object.keys(couchConfig.hooks).forEach((dbdocKey) => {
       const dbdoc = dbdocKey.split(/\\/);
       const db = dbdoc[0];
       const ddoc = dbdoc[1];
-      if (!dbs[db]) dbs[db] = { ddocs: {}, processes: [] };
-      dbs[db].ddocs[ddoc] = hooksConfig[dbdocKey].split(/s+/);
+      if (!dbsTmp[db]) dbsTmp[db] = { ddocs: {}, processes: [], process: null };
+      dbsTmp[db].ddocs[ddoc] = couchConfig.hooks[dbdocKey];
     });
 
-    Object.keys(dbs).forEach(db => {
-      startFork(db, dbs[db].ddocs);
+    Object.keys(dbs).forEach((db) => {
+      if (!dbsTmp[db]) {
+        stopFork(db);
+        delete dbs[db];
+      }
+    });
+
+    Object.keys(dbsTmp).forEach((db) => {
+      const hash = lib.hash(dbsTmp[db].ddocs);
+      dbsTmp[db].hash = hash;
+      if (!dbs[db]) {
+        dbs[db] = dbsTmp[db];
+        startFork(db);
+      } else if (dbs[db].hash !== hash) {
+        stopFork(db);
+        dbs[db] = dbsTmp[db];
+        startFork(db);
+      }
     });
   }
 
-  function startFork(db, ddocs, since = 'now') {
+
+  function onForkEnd(db, pid, data) {
+    startFork(db);
+  }
+  function onForkExit(db, pid) {
+    if (dbProcesses[db]) {
+      dbProcesses[db] = dbProcesses[db].remove(pid);
+      if (!dbProcesses[db].length) delete dbProcesses[db];
+    }
+    if (processes[pid]) delete processes[pid];
+  }
+
+
+  function startFork(db) {
     if (isClosing) return null;
-    const fork = cluster.fork({ workerProps: JSON.stringify({ forkType: 'db', db, ddocs, since })});
+    if (!dbs[db]) return null;
+
+    const ddocs = dbs[db].ddocs;
+    const hash = dbs[db].hash;
+    if (!ddocs || !Object.keys(ddocs).length) return null;
+
+    const fork = cluster.fork({ workerProps: JSON.stringify({
+      forkType: 'db',
+      db, ddocs,
+      conf: {
+        hookTimeout: couchConfig.hookTimeout
+      }
+    })});
+
     const { pid } = fork.process;
     processes[pid] = fork;
-    dbs[db].processes.push(pid);
+    if (!dbProcesses[db]) dbProcesses[db] = [];
+    dbProcesses[db].push(pid);
+
     fork.on('message', (message) => {
       const { msg, data } = message;
       switch (msg) {
-        case 'closing':
-          startFork(db, data && data.seq > 0 ? data.seq : 'now');
+        case 'end':
+          onForkEnd(db, pid, data);
           break;
         case 'close':
+          break;
+        case 'process':
           break;
         default:
           break;
       }
     });
+
     fork.on('exit', () => {
-      stopFork(db, pid);
+      onForkExit(db, pid);
     });
   }
 
-  function stopFork(db, pid) {
-    if (!dbs[db]) return null;
-    dbs[db].processes = dbs[db].processes.remove(pid);
-    delete processes[pid];
+  function stopFork(db) {
+    dbProcesses[db].forEach(pid => {
+      sendMessage(pid, 'close');
+    });
   }
 
   function onClose() {
     isClosing = true;
+    clearTimeout(configUpdateTimeout);
     Object.keys(processes).forEach(pid => {
-      processes[pid].send('close');
+      sendMessage(pid, 'close');
     });
   }
 
-  getConfig();
+  loadConfig();
 };

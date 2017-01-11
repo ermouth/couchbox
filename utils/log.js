@@ -1,20 +1,23 @@
 const sugar = require('sugar');
 
 function Logger(props = {}) {
-  let parentPrefix = props.prefix || '';
+  const _parent = props.logger;
+  const _prefix = props.prefix;
 
-  function _log(params = {}, msg) {
-    const time = new Date();
-    console.log(time.iso() +' ['+ params.prefix +']: '+ JSON.stringify(msg));
-  }
+  const _endLog = _parent ? _parent.log : function({ time, chain, msg }) {
+    console.log(time.iso() +' ['+ chain.reverse().join('->') +']: '+ JSON.stringify(msg));
+  };
 
-  function _getLog(props = {}) {
-    const prefix = [parentPrefix, props.prefix].compact().join('->').trim();
-    return _log.fill({ prefix });
+  function _preLog({ time, chain, msg }) {
+    if (!time) time = new Date();
+    if (!chain) chain = [];
+    chain.push(_prefix);
+    _endLog({ time, chain, msg });
   }
 
   return {
-    getLog: _getLog
+    log: _preLog,
+    getLog: () => (msg) => _preLog({ msg })
   };
 }
 

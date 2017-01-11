@@ -1,6 +1,7 @@
 const Promise = require('bluebird');
 const vm = require('vm');
 const lib = require('../lib');
+const Logger = require('../utils/log');
 require('sugar');
 
 const HOOK_MODES = {
@@ -20,15 +21,19 @@ const libContext = {
 const availableGlobals = Object.keys(libContext).concat(['resolve', 'reject']);
 
 
-function Hook(name, props = {}, params = {}) {
-  const { logger } = params;
-  const log = logger.getLog({ prefix: 'Hook '+ name });
+function Hook(name, params = {}, props = {}) {
+  const { conf } = props;
+  const logger = new Logger({
+    prefix: 'Hook '+ name,
+    logger: props.logger
+  });
+  const log = logger.getLog();
 
-  const mode = props.mode && HOOK_MODES[props.mode] ? props.mode : HOOK_DEFAULT_MODE;
-  const timeout = props.timeout && props.timeout > 0 ? props.timeout : HOOK_DEFAULT_TIMEOUT;
-  const since = props.since && props.since > 0 ? props.since : 'now';
-  const attachments = props.attachments || false;
-  const conflicts = props.conflicts || false;
+  const mode = params.mode && HOOK_MODES[params.mode] ? params.mode : HOOK_DEFAULT_MODE;
+  const timeout = params.timeout && params.timeout > 0 ? params.timeout : HOOK_DEFAULT_TIMEOUT;
+  const since = params.since && params.since > 0 ? params.since : 'now';
+  const attachments = params.attachments || false;
+  const conflicts = params.conflicts || false;
 
   let _script;
   let _lambda;
@@ -58,15 +63,15 @@ function Hook(name, props = {}, params = {}) {
   }
 
   try {
-    _compileLambda(props.lambda);
+    _compileLambda(params.lambda);
     isGood = true;
   } catch (error) {
     isGood = false;
-    log(error);
+    log({ error });
   }
 
   function run(change) {
-    return _lambda(change).timeout(timeout);
+    return _lambda(change).timeout(timeout || conf.hookTimeout);
   }
 
   return {

@@ -1,9 +1,13 @@
 const Promise = require('bluebird');
 const lib = require('../lib');
+const Logger = require('../utils/log');
 
-function Filter(name, lambda, params) {
-  const { logger } = params;
-  const log = logger.getLog({ prefix: 'Filter '+ name });
+function Filter(name, lambda, props) {
+  const logger = new Logger({
+    prefix: 'Filter '+ name,
+    logger: props.logger
+  });
+  const log = logger.getLog();
 
   let _lambda;
   let isGood = false;
@@ -13,7 +17,7 @@ function Filter(name, lambda, params) {
     isGood = true;
   } catch(error) {
     isGood = false;
-    log(error);
+    log({ error });
   }
 
   function filter(change) {

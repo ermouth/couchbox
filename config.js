@@ -1,3 +1,8 @@
+const system = {
+  hookTimeout: 5000,
+  cofigUpdateTimeout: 1000
+};
+
 const couchdb = {
   connection: 'http',
   ip: 'localhost',
@@ -7,5 +12,6 @@ const couchdb = {
 };
 
 module.exports = {
+  system,
   couchdb
 };

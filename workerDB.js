@@ -2,100 +2,64 @@ const config = require('./config');
 const lib = require('./lib');
 const Logger = require('./utils/log');
 
+const Worker = require('./models/worker');
 const DB = require('./models/db');
 
-module.exports = function initWorkerDB(cluster, props = {}) {
-  const pid = process.pid;
-  const state = {};
-
-  const logPrefix = 'Worker '+ pid;
-  const logger = new Logger({
-    prefix: logPrefix
-  });
+module.exports = function initWorker(cluster, props = {}) {
+  const worker = new Worker(cluster, {});
+  const { logger, ee } = worker;
   const log = logger.getLog();
 
-  log('started with '+ Object.keys(props).map(key => (key +'='+ props[key])).join(' '));
+  log('Started with '+ Object.keys(props).map(key => (key +'='+ JSON.stringify(props[key]).replace(/"/g, ''))).join(' '));
 
-  // detect exit
-  process.on('uncaughtException', _onGlobalError);
-  process.on('SIGINT', closeWorker);
-  process.on('exit', () => { log('close'); });
-
-  function _onGlobalError(error) {
-    log({ error });
-  }
-
-  // messages listener
-  process.on('message', (message) => {
-    const { msg, data } = message;
-    switch (msg) {
-      case 'close':
-        closeWorker();
-        break;
-      default:
-        break;
-    }
+  let db;
+  ee.on('exit', () => {
+    log('Close worker');
+    if (db && db.isStarted()) db.close();
+    else worker.close();
   });
 
-  // send message to master
-  function sendMessage(msg, data) {
-    process.send({ msg, data });
-  }
-
-  // send state on process
-  function onProcess() {
-    log('process');
-    sendMessage('process', state);
-  }
-
-  // close worker
-  function closeWorker() {
-    console.log('closeWorker');
-    db.close();
-  }
-  function onClose() {
-    sendMessage('close', state);
-    process.exit();
-  }
-
-  // start closing worker
-  function onClosing() {
-    log('start closing');
-    sendMessage('closing', state);
-  }
-
-
-  // Init worker functions
-
+  const { conf } = props;
+  const state = {};
   const dbName = props.db;
   const since = props.since || 'now';
   const ddocs = props.ddocs || {};
 
   if (!Object.keys(ddocs).length) {
-    close();
+    log('No ddocs - close worker');
+    worker.close();
     return null;
   }
 
   function db_process(seq) {
+    log('Process');
     state.seq = seq;
-    onProcess();
+    worker.sendToMaster('process', state);
   }
 
-  function db_closing(seq) {
+  function db_end(seq) {
+    log('Start closing');
     state.seq = seq;
-    onClosing();
+    worker.sendToMaster('end', state);
+  }
+
+  function db_stopFollow(seq) {
+    log('Stop follow');
+    state.seq = seq;
+    worker.sendToMaster('stopFollow', state);
   }
 
   function db_close(seq) {
     state.seq = seq;
-    onClose();
+    worker.sendToMaster('close', state);
+    worker.close();
   }
 
-
-  const db = new DB(dbName, ddocs, {
-    logger,
+  db = new DB(dbName, ddocs, {
+    logger, conf,
     onProcess: db_process,
-    onClosing: db_closing,
+    onEnd: db_end,
+    onStopFollow: db_stopFollow,
     onClose: db_close
   });
   db.init(since);

@@ -24,6 +24,6 @@ if (cluster.isMaster) {
         process.exit();
     }
   } else {
-    process.exit();
+    throw new Error('No worker props');
   }
 }
