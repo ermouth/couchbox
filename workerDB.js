@@ -1,6 +1,5 @@
 const config = require('./config');
 const lib = require('./lib');
-const Logger = require('./utils/log');
 
 const Worker = require('./models/worker');
 const DB = require('./models/db');
@@ -62,5 +61,6 @@ module.exports = function initWorker(cluster, props = {}) {
     onStopFollow: db_stopFollow,
     onClose: db_close
   });
+
   db.init(since);
 };

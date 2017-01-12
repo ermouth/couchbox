@@ -1,14 +1,16 @@
+const { env } = process;
+
 const system = {
-  hookTimeout: 5000,
-  cofigUpdateTimeout: 1000
+  hookTimeout: env['DB_HOOK_TIMEOUT'] || 5000,
+  configTimeout: env['DB_CONFIG_TIMEOUT'] ||1000
 };
 
 const couchdb = {
-  connection: 'http',
-  ip: 'localhost',
-  port: 5984,
-  user: 'system',
-  pass: 'momomo'
+  connection: env['DB_CONNECTION'] || 'http',
+  ip: env['DB_IP'] || 'localhost',
+  port: env['DB_PORT'] || 5984,
+  user: env['DB_USER'] || 'system',
+  pass: env['DB_PASS'] || 'momomo'
 };
 
 module.exports = {

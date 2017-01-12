@@ -10,14 +10,13 @@ const DB_PASS = config.couchdb.pass;
 const nano = require('nano');
 const fetch = require('node-fetch');
 
-let cookie;
-const url = `${DB_CONNECTION}://${DB_IP}:${DB_PORT}`;
+const DB_URL = DB_CONNECTION +'://'+ DB_IP +':'+ DB_PORT;
+const DB_CONNECTION_URL = DB_CONNECTION +'://'+ DB_USER +':'+ DB_PASS +'@'+ DB_IP +':'+ DB_PORT;
 
-const auth = module.exports.auth = () => new Promise((resolve, reject) => {
-  if (cookie) return resolve(cookie);
-  const couchdb = nano(url);
-  couchdb.auth(DB_USER, DB_PASS, function (err, body, headers) {
+const auth = () => new Promise((resolve, reject) => {
+  nano(DB_URL).auth(DB_USER, DB_PASS, function (err, body, headers) {
     if (err) return reject(err);
+    let cookie;
     if (headers && headers['set-cookie'] && headers['set-cookie'][0]) {
       cookie = headers['set-cookie'][0].split(';')[0];
     }
@@ -26,14 +25,13 @@ const auth = module.exports.auth = () => new Promise((resolve, reject) => {
   });
 });
 
-const loadConfig = module.exports.loadConfig = () => {
-  return auth().then(() => new Promise((resolve, reject) => {
-    if (!cookie) return reject('No auth');
+const loadConfig = () => {
+  return auth().then((cookie) => new Promise((resolve, reject) => {
     const requestOptions = {
       method: 'GET',
       headers: { cookie }
     };
-    return fetch(url +'/_config', requestOptions).then(res => {
+    return fetch(DB_URL +'/_config', requestOptions).then(res => {
       return res.json();
     }).then(json => {
       if (!json || json.error) {
@@ -45,6 +43,12 @@ const loadConfig = module.exports.loadConfig = () => {
   }));
 };
 
-module.exports.connect = (db) => {
-  return nano(`${DB_CONNECTION}://${DB_USER}:${DB_PASS}@${DB_IP}:${DB_PORT}`).use(db);
+const connect = (db) => {
+  return nano(DB_CONNECTION_URL).use(db);
+};
+
+module.exports = {
+  auth,
+  loadConfig,
+  connect
 };

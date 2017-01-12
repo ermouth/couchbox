@@ -30,6 +30,9 @@ module.exports = function initMaster(cluster) {
     hookTimeout: config.system.hookTimeout,
     hooks: {}
   };
+  const workerConf = {
+    hookTimeout: couchConfig.hookTimeout
+  };
 
   function loadConfig() {
     couchdb.loadConfig().then(onConfig);
@@ -47,9 +50,12 @@ module.exports = function initMaster(cluster) {
       log('Update hooks config');
       couchConfig.hooks = newConfig.hooks;
       couchConfig.hookTimeout = +newConfig.couchdb.os_process_timeout;
+      if (workerConf.hookTimeout !== couchConfig.hookTimeout) {
+        workerConf.hookTimeout = couchConfig.hookTimeout;
+      }
       updateWorkers();
     }
-    if (!isClosing) configUpdateTimeout = setTimeout(() => { loadConfig(); }, config.system.cofigUpdateTimeout);
+    if (!isClosing) configUpdateTimeout = setTimeout(() => { loadConfig(); }, config.system.configTimeout);
   }
 
   function updateWorkers() {
@@ -71,7 +77,7 @@ module.exports = function initMaster(cluster) {
     });
 
     Object.keys(dbsTmp).forEach((db) => {
-      const hash = lib.hash(dbsTmp[db].ddocs);
+      const hash = lib.hash([workerConf, dbsTmp[db].ddocs]);
       dbsTmp[db].hash = hash;
       if (!dbs[db]) {
         dbs[db] = dbsTmp[db];
@@ -85,7 +91,7 @@ module.exports = function initMaster(cluster) {
   }
 
 
-  function onForkEnd(db, pid, data) {
+  function onForkEnd(db, pid) {
     startFork(db);
   }
   function onForkExit(db, pid) {
@@ -102,15 +108,12 @@ module.exports = function initMaster(cluster) {
     if (!dbs[db]) return null;
 
     const ddocs = dbs[db].ddocs;
-    const hash = dbs[db].hash;
     if (!ddocs || !Object.keys(ddocs).length) return null;
 
     const fork = cluster.fork({ workerProps: JSON.stringify({
       forkType: 'db',
       db, ddocs,
-      conf: {
-        hookTimeout: couchConfig.hookTimeout
-      }
+      conf: workerConf
     })});
 
     const { pid } = fork.process;
