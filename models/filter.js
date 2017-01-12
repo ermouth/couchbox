@@ -25,8 +25,7 @@ function Filter(name, lambda, props) {
   }
 
   return {
-    isGood: () => !!isGood,
-    filter
+    name, filter, isGood: () => isGood === true
   };
 }
 

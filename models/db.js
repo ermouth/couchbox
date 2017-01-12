@@ -33,9 +33,13 @@ function DB(name, ddocs, props = {}) {
 
   let started = false;
   let feed;
+  let since = 'now';
+  let seq;
+
+  /**  */
 
   function isStarted() {
-    return !!started;
+    return started === true;
   }
   function hasFeed() {
     return feed && !feed.dead;
@@ -47,9 +51,8 @@ function DB(name, ddocs, props = {}) {
     return !!state.activeHooks;
   }
 
-  function init(since = 'now') {
+  function init() {
     log('Init');
-    feed = db.follow({ since, include_docs: true });
     return Promise.all(Object.keys(ddocs).map(_ddocMap))
         .catch(_onDDocsError)
         .then(_onDDocsReady)
@@ -59,29 +62,34 @@ function DB(name, ddocs, props = {}) {
     if (hasFeed()) {
       log('Stop feed');
       feed.stop();
-      _onStopFollow(state.seq);
+      _onStopFollow(state);
     }
     if (hasTasks() || hasProcesses()) {
       setTimeout(() => { _close(callback); }, 100);
     } else {
-      started = false;
       log('Close');
-      _onClose(state.seq);
+      started = false;
+      _onClose(state);
       if (callback) callback();
     }
   };
 
   function _ddocMap(ddocKey) {
     _ddocs[ddocKey] = new DDoc(db, ddocKey, ddocs[ddocKey], { logger, conf });
-    return _ddocs[ddocKey].init();
+    return _ddocs[ddocKey].init().then(ddoc => {
+      if (!seq || seq < ddoc.seq) seq = ddoc.seq;
+      return ddocKey;
+    });
   }
 
   function _onDDocsError(error) {
     log({ error });
   }
   function _onDDocsReady(ddocsRes) {
+    log('Start feed');
     started = true;
     _ddocsKeys = ddocsRes;
+    feed = db.follow({ since, include_docs: true });
     feed.on('change', _onDocChange);
     feed.follow();
   }
@@ -96,9 +104,12 @@ function DB(name, ddocs, props = {}) {
   }
 
   function _onDDoc(change) {
-    log('Stop on ddoc change');
-    _onEnd(state.seq);
-    close();
+    const ddocName = change.id.split('/')[1];
+    if (ddocName && ddocs.hasOwnProperty(ddocName)) {
+      log('Stop on ddoc change: '+ ddocName);
+      _onEnd(state);
+      close();
+    }
   }
 
   function _onDoc(change) {
@@ -121,18 +132,54 @@ function DB(name, ddocs, props = {}) {
     );
   }
 
+
+  /** Hook functions */
+
   function _onHookError(error) {
     log({ error });
   }
 
   function _onHookResult(result) {
-    state.activeHooks--;
-    if (result && result.code === 200) {
-
-    }
-    log('Hooks: '+ state.activeHooks);
+    return result && result.code === 200
+      ? _processHookGoodResult(result).then(_onHookReady)
+      : _processHookBadResult(result).then(_onHookReady);
   }
 
+  function _onHookReady() {
+    state.activeHooks--;
+    log('Hooks '+ state.activeHooks);
+  }
+
+  function _processHookGoodResult(result) {
+    log('Hook good result');
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        resolve(true);
+      }, 500);
+    });
+  }
+  function _processHookBadResult(result) {
+    log('Hook bad result');
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        resolve(true);
+      }, 500);
+    });
+  }
+
+  /** End hook functions */
+
+
+  /** Document functions */
+
+  function updateDoc(doc) {
+
+  }
+
+  /** End document functions */
+
+
+  // Public result
   return {
     init, close,
     isStarted, hasFeed, hasTasks, hasProcesses

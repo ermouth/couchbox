@@ -5,6 +5,12 @@ const Logger = require('../utils/log');
 const Filter = require('./filter');
 const Hook = require('./hook');
 
+const CONTEXT_DENY = {
+  'language': true,
+  'filters': true,
+  'hooks': true
+};
+
 function DDoc(db, name, methods = [], props = {}) {
   const { conf } = props;
   const logger = new Logger({
@@ -16,20 +22,29 @@ function DDoc(db, name, methods = [], props = {}) {
   const hooks = {};
   const filters = {};
   const filtersIndex = [];
+  let seq;
 
   function init() {
     return new Promise((resolve, reject) => {
-      db.get('_design/'+ name, (err, body) => {
+      db.get('_design/'+ name, { local_seq: true }, (err, body) => {
         if (err) {
           return reject(err);
         }
+
+        seq = body._local_seq;
+
+        const ctx = {};
+        Object.keys(body).forEach(key => {
+          if (!key || key[0] === '_' || CONTEXT_DENY[key]) return null;
+          ctx[key] = body[key];
+        });
 
         if (body.filters && body.hooks) {
           Object.keys(body.filters).forEach(filterKey => {
             if (!body.hooks[filterKey]) return null;
             const filter = new Filter(filterKey, body.filters[filterKey], { logger, conf });
             if (filter && filter.isGood()) {
-              const hook = new Hook(filterKey, body.hooks[filterKey], { logger, conf });
+              const hook = new Hook(filterKey, body.hooks[filterKey], { ctx, logger, conf });
               if (hook && hook.isGood()) {
                 filtersIndex.push(filterKey);
                 hooks[filterKey] = hook;
@@ -39,7 +54,7 @@ function DDoc(db, name, methods = [], props = {}) {
           });
         }
 
-        return resolve(name);
+        return resolve({ name, seq });
       });
     });
   }
@@ -58,9 +73,11 @@ function DDoc(db, name, methods = [], props = {}) {
     return filterHooks.map(hookKey => hooks[hookKey]);
   }
 
-  return {
-    init, filter
-  };
+  function getSeq() {
+    return seq;
+  }
+
+  return { name, init, filter };
 }
 
 module.exports = DDoc;
