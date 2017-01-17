@@ -69,7 +69,7 @@ const makeAuthHeaders = (userCtx) => {
   }
   if (userCtx && Object.isString(userCtx.name)) {
     headers['X-Auth-CouchDB-UserName'] = userCtx.name;
-    headers['X-Auth-CouchDB-Token'] = crypto.createHash('sha1').update(secret + userCtx.name).digest('hex');
+    headers['X-Auth-CouchDB-Token'] = crypto.createHmac('sha1', secret).update(userCtx.name).digest('hex');
   }
   return headers;
 };

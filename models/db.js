@@ -112,7 +112,7 @@ function DB(name, props = {}) {
   }));
 
   const init = () => {
-    getDBState().then(state => {
+    couchdb.loadConfig().then(() => getDBState().then(state => {
       if (worker_seq > 0 && !state[worker_seq]) {
         log('No db watcher by seq: '+ worker_seq);
         return close();
@@ -126,7 +126,7 @@ function DB(name, props = {}) {
         }
       }
       return initActualWorker(state);
-    });
+    }));
   };
   const initActualWorker = (state) => {
     return Promise.all(Object.keys(props.ddocs).map(key => initDDoc({ name: key, methods: props.ddocs[key] })))

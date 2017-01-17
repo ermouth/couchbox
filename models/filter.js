@@ -1,4 +1,3 @@
-const Promise = require('bluebird');
 const lib = require('../lib');
 const Logger = require('../utils/log');
 
