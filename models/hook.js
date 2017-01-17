@@ -83,7 +83,7 @@ function Hook(name, params = {}, props = {}) {
   }
 
   function run(change) {
-    return _lambda(change).timeout(timeout || conf.hookTimeout);
+    return _lambda(change.doc, change).timeout(timeout || conf.hookTimeout);
   }
 
   return {

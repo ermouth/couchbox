@@ -2,7 +2,7 @@ const { env } = process;
 
 const system = {
   hookTimeout: env['DB_HOOK_TIMEOUT'] || 5000,
-  configTimeout: env['DB_CONFIG_TIMEOUT'] ||1000
+  configTimeout: env['DB_CONFIG_TIMEOUT'] || 1000
 };
 
 const logger = {
