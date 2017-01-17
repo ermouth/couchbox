@@ -48,7 +48,14 @@ function Worker(cluster, props = {}) {
 
   function onClose() {
     ee.removeAllListeners();
-    process.exit();
+    const onLog = (error) => {
+      logger.goOffline();
+      if (error) log({ error });
+      process.exit();
+    };
+    logger.saveForced()
+      .catch(onLog)
+      .then(onLog);
   }
 
   return {

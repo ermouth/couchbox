@@ -11,8 +11,8 @@ const CONTEXT_DENY = {
   'hooks': true
 };
 
-function DDoc(db, name, methods = [], props = {}) {
-  const { conf } = props;
+function DDoc(db, props = {}) {
+  const { conf, name, methods } = props;
   const logger = new Logger({
     prefix: 'DDoc '+ name,
     logger: props.logger
@@ -22,15 +22,19 @@ function DDoc(db, name, methods = [], props = {}) {
   const hooks = {};
   const filters = {};
   const filtersIndex = [];
+  let id;
+  let rev = props.rev;
   let seq;
 
   function init() {
     return new Promise((resolve, reject) => {
-      db.get('_design/'+ name, { local_seq: true }, (err, body) => {
+      db.get('_design/'+ name, { local_seq: true, rev }, (err, body) => {
         if (err) {
           return reject(err);
         }
 
+        id = body._id;
+        rev = body._rev;
         seq = body._local_seq;
 
         const ctx = {};
@@ -42,9 +46,10 @@ function DDoc(db, name, methods = [], props = {}) {
         if (body.filters && body.hooks) {
           Object.keys(body.filters).forEach(filterKey => {
             if (!body.hooks[filterKey]) return null;
-            const filter = new Filter(filterKey, body.filters[filterKey], { logger, conf });
+            const fieldName = name +'/'+ filterKey;
+            const filter = new Filter(fieldName, body.filters[filterKey], { logger, conf });
             if (filter && filter.isGood()) {
-              const hook = new Hook(filterKey, body.hooks[filterKey], { ctx, logger, conf });
+              const hook = new Hook(fieldName, body.hooks[filterKey], { ctx, logger, conf });
               if (hook && hook.isGood()) {
                 filtersIndex.push(filterKey);
                 hooks[filterKey] = hook;
@@ -54,7 +59,7 @@ function DDoc(db, name, methods = [], props = {}) {
           });
         }
 
-        return resolve({ name, seq });
+        return resolve(seq);
       });
     });
   }
@@ -73,11 +78,15 @@ function DDoc(db, name, methods = [], props = {}) {
     return filterHooks.map(hookKey => hooks[hookKey]);
   }
 
-  function getSeq() {
-    return seq;
+  function getHook(hookName) {
+    return hooks[hookName];
   }
 
-  return { name, init, filter };
+  function getInfo() {
+    return { name, rev, methods };
+  }
+
+  return { name, init, filter, getInfo, getHook };
 }
 
 module.exports = DDoc;

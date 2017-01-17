@@ -5,6 +5,12 @@ const system = {
   configTimeout: env['DB_CONFIG_TIMEOUT'] ||1000
 };
 
+const logger = {
+  db: env['LOGGER_DB'] || 'log',
+  dbSave: env['LOGGER_DB_SAVE'] === true || true,
+  bulkSize: env['LOGGER_BULK_SIZE'] || 20
+};
+
 const couchdb = {
   connection: env['DB_CONNECTION'] || 'http',
   ip: env['DB_IP'] || 'localhost',
@@ -13,7 +19,4 @@ const couchdb = {
   pass: env['DB_PASS'] || 'momomo'
 };
 
-module.exports = {
-  system,
-  couchdb
-};
+module.exports = { system, logger, couchdb };

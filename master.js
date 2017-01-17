@@ -13,7 +13,7 @@ module.exports = function initMaster(cluster) {
 
   // detect exit
   process.on('SIGINT', onClose);
-  process.on('exit', () => { log('Close'); });
+  process.on('exit', () => { log('Closed'); });
 
   // send message to worker
   function sendMessage(pid, msg, data) {
@@ -26,6 +26,7 @@ module.exports = function initMaster(cluster) {
   const processes = {};
   const dbs = {};
   const dbProcesses = {};
+  const dbWorkers = {};
   const couchConfig = {
     hookTimeout: config.system.hookTimeout,
     hooks: {}
@@ -55,7 +56,7 @@ module.exports = function initMaster(cluster) {
       }
       updateWorkers();
     }
-    if (!isClosing) configUpdateTimeout = setTimeout(() => { loadConfig(); }, config.system.configTimeout);
+    if (!isClosing) configUpdateTimeout = setTimeout(loadConfig, config.system.configTimeout);
   }
 
   function updateWorkers() {
@@ -90,10 +91,6 @@ module.exports = function initMaster(cluster) {
     });
   }
 
-
-  function onForkEnd(db, pid) {
-    startFork(db);
-  }
   function onForkExit(db, pid) {
     if (dbProcesses[db]) {
       dbProcesses[db] = dbProcesses[db].remove(pid);
@@ -102,34 +99,45 @@ module.exports = function initMaster(cluster) {
     if (processes[pid]) delete processes[pid];
   }
 
-
-  function startFork(db) {
+  function startFork(db, seq) {
     if (isClosing) return null;
     if (!dbs[db]) return null;
 
     const ddocs = dbs[db].ddocs;
     if (!ddocs || !Object.keys(ddocs).length) return null;
 
-    const fork = cluster.fork({ workerProps: JSON.stringify({
+    const workerProps = {
       forkType: 'db',
-      db, ddocs,
+      db, ddocs, seq,
       conf: workerConf
-    })});
+    };
 
+    const fork = cluster.fork({ workerProps: JSON.stringify(workerProps)});
     const { pid } = fork.process;
+    let worker_seq;
+
+    // Set process
     processes[pid] = fork;
     if (!dbProcesses[db]) dbProcesses[db] = [];
     dbProcesses[db].push(pid);
 
     fork.on('message', (message) => {
-      const { msg, data } = message;
+      const { msg } = message;
       switch (msg) {
-        case 'end':
-          onForkEnd(db, pid, data);
+        case 'init':
+          worker_seq = message.data;
+          setWorker();
           break;
-        case 'close':
+        case 'stopFeed':
+          startFork(db);
           break;
-        case 'process':
+        case 'oldWorker':
+          const oldWorkerSeq = message.data;
+          if (checkWorker(oldWorkerSeq)) {
+            log('Worker '+ oldWorkerSeq +' already started');
+          } else {
+            startFork(db, oldWorkerSeq);
+          }
           break;
         default:
           break;
@@ -138,7 +146,19 @@ module.exports = function initMaster(cluster) {
 
     fork.on('exit', () => {
       onForkExit(db, pid);
+      if (dbWorkers[db]) {
+        if (dbWorkers[db][worker_seq]) delete dbWorkers[db][worker_seq];
+        if (!Object.keys(dbWorkers[db]).length) delete dbWorkers[db];
+      }
     });
+
+    const setWorker = () => {
+      if (!worker_seq) return null;
+      if (!dbWorkers.hasOwnProperty(db)) dbWorkers[db] = {};
+      dbWorkers[db][worker_seq] = pid;
+    };
+
+    const checkWorker = (worker_seq) => dbWorkers.hasOwnProperty(db) && dbWorkers[db][worker_seq];
   }
 
   function stopFork(db) {
@@ -148,11 +168,19 @@ module.exports = function initMaster(cluster) {
   }
 
   function onClose() {
+    log('Close');
     isClosing = true;
     clearTimeout(configUpdateTimeout);
     Object.keys(processes).forEach(pid => {
       sendMessage(pid, 'close');
     });
+    const onLog = (error) => {
+      logger.goOffline();
+      if (error) log({ error });
+    };
+    logger.saveForced()
+      .catch(onLog)
+      .then(onLog);
   }
 
   loadConfig();

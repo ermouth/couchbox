@@ -1,6 +1,5 @@
 require('sugar');
 const crypto = require('crypto');
-const Promise = require('bluebird');
 const UglifyJS = require('uglify-js');
 
 const hash = module.exports.hash = function hash(data) {
@@ -47,7 +46,7 @@ const validateGlobals = module.exports.validateGlobals = function validateGlobal
   const errors = [];
   if (params.available && params.available.length) {
     const available = {};
-    params.available.forEach(key => { available[key] = true; })
+    params.available.forEach(key => { available[key] = true; });
     for (let i = globals.length; i--;) {
       if (!available[globals[i]]) {
         errors.push(globals[i]);
@@ -55,7 +54,7 @@ const validateGlobals = module.exports.validateGlobals = function validateGlobal
     }
   } else if (params.inaccessible && params.inaccessible.length) {
     const inaccessible = {};
-    params.inaccessible.forEach(key => { inaccessible[key] = true; })
+    params.inaccessible.forEach(key => { inaccessible[key] = true; });
     for (let i = globals.length; i--;) {
       if (inaccessible[globals[i]]) {
         errors.push(globals[i]);

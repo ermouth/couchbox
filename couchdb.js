@@ -43,12 +43,20 @@ const loadConfig = () => {
   }));
 };
 
-const connect = (db) => {
-  return nano(DB_CONNECTION_URL).use(db);
+let connection;
+
+const connect = () => {
+  if (!connection) connection = nano(DB_CONNECTION_URL);
+  return connection;
+};
+
+const connectDB = (db) => {
+  return connect().use(db);
 };
 
 module.exports = {
   auth,
   loadConfig,
-  connect
+  connect,
+  connectDB
 };
