@@ -95,7 +95,10 @@ function DB(name, props = {}) {
     } else {
       state[worker_seq] = getWorkerInfo();
     }
-    db.insert({ _id: dbDocId, _rev: dbDocRev, data: JSON.stringify(state) }, function(error, body) {
+    const newData = dbDocRev
+      ? { _id: dbDocId, _rev: dbDocRev, data: JSON.stringify(state) }
+      : { _id: dbDocId, data: JSON.stringify(state) }
+    db.insert(newData, function(error, body) {
       if (error || body.ok !== true) {
         if (error && error.message === 'Document update conflict.') {
           return updateDBState();
