@@ -1,8 +1,9 @@
+require('sugar');
 const Promise = require('bluebird');
 const vm = require('vm');
 const lib = require('../lib');
 const Logger = require('../utils/log');
-require('sugar');
+
 
 const HOOK_MODES = {
   'parallel': 'parallel',
@@ -22,7 +23,7 @@ const availableGlobals = Object.keys(contextGlobal).concat(['resolve', 'reject']
 
 
 function Hook(name, params = {}, props = {}) {
-  const { conf, ctx } = props;
+  const { conf, ctx, methods } = props;
   const logger = new Logger({
     prefix: 'Hook '+ name,
     logger: props.logger
@@ -42,15 +43,15 @@ function Hook(name, params = {}, props = {}) {
   function _require(fieldName) {
     let field;
     try { field = ctx[fieldName]; }
-    catch (error) { log({ error }); }
+    catch (error) { log({ message: 'Error require field: '+ fieldName, error }); }
     return field;
   }
 
   function _compileLambda(lambdaSrc) {
-    const lambdaGlobal = {
-      log,
-      require: _require
-    };
+    const lambdaGlobal = Object.assign(
+      {log, require: _require },
+      methods
+    );
     const lambdaScope = { };
 
     const validationResult = lib.validateGlobals(lambdaSrc, { available: availableGlobals.concat(Object.keys(lambdaGlobal)) });
@@ -66,7 +67,7 @@ function Hook(name, params = {}, props = {}) {
       try {
         result = _script.runInNewContext(boxScope);
       } catch(error) {
-        log({ error });
+        log({ message: 'Error run hook lambda: '+ name, error });
         result = undefined;
       }
       return result;
@@ -78,7 +79,7 @@ function Hook(name, params = {}, props = {}) {
     isGood = true;
   } catch (error) {
     isGood = false;
-    log({ error });
+    log({ message: 'Error compile hook lambda: '+ name, error });
   }
 
   function run(change) {

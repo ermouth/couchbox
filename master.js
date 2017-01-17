@@ -44,7 +44,7 @@ module.exports = function initMaster(cluster) {
     Object.keys(newConfig.hooks).forEach(dbKey => {
       if (couchConfig.hooks[dbKey] !== newConfig.hooks[dbKey]) needToUpdate = true;
     });
-    if (newConfig.couchdb && newConfig.couchdb.os_process_timeout && +newConfig.couchdb.os_process_timeout !== couchConfig.hookTimeout) {
+    if (!needToUpdate && newConfig.couchdb && newConfig.couchdb.os_process_timeout && +newConfig.couchdb.os_process_timeout !== couchConfig.hookTimeout) {
       needToUpdate = true;
     }
     if (needToUpdate) {
@@ -176,7 +176,7 @@ module.exports = function initMaster(cluster) {
     });
     const onLog = (error) => {
       logger.goOffline();
-      if (error) log({ error });
+      if (error) log({ message:'Error save log', error });
     };
     logger.saveForced()
       .catch(onLog)

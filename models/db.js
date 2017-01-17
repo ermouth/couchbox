@@ -10,6 +10,8 @@ const Logger = require('../utils/log');
 const couchdb = require('../couchdb');
 const DDoc = require('./ddoc');
 
+const CHECK_PROCESSES_TIMEOUT = 120;
+
 const CHANGE_DOC_ID = 0;
 const CHANGE_DOC_REV = 1;
 const CHANGE_DOC_HOOKS = 2;
@@ -76,7 +78,7 @@ function DB(name, props = {}) {
   const getDBState = () => new Promise((resolve, reject) => {
     db.get(dbDocId, function(error, body) {
       if (error && error.message !== 'missing') {
-        log({ error });
+        log({ message: 'Error on load local bucket state: '+ dbDocId, error });
         reject(error);
       } else {
         dbDocRev = body._rev;
@@ -95,7 +97,7 @@ function DB(name, props = {}) {
         if (error && error.message === 'Document update conflict.') {
           return updateDBState();
         }
-        log({ error });
+        log({ message: 'Error on save bucket state', error });
         reject(error);
       } else {
         dbDocRev = body.rev;
@@ -148,7 +150,7 @@ function DB(name, props = {}) {
       .then(processQueue);
   };
   const onInitError = (error) => {
-    log({ error });
+    log({ message: 'Error on init ddoc: '+ name, error });
     close();
   };
 
@@ -169,7 +171,7 @@ function DB(name, props = {}) {
 
   const close = () => {
     stopFeed();
-    if (isRunning()) return setTimeout(close, 100);
+    if (isRunning()) return setTimeout(close, CHECK_PROCESSES_TIMEOUT);
     log('Close');
     updateDBState(true).then(() => {
       _onClose(worker_seq);
@@ -194,7 +196,7 @@ function DB(name, props = {}) {
     const rev = inProcess[processSeq][CHANGE_DOC_REV];
     return new Promise((resolve, reject) => {
       db.get(id, { rev }, (error, doc) => {
-        if (error) return reject();
+        if (error) return reject(error);
         queue.push(newChange(processSeq, id, rev, doc));
         return resolve();
       });
@@ -264,17 +266,9 @@ function DB(name, props = {}) {
     if (!hooksAll.length) return updateDBState();
 
     hooksAll.forEach(hook => setInProcess(change, hook.name));
-    return updateDBState().then(() =>
-      Promise.all(hooksAll.map(hook =>
-        hook.run(change)
-          .then(onHook.fill(hook.name, change))
-          .catch(onHookError)
-      ))
-    );
+    return updateDBState().then(() => Promise.all(hooksAll.map(startHook.fill(change))));
   };
   const onOldChange = (hooksNames, change) => {
-    const { seq } = change;
-
     const hooksAll = [];
     const ddocksO = {};
     ddocsInfo.forEach((ddoc, index) => {
@@ -293,35 +287,81 @@ function DB(name, props = {}) {
     if (!hooksAll.length) {
       return Promise.reject('Bad hooks');
     }
-
-    return Promise.all(hooksAll.map(hook =>
-      hook.run(change)
-        .then(onHook.fill(hook.name, change))
-        .catch(onHookError)
-    ));
+    return Promise.all(hooksAll.map(startHook.fill(change)));
   };
 
-
-  const onHook = (hookName, change, result) => new Promise((resolve, reject) => {
+  const startHook = (change, hook) => {
+    log('Start hook: ' + hook.name);
+    return hook.run(change)
+      .then(onHook.fill(hook.name, change))
+      .catch(onHookError.fill(hook.name, change))
+  };
+  const onHook = (hookName, change, result) => {
+    const onHookEnd = () => {
+      setOutProcess(change, hookName);
+      return updateDBState();
+    };
     if (result && result.code === 200) {
-      return saveHookResult(hookName, result)
-        .then(() => {
-          setOutProcess(change, hookName);
-          return updateDBState().then(resolve);
-        });
+      return saveHookResult(hookName, result.docs).then(onHookEnd);
     } else {
       log('Bad hook: '+ hookName);
-      setOutProcess(change, hookName);
-      return updateDBState().then(resolve);
+      return onHookEnd();
     }
+  };
+  const saveHookResult = (hookName, docs) => {
+    if (!(docs && docs.length)) return Promise.resolve();
+    return saveResults(docs).then(() => {
+      log('Saved hook result: '+ hookName);
+    });
+  };
+
+  const saveResults = (docs) => {
+    if (docs.length) {
+      return saveBatch(docs.shift()).then(() => saveResults(docs));
+    }
+    return Promise.resolve();
+  };
+  const saveBatch = (toSave) => {
+    if (Object.isObject(toSave)) return saveDoc(toSave);
+    else if (Object.isArray(toSave)) return Promise.all(toSave.map(doc => saveDoc(doc)));
+    else return Promise.reject('Bad results');
+  };
+  const saveDoc = (doc) => {
+    if (!doc) return Promise.reject('Bad document');
+    let docDB = db;
+    if (doc._db) {
+      docDB = couchdb.connectDB(doc._db);
+      delete doc['_db'];
+    }
+    return getOldDoc(docDB, doc).then(oldDoc => {
+      return updateDoc(docDB, oldDoc, doc)
+    });
+  };
+  const getOldDoc = (docDB, doc) => new Promise((resolve, reject) => {
+    const id = doc._id;
+    const rev = doc._rev;
+    if (!id && !rev) return resolve();
+    docDB.get(id, rev ? { rev } : {}, (error, result) => {
+      if (error) {
+        if (error.error === 'not_found' && !rev) return resolve();
+        return reject(error);
+      }
+      return resolve(result);
+    });
   });
-  const saveHookResult = (hookName, result) => new Promise((resolve, reject) => {
-    setTimeout(() => {
-      log('Save hook result: '+ hookName);
-      resolve();
-    }, 3000);
+  const updateDoc = (docDB, oldDoc, newDoc) => new Promise((resolve, reject) => {
+    if (oldDoc) newDoc._rev = oldDoc._rev;
+    docDB.insert(newDoc, (error, result) => {
+      if (error) return reject(error);
+      return resolve(result);
+    })
   });
-  const onHookError = (error) => { log({ error }); };
+
+  const onHookError = (hookName, change, error) => {
+    log({ message: 'Hook error: '+ hookName, error });
+    setOutProcess(change, hookName);
+    return updateDBState();
+  };
 
   init();
   return { close, isRunning };

@@ -34,7 +34,7 @@ function Worker(cluster, props = {}) {
   process.on('exit', () => { log('Closed'); });
 
   function _onWorkerError(error) {
-    log({ error });
+    log({ message:'Worker error', error });
     ee.emit('error', error);
   }
   function _onSIGINT() {
@@ -50,7 +50,7 @@ function Worker(cluster, props = {}) {
     ee.removeAllListeners();
     const onLog = (error) => {
       logger.goOffline();
-      if (error) log({ error });
+      if (error) log({ message:'Error save log', error });
       process.exit();
     };
     logger.saveForced()

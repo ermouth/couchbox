@@ -5,6 +5,10 @@ const Logger = require('../utils/log');
 const Filter = require('./filter');
 const Hook = require('./hook');
 
+// methods
+const fetch = require('../utils/fetch');
+const Bucket = require('../utils/bucket');
+
 const CONTEXT_DENY = {
   'language': true,
   'filters': true,
@@ -44,12 +48,28 @@ function DDoc(db, props = {}) {
         });
 
         if (body.filters && body.hooks) {
+
+          const hookMethods = {};
+          if (methods && methods.length) {
+            methods.split(/\s+/g).compact(true).forEach(method => {
+              if (hookMethods.hasOwnProperty(method)) return null;
+              switch (method) {
+                case 'fetch':
+                  hookMethods[method] = fetch;
+                  break;
+                case 'bucket':
+                  hookMethods[method] = new Bucket(db);
+                  break;
+              }
+            });
+          }
+
           Object.keys(body.filters).forEach(filterKey => {
             if (!body.hooks[filterKey]) return null;
             const fieldName = name +'/'+ filterKey;
             const filter = new Filter(fieldName, body.filters[filterKey], { logger, conf });
             if (filter && filter.isGood()) {
-              const hook = new Hook(fieldName, body.hooks[filterKey], { ctx, logger, conf });
+              const hook = new Hook(fieldName, body.hooks[filterKey], { ctx, methods: hookMethods, logger, conf, });
               if (hook && hook.isGood()) {
                 filtersIndex.push(filterKey);
                 hooks[filterKey] = hook;
@@ -71,7 +91,7 @@ function DDoc(db, props = {}) {
         filterResult = filters[filterKey].filter(change.doc);
       } catch(error) {
         filterResult = false;
-        log(error);
+        log({ message:'Error on filter: '+ name +'/'+ filterKey, error });
       }
       return filterResult;
     });

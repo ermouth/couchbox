@@ -7,7 +7,7 @@ const system = {
 
 const logger = {
   db: env['LOGGER_DB'] || 'log',
-  dbSave: env['LOGGER_DB_SAVE'] === true || true,
+  dbSave: env['LOGGER_DB_SAVE'] === true || false,
   bulkSize: env['LOGGER_BULK_SIZE'] || 20
 };
 
