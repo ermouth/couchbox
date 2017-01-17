@@ -79,14 +79,13 @@ function DB(name, props = {}) {
     db.get(dbDocId, function(error, body) {
       if (error && error.message !== 'missing') {
         log({ message: 'Error on load local bucket state: '+ dbDocId, error });
-        reject(error);
-      } else {
-        if (body && body.rev) {
-          dbDocRev = body._rev;
-          resolve(body && body.data ? lib.parseJSON(body.data) : {});
-        }
-        else resolve({});
+        return reject(error);
       }
+      if (body && body._rev) {
+        dbDocRev = body._rev;
+        return resolve(body && body.data ? lib.parseJSON(body.data) : {});
+      }
+      resolve({});
     });
   });
   const updateDBState = (closing) => new Promise((resolve, reject) => getDBState().then(state => {
@@ -97,7 +96,7 @@ function DB(name, props = {}) {
     }
     const newData = dbDocRev
       ? { _id: dbDocId, _rev: dbDocRev, data: JSON.stringify(state) }
-      : { _id: dbDocId, data: JSON.stringify(state) }
+      : { _id: dbDocId, data: JSON.stringify(state) };
     db.insert(newData, function(error, body) {
       if (error || body.ok !== true) {
         if (error && error.message === 'Document update conflict.') {
