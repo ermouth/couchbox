@@ -81,8 +81,11 @@ function DB(name, props = {}) {
         log({ message: 'Error on load local bucket state: '+ dbDocId, error });
         reject(error);
       } else {
-        dbDocRev = body._rev;
-        resolve(body && body.data ? lib.parseJSON(body.data) : {});
+        if (body && body.rev) {
+          dbDocRev = body._rev;
+          resolve(body && body.data ? lib.parseJSON(body.data) : {});
+        }
+        else resolve({});
       }
     });
   });
