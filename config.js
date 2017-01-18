@@ -5,6 +5,11 @@ const system = {
   configTimeout: env['DB_CONFIG_TIMEOUT'] || 1000
 };
 
+const nodes = {
+  domain: env['NODES_DOMAIN'] || 'vezdelegko.ru',
+  domainPrefix: env['NODES_DOMAIN_PREFIX'] || 'https://couch-',
+};
+
 const logger = {
   db: env['LOGGER_DB'] || 'log',
   dbSave: env['LOGGER_DB_SAVE'] === true || env['LOGGER_DB_SAVE'] === 'true' || false,
@@ -19,4 +24,4 @@ const couchdb = {
   pass: env['DB_PASS'] || 'momomo'
 };
 
-module.exports = { system, logger, couchdb };
+module.exports = { system, logger, couchdb, nodes };

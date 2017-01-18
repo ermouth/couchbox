@@ -14,10 +14,7 @@ const HTTP_METHODS = {
   'HEAD': 1
 };
 
-const getNodeURL = (node) => {
-  return 'http://localhost:5984';
-  // return 'https://couch-'+ node +'.vezdelegko.ru/';
-};
+const getNodeURL = (node) => config.nodes.domainPrefix + node +'.'+ config.nodes.domain;
 
 module.exports = function () {
   const options = Object.isObject(arguments[0]) ? arguments[0] : {};
@@ -48,14 +45,11 @@ module.exports = function () {
 
   if (options.userCtx) {
     const authHeaders = couchdb.makeAuthHeaders(options.userCtx);
-    queryParams.headers = Object.assign(authHeaders,
-    {
+    queryParams.headers = Object.assign(authHeaders, {
       'Accept': 'application/json',
       'Content-Type': 'application/json; charset=utf-8'
     });
   }
-
-  console.log('fetch', url, queryParams);
 
   return fetch(url, queryParams);
 };

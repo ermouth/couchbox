@@ -48,11 +48,15 @@ function Hook(name, params = {}, props = {}) {
   }
 
   function _compileLambda(lambdaSrc) {
-    const lambdaGlobal = Object.assign(
-      {log, require: _require },
-      methods
-    );
+    const lambdaGlobal = {
+      log,
+      require: _require
+    };
+
     const lambdaScope = { };
+    Object.keys(methods).forEach(methodKey => {
+      lambdaScope['_'+ methodKey] = methods[methodKey];
+    });
 
     const validationResult = lib.validateGlobals(lambdaSrc, { available: availableGlobals.concat(Object.keys(lambdaGlobal)) });
     if (validationResult && validationResult.length) {
