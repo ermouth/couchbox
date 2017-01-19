@@ -55,10 +55,10 @@ function DDoc(db, props = {}) {
               if (hookMethods.hasOwnProperty(method)) return null;
               switch (method) {
                 case 'fetch':
-                  hookMethods[method] = fetch;
+                  hookMethods['_fetch'] = fetch;
                   break;
                 case 'bucket':
-                  hookMethods[method] = new Bucket(db);
+                  hookMethods['_bucket'] = new Bucket(db);
                   break;
               }
             });

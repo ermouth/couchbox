@@ -52,27 +52,37 @@ function Hook(name, params = {}, props = {}) {
       log,
       require: _require
     };
-
-    const lambdaScope = { };
-    Object.keys(methods).forEach(methodKey => {
-      lambdaScope['_'+ methodKey] = methods[methodKey];
-    });
+    const lambdaScope = Object.assign({}, methods);
 
     const validationResult = lib.validateGlobals(lambdaSrc, { available: availableGlobals.concat(Object.keys(lambdaGlobal)) });
     if (validationResult && validationResult.length) {
       throw new Error('Bad function validation: '+ JSON.stringify(validationResult));
     }
 
-    _script = new vm.Script('new Promise((resolve, reject) => (' + lambdaSrc + ').call(lambdaScope, change) );');
+    _script = new vm.Script('new Promise((resolve, reject) => (' + lambdaSrc + ').call(lambdaScope, doc, change) );');
 
     _lambda = (change) => {
-      const boxScope = Object.assign({}, contextGlobal, lambdaGlobal, { lambdaScope, change });
+      const boxScope = Object.assign({}, contextGlobal, lambdaGlobal, { lambdaScope, doc: change.doc, change });
+      const boxParams = {
+        timeout: timeout || conf.hookTimeout
+      };
+
       let result;
       try {
-        result = _script.runInNewContext(boxScope);
+        result = _script.runInNewContext(boxScope, boxParams);
       } catch(error) {
         log({ message: 'Error run hook lambda: '+ name, error });
         result = undefined;
+      }
+
+      if (result) {
+        return result.timeout(timeout || conf.hookTimeout);
+          // .then(result => {
+          //   return Promise.resolve(result);
+          // })
+          // .catch(error => {
+          //   return Promise.reject(error);
+          // });
       }
       return result;
     };
@@ -86,12 +96,10 @@ function Hook(name, params = {}, props = {}) {
     log({ message: 'Error compile hook lambda: '+ name, error });
   }
 
-  function run(change) {
-    return _lambda(change.doc, change).timeout(timeout || conf.hookTimeout);
-  }
-
   return {
-    name, run, isGood: () => isGood === true
+    name,
+    run: _lambda,
+    isGood: () => isGood === true
   };
 }
 
