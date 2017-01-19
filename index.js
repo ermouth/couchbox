@@ -1,5 +1,4 @@
 const cluster = require('cluster');
-const config = require('./config');
 
 if (cluster.isMaster) {
   // init master

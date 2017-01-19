@@ -14,7 +14,7 @@ const HTTP_METHODS = {
   'HEAD': 1
 };
 
-const getNodeURL = (node) => config.nodes.domainPrefix + node +'.'+ config.nodes.domain;
+const getNodeURL = (node) => config.get('nodes.domainPrefix') + node +'.'+ config.get('nodes.domain');
 
 module.exports = function () {
   const options = Object.isObject(arguments[0]) ? arguments[0] : {};

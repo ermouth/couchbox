@@ -1,4 +1,3 @@
-const config = require('./config');
 const lib = require('./lib');
 
 const Worker = require('./models/worker');

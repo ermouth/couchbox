@@ -4,9 +4,9 @@ require('sugar');
 const Promise = require('bluebird');
 const couchdb = require('../couchdb');
 
-const DB_NAME = config.logger.db;
-const DB_SAVE = config.logger.dbSave === true;
-const BULK_SIZE = config.logger.bulkSize;
+const DB_NAME = config.get('logger.db');
+const DB_SAVE = config.get('logger.dbSave') === true;
+const BULK_SIZE = config.get('logger.bulkSize');
 
 const db = couchdb.connectDB(DB_NAME);
 let connectedDB = false;

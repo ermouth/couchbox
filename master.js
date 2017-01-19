@@ -28,7 +28,7 @@ module.exports = function initMaster(cluster) {
   const dbProcesses = {};
   const dbWorkers = {};
   const couchConfig = {
-    hookTimeout: config.system.hookTimeout,
+    hookTimeout: config.get('system.hookTimeout'),
     hooks: {}
   };
   const workerConf = {
@@ -56,7 +56,7 @@ module.exports = function initMaster(cluster) {
       }
       updateWorkers();
     }
-    if (!isClosing) configUpdateTimeout = setTimeout(loadConfig, config.system.configTimeout);
+    if (!isClosing) configUpdateTimeout = setTimeout(loadConfig, config.get('system.configTimeout'));
   }
 
   function updateWorkers() {

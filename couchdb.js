@@ -4,11 +4,11 @@ require('sugar');
 const crypto = require('crypto');
 const Promise = require('bluebird');
 
-const DB_CONNECTION = config.couchdb.connection;
-const DB_IP = config.couchdb.ip;
-const DB_PORT = config.couchdb.port;
-const DB_USER = config.couchdb.user;
-const DB_PASS = config.couchdb.pass;
+const DB_CONNECTION = config.get('couchdb.connection');
+const DB_IP = config.get('couchdb.ip');
+const DB_PORT = config.get('couchdb.port');
+const DB_USER = config.get('couchdb.user');
+const DB_PASS = config.get('couchdb.pass');
 
 const nano = require('nano');
 const fetch = require('node-fetch');
