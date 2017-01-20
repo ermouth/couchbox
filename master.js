@@ -72,9 +72,7 @@ module.exports = function initMaster(cluster) {
   }
   function updateWorkers() {
     log('Update workers');
-
     const dbsTmp = {};
-
     Object.keys(hooksConfig).forEach((dbdocKey) => {
       const dbdoc = dbdocKey.split(/\\/);
       const db = dbdoc[0];
@@ -98,11 +96,11 @@ module.exports = function initMaster(cluster) {
       if (!dbs.has(db) || dbs.get(db).ddocsHash !== worker.ddocsHash) return stopWorker(worker);
     });
 
-    for (let db of dbs.keys()) if (!getWorkersByDBandFeed(db).length) startWorker(db);
+    for (let db of dbs.keys()) startWorker(db);
   }
 
   function startWorker(db, seq) {
-    if (isClosing || !dbs.has(db)) return null;
+    if (isClosing || !dbs.has(db) || getWorkersByDBandFeed(db).length) return null;
 
     const { ddocs, ddocsHash } = dbs.get(db);
     const workerProps = JSON.stringify({ forkType: 'db', db, seq, ddocs });
@@ -133,7 +131,16 @@ module.exports = function initMaster(cluster) {
         break;
     }
   };
-  const onWorkerExit = (pid, dbName) => removeWorker(pid);
+  const onWorkerExit = (pid, dbName, message, code) => {
+    // detect if worker killed - start new worker
+    if (!message && code === 'SIGKILL' && workers.has(pid)) {
+      const { seq } = workers.get(pid);
+      removeWorker(pid);
+      if (seq > 0) startWorker(dbName, seq);
+    } else {
+      removeWorker(pid);
+    }
+  };
   const onWorkerInit = (pid, dbName, data = {}) => {
     const { seq } = data;
     if (seq > 0) setWorkerProp(pid, 'seq', +seq);
