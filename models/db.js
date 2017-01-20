@@ -161,15 +161,6 @@ function DB(name, props = {}) {
     return updateDBState();
   };
 
-  const close = () => {
-    stopFeed();
-    if (isRunning()) return setTimeout(close, CHECK_PROCESSES_TIMEOUT);
-    log('Close');
-    updateDBState(true).then(() => {
-      _onClose(worker_seq);
-    });
-  };
-
   const startChanges = () => new Promise((resolve, reject) => {
     log('Start changes since '+ last_seq +' between: '+ max_seq);
     const limit = max_seq - worker_seq;
@@ -339,6 +330,15 @@ function DB(name, props = {}) {
       return resolve(result);
     })
   });
+
+  const close = () => {
+    stopFeed();
+    if (isRunning()) return setTimeout(close, CHECK_PROCESSES_TIMEOUT);
+    log('Close');
+    updateDBState(true).then(() => {
+      _onClose(worker_seq);
+    });
+  };
 
   init();
   return { close, isRunning };
