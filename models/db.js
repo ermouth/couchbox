@@ -1,23 +1,18 @@
-/**
- * Created by ftescht on 13/01/17.
- */
-const config = require('../config');
-
 const Promise = require('bluebird');
 const lib = require('../lib');
 const Logger = require('../utils/log');
-
 const couchdb = require('../couchdb');
 const DDoc = require('./ddoc');
+const config = require('../config');
+
 
 const CHECK_PROCESSES_TIMEOUT = 120;
-
 const CHANGE_DOC_ID = 0;
 const CHANGE_DOC_REV = 1;
 const CHANGE_DOC_HOOKS = 2;
 
+
 function DB(name, props = {}) {
-  const { conf } = props;
   const logger = new Logger({ prefix: 'DB '+ name, logger: props.logger });
   const log = logger.getLog();
 
@@ -112,7 +107,7 @@ function DB(name, props = {}) {
   }));
 
   const init = () => {
-    couchdb.loadConfig().then(() => getDBState().then(state => {
+    getDBState().then(state => {
       if (worker_seq > 0 && !state[worker_seq]) {
         log('No db watcher by seq: '+ worker_seq);
         return close();
@@ -126,7 +121,7 @@ function DB(name, props = {}) {
         }
       }
       return initActualWorker(state);
-    }));
+    });
   };
   const initActualWorker = (state) => {
     return Promise.all(Object.keys(props.ddocs).map(key => initDDoc({ name: key, methods: props.ddocs[key] })))
@@ -134,8 +129,9 @@ function DB(name, props = {}) {
         // set actual worker state
         const workers = Object.keys(state).sort((a,b) => a - b).reverse();
         workers.forEach((workerSeq) => {
-          if (worker_seq === +workerSeq) setWorkerInfo(state[workerSeq], 'actual');
-          else _onOldWorker(workerSeq);
+          workerSeq = +workerSeq;
+          if (worker_seq === workerSeq) setWorkerInfo(state[workerSeq], 'actual');
+          else _onOldWorker({ seq: workerSeq });
         });
         if (!last_seq) last_seq = worker_seq;
         return onInitDDocs();
@@ -161,16 +157,18 @@ function DB(name, props = {}) {
 
   const initDDoc = (data) => {
     const { name, rev, methods } = data;
-    const ddoc = new DDoc(db, { name, rev, methods, logger, conf });
+    const ddoc = new DDoc(db, { name, rev, methods, logger });
     ddocs.push(ddoc);
     return ddoc.init().then(seq => {
-      if (worker_seq < seq) worker_seq = seq;
+      if (worker_seq < seq) worker_seq = +seq;
       return name;
     });
   };
   const onInitDDocs = () => {
     ddocsInfo = ddocs.map(ddoc => ddoc.getInfo());
-    _onInit(worker_seq);
+    _onInit({
+      seq: worker_seq
+    });
     return updateDBState();
   };
 

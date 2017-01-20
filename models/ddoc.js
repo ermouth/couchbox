@@ -16,7 +16,7 @@ const CONTEXT_DENY = {
 };
 
 function DDoc(db, props = {}) {
-  const { conf, name, methods } = props;
+  const { name, methods } = props;
   const logger = new Logger({
     prefix: 'DDoc '+ name,
     logger: props.logger
@@ -67,9 +67,9 @@ function DDoc(db, props = {}) {
           Object.keys(body.filters).forEach(filterKey => {
             if (!body.hooks[filterKey]) return null;
             const fieldName = name +'/'+ filterKey;
-            const filter = new Filter(fieldName, body.filters[filterKey], { logger, conf });
+            const filter = new Filter(fieldName, body.filters[filterKey], { logger });
             if (filter && filter.isGood()) {
-              const hook = new Hook(fieldName, body.hooks[filterKey], { ctx, methods: hookMethods, logger, conf, });
+              const hook = new Hook(fieldName, body.hooks[filterKey], { ctx, methods: hookMethods, logger });
               if (hook && hook.isGood()) {
                 filtersIndex.push(filterKey);
                 hooks[filterKey] = hook;

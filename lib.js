@@ -2,8 +2,8 @@ require('sugar');
 const crypto = require('crypto');
 const UglifyJS = require('uglify-js');
 
+
 const hash = module.exports.hash = function hash(data) {
-  // TODO: use more quickly hash function
   let md5sum = crypto.createHash('md5');
   md5sum.update(JSON.stringify(data));
   const sum = md5sum.digest('hex');
@@ -21,13 +21,8 @@ const parseJSON = module.exports.parseJSON = function parseJSON(json) {
   return result;
 };
 
-function coverFunction(funcSrc) {
-  return '(' + funcSrc + ')';
-}
-
-function uglifyParse(funcSrc) {
-  return UglifyJS.parse(coverFunction(funcSrc));;
-}
+const coverFunction = (funcSrc) => '(' + funcSrc + ')';
+const uglifyParse = (funcSrc) => UglifyJS.parse(coverFunction(funcSrc));
 
 const getGlobals = module.exports.getGlobals = function getGlobals(funcSrc) {
   if (!funcSrc) return null;

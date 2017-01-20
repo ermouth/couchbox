@@ -3,6 +3,7 @@ const Promise = require('bluebird');
 const vm = require('vm');
 const lib = require('../lib');
 const Logger = require('../utils/log');
+const config = require('../config');
 
 
 const HOOK_MODES = {
@@ -14,23 +15,19 @@ const HOOK_DEFAULT_TIMEOUT = 10e3;
 const HOOK_DEFAULT_MODE = HOOK_MODES['transitive'];
 
 
-const contextGlobal = {
-  Error, setTimeout,
-  Promise,
-  isArray: Array.isArray
-};
+const contextGlobal = { Error, setTimeout, Promise, isArray: Array.isArray };
 const availableGlobals = Object.keys(contextGlobal).concat(['resolve', 'reject']);
 
 
 function Hook(name, params = {}, props = {}) {
-  const { conf, ctx, methods } = props;
+  const { ctx, methods } = props;
   const logger = new Logger({
     prefix: 'Hook '+ name,
     logger: props.logger
   });
   const log = logger.getLog();
 
-  const timeout = params.timeout && params.timeout > 0 ? params.timeout : HOOK_DEFAULT_TIMEOUT;
+  const timeout = params.timeout && params.timeout > 0 ? params.timeout : (config.get('hooks.timeout') || HOOK_DEFAULT_TIMEOUT);
   const mode = params.mode && HOOK_MODES[params.mode] ? params.mode : HOOK_DEFAULT_MODE;
   const since = params.since && params.since > 0 ? params.since : 'now';
   const attachments = params.attachments || false;
@@ -63,9 +60,7 @@ function Hook(name, params = {}, props = {}) {
 
     _lambda = (change) => {
       const boxScope = Object.assign({}, contextGlobal, lambdaGlobal, { lambdaScope, doc: change.doc, change });
-      const boxParams = {
-        timeout: timeout || conf.hookTimeout
-      };
+      const boxParams = { timeout };
 
       let result;
       try {
@@ -76,7 +71,7 @@ function Hook(name, params = {}, props = {}) {
       }
 
       if (result) {
-        return result.timeout(timeout || conf.hookTimeout);
+        return result.timeout(timeout);
           // .then(result => {
           //   return Promise.resolve(result);
           // })

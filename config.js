@@ -3,17 +3,18 @@ const lib = require('./lib');
 const { env } = process;
 
 const defaultConfig = {
-  'system.hookTimeout': {
-    env: 'DB_HOOK_TIMEOUT',
-    value: 5000,
-    map: val => +val,
-    check: val => val > 0
-  },
   'system.configTimeout': {
     env: 'DB_CONFIG_TIMEOUT',
     value: 1000,
     map: val => +val,
     check: val => val > 0
+  },
+
+  'hooks.timeout': {
+    env: 'DB_HOOK_TIMEOUT',
+      value: 5000,
+      map: val => +val,
+      check: val => val > 0
   },
 
   'logger.db': {
@@ -102,11 +103,9 @@ const makeConfig = () => {
 
 const config = module.exports = makeConfig();
 
-const getEnvName = (fieldPath) => {
-  return defaultConfig[fieldPath] ? defaultConfig[fieldPath].env : undefined;
-};
+module.exports.getEnv = (fieldPath) => defaultConfig[fieldPath] ? defaultConfig[fieldPath].env : undefined;
 
-const toEnv = () => {
+module.exports.toEnv = () => {
   const conf = {};
   Object.keys(defaultConfig).forEach(fieldPath => {
     const field = defaultConfig[fieldPath];

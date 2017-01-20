@@ -1,8 +1,10 @@
-const config = require('./config');
-
 require('sugar');
 const crypto = require('crypto');
 const Promise = require('bluebird');
+const nano = require('nano');
+const fetch = require('node-fetch');
+const config = require('./config');
+
 
 const DB_CONNECTION = config.get('couchdb.connection');
 const DB_IP = config.get('couchdb.ip');
@@ -10,15 +12,13 @@ const DB_PORT = config.get('couchdb.port');
 const DB_USER = config.get('couchdb.user');
 const DB_PASS = config.get('couchdb.pass');
 
-const nano = require('nano');
-const fetch = require('node-fetch');
-
-const DB_URL = DB_CONNECTION +'://'+ DB_IP +':'+ DB_PORT;
-const DB_CONNECTION_URL = DB_CONNECTION +'://'+ DB_USER +':'+ DB_PASS +'@'+ DB_IP +':'+ DB_PORT;
+const DB_ADDRESS = DB_IP +':'+ DB_PORT;
+const DB_URL = DB_CONNECTION +'://'+ DB_ADDRESS;
+const DB_CONNECTION_URL = DB_CONNECTION +'://'+ DB_USER +':'+ DB_PASS +'@'+ DB_ADDRESS;
 
 
-let secret;
 let connection;
+
 
 const auth = () => new Promise((resolve, reject) => {
   nano(DB_URL).auth(DB_USER, DB_PASS, function (err, body, headers) {
@@ -38,15 +38,10 @@ const loadConfig = () => {
       method: 'GET',
       headers: { cookie }
     };
-    return fetch(DB_URL +'/_config', requestOptions).then(res => {
-      return res.json();
-    }).then(json => {
+    return fetch(DB_URL +'/_config', requestOptions).then(res => res.json()).then(json => {
       if (!json || json.error) {
-        return reject(json);
+        return reject('Bad config');
       } else {
-        if (json && json.couch_httpd_auth && json.couch_httpd_auth.secret) {
-          secret = json.couch_httpd_auth.secret;
-        }
         return resolve(json);
       }
     })
@@ -69,7 +64,7 @@ const makeAuthHeaders = (userCtx) => {
   }
   if (userCtx && Object.isString(userCtx.name)) {
     headers['X-Auth-CouchDB-UserName'] = userCtx.name;
-    headers['X-Auth-CouchDB-Token'] = crypto.createHmac('sha1', secret).update(userCtx.name).digest('hex');
+    headers['X-Auth-CouchDB-Token'] = crypto.createHmac('sha1', config.get('couchdb.secret')).update(userCtx.name).digest('hex');
   }
   return headers;
 };

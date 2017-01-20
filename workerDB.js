@@ -1,11 +1,18 @@
 const lib = require('./lib');
-
 const Worker = require('./models/worker');
 const DB = require('./models/db');
 
 module.exports = function initWorker(cluster, props = {}) {
-  const worker = new Worker(cluster, {});
-  const { logger, ee } = worker;
+
+  let db;
+  const worker = new Worker(cluster, {
+    onExit: () => {
+      log('On worker exit');
+      if (db && db.isRunning()) db.close();
+      else worker.close();
+    }
+  });
+  const { logger } = worker;
   const log = logger.getLog();
 
   log('Started with '+ Object.keys(props).map(key => (key +'='+ JSON.stringify(props[key]).replace(/"/g, ''))).join(' '));
@@ -16,32 +23,33 @@ module.exports = function initWorker(cluster, props = {}) {
     return null;
   }
 
-  const { conf, seq, ddocs } = props;
-  const db = new DB(props.db, {
-    logger, conf, seq, ddocs,
+  const { seq, ddocs } = props;
+  db = new DB(props.db, {
+    logger, seq, ddocs,
 
-    onOldWorker: (oldWorkerSeq) => {
-      log('Detect old worker: '+ oldWorkerSeq);
-      worker.sendToMaster('oldWorker', oldWorkerSeq);
+    onOldWorker: (data) => {
+      log('Detect old worker: '+ data.seq);
+      worker.sendToMaster('oldWorker', data);
+    },
+
+    onStartFeed: () => {
+      log('On start feed');
+      worker.sendToMaster('startFeed');
     },
     onStopFeed: () => {
-      log('Stop feed');
+      log('On stop feed');
       worker.sendToMaster('stopFeed');
     },
-    onInit: (workerSeq) => {
-      log('Init worker:'+ workerSeq);
-      worker.sendToMaster('init', workerSeq);
+
+    onInit: (data) => {
+      log('Init worker:' + data.seq);
+      worker.sendToMaster('init', data);
     },
-    onClose: (workerSeq) => {
+
+    onClose: (data) => {
       log('Start closing');
-      worker.sendToMaster('close', workerSeq);
+      worker.sendToMaster('close', data);
       worker.close();
     }
-  });
-
-  ee.on('exit', () => {
-    log('Close worker');
-    if (db && db.isRunning()) db.close();
-    else worker.close();
   });
 };
