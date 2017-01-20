@@ -1,15 +1,13 @@
-const config = require('../config');
-
 require('sugar');
 const Promise = require('bluebird');
 const couchdb = require('../couchdb');
+const config = require('../config');
+
 
 const DB_NAME = config.get('logger.db');
 const DB_SAVE = config.get('logger.dbSave') === true;
 const BULK_SIZE = config.get('logger.bulkSize');
 
-const db = couchdb.connectDB(DB_NAME);
-let connectedDB = false;
 
 function log(text, chain, time) {
   if (!time) time = new Date();
@@ -17,25 +15,26 @@ function log(text, chain, time) {
   console.log(time.iso() +' ['+ chain.reverse().join('->') +']: '+ text);
 }
 
-db.info((error, info) => {
-  if (error) {
-    log('No db: '+ DB_NAME);
-  } else if (!info) {
-    log('No db info: '+ DB_NAME);
-  } else {
-    connectedDB = true;
-  }
-});
+let db;
+let connectedDB = false;
+if (DB_SAVE) {
+  db = couchdb.connectDB(DB_NAME);
+  db.info((error, info) => {
+    if (error) log('No db: '+ DB_NAME);
+    else if (!info) log('No db info: '+ DB_NAME);
+    else connectedDB = true;
+  });
+}
 
 function Logger(props = {}) {
   const _parent = props.logger;
   const _prefix = props.prefix;
 
+  const logs = new Array(BULK_SIZE);
+  let log_index = 0;
+
   let db_saving = DB_SAVE;
 
-  const logs = [];
-  logs.length = BULK_SIZE;
-  let log_index = 0;
 
   const save = (toSave) => new Promise((resolve, reject) => {
     db.bulk({ docs: toSave }, (error) => {
@@ -73,9 +72,7 @@ function Logger(props = {}) {
     endLog({ time, chain, msg });
   };
 
-  const saveForced = () => {
-    return db_saving ? saveToDB() : Promise.resolve();
-  };
+  const saveForced = () => db_saving ? saveToDB() : Promise.resolve();
 
   const goOffline = () => {
     logs.length = 0;
