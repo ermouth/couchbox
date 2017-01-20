@@ -70,16 +70,7 @@ function Hook(name, params = {}, props = {}) {
         result = undefined;
       }
 
-      if (result) {
-        return result.timeout(timeout);
-          // .then(result => {
-          //   return Promise.resolve(result);
-          // })
-          // .catch(error => {
-          //   return Promise.reject(error);
-          // });
-      }
-      return result;
+      return result ? result.timeout(timeout) : result;
     };
   }
 

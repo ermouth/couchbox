@@ -32,30 +32,22 @@ const auth = () => new Promise((resolve, reject) => {
   });
 });
 
-const loadConfig = () => {
-  return auth().then((cookie) => new Promise((resolve, reject) => {
-    const requestOptions = {
-      method: 'GET',
-      headers: { cookie }
-    };
-    return fetch(DB_URL +'/_config', requestOptions).then(res => res.json()).then(json => {
-      if (!json || json.error) {
-        return reject('Bad config');
-      } else {
-        return resolve(json);
-      }
-    })
-  }));
-};
+const loadConfig = () => auth().then((cookie) => new Promise((resolve, reject) => {
+  const requestOptions = {
+    method: 'GET',
+    headers: { cookie }
+  };
+  return fetch(DB_URL +'/_config', requestOptions).then(res => res.json()).then(json => {
+    if (!json || json.error) {
+      return reject('Bad config');
+    } else {
+      return resolve(json);
+    }
+  })
+}));
 
-const connect = () => {
-  if (!connection) connection = nano(DB_CONNECTION_URL);
-  return connection;
-};
-
-const connectDB = (db) => {
-  return connect().use(db);
-};
+const connect = () => connection ? connection : (connection = nano(DB_CONNECTION_URL));
+const connectDB = (db) => connect().use(db);
 
 const makeAuthHeaders = (userCtx) => {
   const headers = {};

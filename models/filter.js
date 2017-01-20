@@ -19,12 +19,10 @@ function Filter(name, lambda, props) {
     log({ message: 'Error compile filter lambda: '+ name, error });
   }
 
-  function filter(change) {
-    return isGood && !!_lambda(change);
-  }
-
   return {
-    name, filter, isGood: () => isGood === true
+    name,
+    filter: (doc) => isGood && !!_lambda(doc),
+    isGood: () => isGood === true
   };
 }
 

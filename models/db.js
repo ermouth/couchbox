@@ -89,9 +89,11 @@ function DB(name, props = {}) {
     } else {
       state[worker_seq] = getWorkerInfo();
     }
+
     const newData = dbDocRev
       ? { _id: dbDocId, _rev: dbDocRev, data: JSON.stringify(state) }
       : { _id: dbDocId, data: JSON.stringify(state) };
+
     db.insert(newData, function(error, body) {
       if (error || body.ok !== true) {
         if (error && error.message === 'Document update conflict.') {
@@ -287,9 +289,7 @@ function DB(name, props = {}) {
       }
     });
 
-    if (!hooksAll.length) {
-      return Promise.reject('Bad hooks');
-    }
+    if (!hooksAll.length) return Promise.reject('Bad hooks');
     return Promise.all(hooksAll.map(startHook.fill(change)));
   };
 
@@ -298,30 +298,25 @@ function DB(name, props = {}) {
     return hook.run(change)
       .then(onHook.fill(hook.name, change))
       .catch(onHookError.fill(hook.name, change))
+      .finally(() => {
+        setOutProcess(change, hook.name);
+        return updateDBState();
+      });
   };
   const onHook = (hookName, change, result) => {
-    const onHookEnd = () => {
-      setOutProcess(change, hookName);
-      return updateDBState();
-    };
-    if (result && result.code === 200) {
-      return saveHookResult(hookName, result.docs).then(onHookEnd);
-    } else {
-      log('Bad hook: '+ hookName);
-      return onHookEnd();
+    if (result && result.code === 200 && result.docs) {
+      return saveResults(result.docs).then(() => {
+        log('Saved hook result: ' + hookName);
+      });
     }
+    return Promise.reject('Bad hook result');
   };
-  const saveHookResult = (hookName, docs) => {
-    if (!(docs && docs.length)) return Promise.resolve();
-    return saveResults(docs).then(() => {
-      log('Saved hook result: '+ hookName);
-    });
+  const onHookError = (hookName, change, error) => {
+    log({ message: 'Hook error: '+ hookName, error });
   };
 
   const saveResults = (docs) => {
-    if (docs.length) {
-      return saveBatch(docs.shift()).then(() => saveResults(docs));
-    }
+    if (docs && docs.length) return saveBatch(docs.shift()).then(() => saveResults(docs));
     return Promise.resolve();
   };
   const saveBatch = (toSave) => {
@@ -336,9 +331,7 @@ function DB(name, props = {}) {
       docDB = couchdb.connectDB(doc._db);
       delete doc['_db'];
     }
-    return getOldDoc(docDB, doc).then(oldDoc => {
-      return updateDoc(docDB, oldDoc, doc)
-    });
+    return getOldDoc(docDB, doc).then(oldDoc => updateDoc(docDB, oldDoc, doc));
   };
   const getOldDoc = (docDB, doc) => new Promise((resolve, reject) => {
     const id = doc._id;
@@ -360,11 +353,6 @@ function DB(name, props = {}) {
     })
   });
 
-  const onHookError = (hookName, change, error) => {
-    log({ message: 'Hook error: '+ hookName, error });
-    setOutProcess(change, hookName);
-    return updateDBState();
-  };
 
   init();
   return { close, isRunning };
