@@ -23,8 +23,8 @@ function DDoc(db, props = {}) {
   });
   const log = logger.getLog();
 
-  const hooks = {};
-  const filters = {};
+  const hooks = new Map();
+  const filters = new Map();
   const filtersIndex = [];
   let id;
   let rev = props.rev;
@@ -71,9 +71,8 @@ function DDoc(db, props = {}) {
             if (filter && filter.isGood()) {
               const hook = new Hook(fieldName, body.hooks[filterKey], { ctx, methods: hookMethods, logger });
               if (hook && hook.isGood()) {
-                filtersIndex.push(filterKey);
-                hooks[filterKey] = hook;
-                filters[filterKey] = filter;
+                hooks.set(filterKey, hook);
+                filters.set(filterKey, filter);
               }
             }
           });
@@ -84,26 +83,26 @@ function DDoc(db, props = {}) {
     });
   }
 
+  const getInfo = () => ({ name, rev, methods });
+  const getHook = (hookName) => hooks.has(hookName) ? hooks.get(hookName) : null;
+
   function filter(change) {
-    const filterHooks = filtersIndex.filter(filterKey => {
+    const hooksResult = [];
+    for (let filterKey of filters.keys()) {
       let filterResult = false;
       try {
-        filterResult = filters[filterKey].filter(change.doc);
+        filterResult = filters.get(filterKey).filter(change.doc);
       } catch(error) {
         filterResult = false;
         log({ message:'Error on filter: '+ name +'/'+ filterKey, error });
       }
-      return filterResult;
-    });
-    return filterHooks.map(hookKey => hooks[hookKey]);
-  }
-
-  function getHook(hookName) {
-    return hooks[hookName];
-  }
-
-  function getInfo() {
-    return { name, rev, methods };
+      if (filterResult === true) {
+        const hook = getHook(filterKey);
+        if (hook) hooksResult.push(hook);
+        else log({ message:'Error on filter: '+ name +'/'+ filterKey, error: 'Cannot get hook by filter key' });
+      }
+    }
+    return hooksResult;
   }
 
   return { name, init, filter, getInfo, getHook };

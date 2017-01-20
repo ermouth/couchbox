@@ -29,7 +29,7 @@ function DB(name, props = {}) {
   const ddocs = [];
   const queue = [];
   let inProcess = {};
-  let worker_seq = props.seq || 0;
+  let worker_seq = +(props.seq || 0);
   let last_seq = 0;
   let max_seq = 0;
   let ddocsInfo;
@@ -109,68 +109,55 @@ function DB(name, props = {}) {
   }));
 
   const init = () => {
-    getDBState().then(state => {
-      if (worker_seq > 0 && !state[worker_seq]) {
-        log('No db watcher by seq: '+ worker_seq);
-        return close();
-      }
-      if (worker_seq) {
-        const workers = Object.keys(state).sort((a,b) => a - b).reverse();
-        const workerIndex = workers.indexOf(worker_seq);
-        if (workerIndex > 0) {
-          max_seq = workers[workerIndex - 1];
-          return initExistWorker(state[worker_seq]);
-        }
-      }
-      return initActualWorker(state);
-    });
-  };
-  const initActualWorker = (state) => {
-    return Promise.all(Object.keys(props.ddocs).map(key => initDDoc({ name: key, methods: props.ddocs[key] })))
-      .then(() => {
-        // set actual worker state
-        const workers = Object.keys(state).sort((a,b) => a - b).reverse();
-        workers.forEach((workerSeq) => {
-          workerSeq = +workerSeq;
-          if (worker_seq === workerSeq) setWorkerInfo(state[workerSeq], 'actual');
-          else _onOldWorker({ seq: workerSeq });
-        });
-        if (!last_seq) last_seq = worker_seq;
-        return onInitDDocs();
-      })
-      .then(startInProcessChanges)
-      .then(startFeed)
-      .then(processQueue)
-      .catch(onInitError);
-  };
-  const initExistWorker = (worker) => {
-    setWorkerInfo(worker, 'old');
-    return Promise.all(worker.ddocs.map(initDDoc))
+    getDBState()
+      .then(initDDocs)
       .then(onInitDDocs)
       .then(startInProcessChanges)
-      .then(startChanges)
+      .then(() => worker_type === 'old' ? startChanges() : startFeed())
       .catch(onInitError)
       .then(processQueue);
   };
   const onInitError = (error) => {
-    log({ message: 'Error on init ddoc: '+ name, error });
+    log({ message: 'Error on init db: '+ name, error });
     close();
   };
 
+  const initDDocs = (state) => {
+    if (worker_seq > 0 && !state[worker_seq]) return Promise.reject('No db watcher by seq: '+ worker_seq);
+
+    const workers = Object.keys(state).sort((a,b) => a - b).reverse().map(seq => +seq);
+
+    if (worker_seq) {
+      const workerIndex = workers.indexOf(worker_seq);
+      // Init exist worker
+      if (workerIndex > 0) {
+        max_seq = workers[workerIndex - 1];
+        const worker = state[worker_seq];
+        setWorkerInfo(worker, 'old');
+        return Promise.all(worker.ddocs.map(initDDoc));
+      }
+    }
+
+    // Init latest worker
+    return Promise.all(Object.keys(props.ddocs).map(key => initDDoc({ name: key, methods: props.ddocs[key] })))
+      .then((sequences) => {
+        worker_seq = sequences.sort((a,b)=>b-a)[0];
+        workers.forEach((workerSeq) => {
+          if (worker_seq === workerSeq) setWorkerInfo(state[workerSeq], 'actual');
+          else _onOldWorker({ seq: workerSeq });
+        });
+        if (!last_seq) last_seq = worker_seq;
+      });
+  };
   const initDDoc = (data) => {
     const { name, rev, methods } = data;
     const ddoc = new DDoc(db, { name, rev, methods, logger });
     ddocs.push(ddoc);
-    return ddoc.init().then(seq => {
-      if (worker_seq < seq) worker_seq = +seq;
-      return name;
-    });
+    return ddoc.init();
   };
   const onInitDDocs = () => {
     ddocsInfo = ddocs.map(ddoc => ddoc.getInfo());
-    _onInit({
-      seq: worker_seq
-    });
+    _onInit({ seq: worker_seq });
     return updateDBState();
   };
 
@@ -186,7 +173,7 @@ function DB(name, props = {}) {
   const startChanges = () => new Promise((resolve, reject) => {
     log('Start changes since '+ last_seq +' between: '+ max_seq);
     const limit = max_seq - worker_seq;
-    db.changes({ since: last_seq, limit, include_docs: true }, function(error, changes) {
+    db.changes({ since: last_seq, limit, include_docs: true }, (error, changes) => {
       if (error) return reject(error);
       if (changes && changes.results) {
         changes.results.forEach(change => {
@@ -196,17 +183,16 @@ function DB(name, props = {}) {
       resolve();
     });
   });
-  const startInProcessChanges = () => Promise.all(Object.keys(inProcess).sort((a,b) => a-b).map(processSeq => {
+  const startInProcessChanges = () => Promise.all(Object.keys(inProcess).sort((a, b) => a - b).map(addProcessToQueue));
+  const addProcessToQueue = (processSeq) => new Promise((resolve, reject) => {
     const id = inProcess[processSeq][CHANGE_DOC_ID];
     const rev = inProcess[processSeq][CHANGE_DOC_REV];
-    return new Promise((resolve, reject) => {
-      db.get(id, { rev }, (error, doc) => {
-        if (error) return reject(error);
-        queue.push(newChange(processSeq, id, rev, doc));
-        return resolve();
-      });
+    db.get(id, { rev }, (error, doc) => {
+      if (error) return reject(error);
+      queue.push(newChange(processSeq, id, rev, doc));
+      return resolve();
     });
-  }));
+  });
 
   const startFeed = () => {
     log('Start feed '+ worker_seq +' since: '+ last_seq);
@@ -223,11 +209,7 @@ function DB(name, props = {}) {
     }
   };
 
-  const onEndQueue = () => {
-    if (!hasFeed()) {
-      close();
-    }
-  };
+  const onEndQueue = () => !hasFeed() && close();
 
   const newChange = (seq, id, rev, doc) => ({ seq, id, doc, changes: [ { rev } ] });
   const onChange = (change) => {
@@ -305,9 +287,14 @@ function DB(name, props = {}) {
   };
   const onHook = (hookName, change, result) => {
     if (result && result.code === 200 && result.docs) {
-      return saveResults(result.docs).then(() => {
-        log('Saved hook result: ' + hookName);
-      });
+      if (!result.docs.length) {
+        log('Empty hook results: ' + hookName);
+        return Promise.resolve();
+      } else {
+        return saveResults(result.docs).then(() => {
+          log('Saved hook result: ' + hookName);
+        });
+      }
     }
     return Promise.reject('Bad hook result');
   };
@@ -322,7 +309,7 @@ function DB(name, props = {}) {
   const saveBatch = (toSave) => {
     if (Object.isObject(toSave)) return saveDoc(toSave);
     else if (Object.isArray(toSave)) return Promise.all(toSave.map(doc => saveDoc(doc)));
-    else return Promise.reject('Bad results');
+    else return Promise.reject('Bad results: ('+ JSON.stringify(toSave) +')');
   };
   const saveDoc = (doc) => {
     if (!doc) return Promise.reject('Bad document');
@@ -352,7 +339,6 @@ function DB(name, props = {}) {
       return resolve(result);
     })
   });
-
 
   init();
   return { close, isRunning };

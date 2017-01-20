@@ -104,13 +104,13 @@ module.exports = function initMaster(cluster) {
 
     const { ddocs, ddocsHash } = dbs.get(db);
     const workerProps = JSON.stringify({ forkType: 'db', db, seq, ddocs });
-
     const fork = cluster.fork(Object.assign(config.toEnv(), { workerProps }));
     const { pid } = fork.process;
-    setWorker({ pid, db, seq, fork, configHash, ddocsHash, feed: false });
 
     fork.on('exit', onWorkerExit.fill(pid, db));
     fork.on('message', onWorkerMessage.fill(pid, db));
+
+    setWorker({ pid, db, seq, fork, configHash, ddocsHash, feed: false });
   }
 
   const onWorkerMessage = (pid, db, message) => {
