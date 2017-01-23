@@ -5,7 +5,7 @@ const { env } = process;
 const defaultConfig = {
   'system.configTimeout': {
     env: 'DB_CONFIG_TIMEOUT',
-    value: 1000,
+    value: 10000,
     map: val => +val,
     check: val => val > 0
   },
@@ -84,6 +84,12 @@ const defaultConfig = {
     value: undefined,
     map: val => val,
     check: val => val && val.length > 0
+  },
+  'couchdb.cookie': {
+    env: 'DB_COOKIE',
+    value: undefined,
+    map: val => val,
+    check: val => val && val.length > 0
   }
 };
 
@@ -126,4 +132,11 @@ module.exports.set = (fieldPath, val) => {
     return true;
   }
   return false;
+};
+
+module.exports.reset = (fieldPath) => {
+  const field = defaultConfig[fieldPath];
+  if (!field) return null;
+  lib.addField(config, fieldPath, undefined);
+  return true;
 };

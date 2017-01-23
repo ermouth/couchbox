@@ -17,37 +17,51 @@ const DB_URL = DB_CONNECTION +'://'+ DB_ADDRESS;
 const DB_CONNECTION_URL = DB_CONNECTION +'://'+ DB_USER +':'+ DB_PASS +'@'+ DB_ADDRESS;
 
 
+let auth_attempts = 5;
 let connection;
 
+const connect = () => connection ? connection : (connection = nano(DB_CONNECTION_URL));
+const connectDB = (db) => connect().use(db);
 
 const auth = () => new Promise((resolve, reject) => {
+  const oldCookie = config.get('couchdb.cookie');
+  if (oldCookie) return resolve(oldCookie);
+  if (!auth_attempts) return reject(new Error('End last auth attempt'));
   nano(DB_URL).auth(DB_USER, DB_PASS, function (err, body, headers) {
     if (err) return reject(err);
     let cookie;
     if (headers && headers['set-cookie'] && headers['set-cookie'][0]) {
       cookie = headers['set-cookie'][0].split(';')[0];
+      if (cookie !== oldCookie) {
+        config.set('couchdb.cookie', cookie);
+        return resolve(cookie);
+      }
     }
-    if (cookie) resolve(cookie);
-    else reject('Bad auth');
+    reject(new Error('Bad auth'));
   });
 });
 
-const loadConfig = () => auth().then((cookie) => new Promise((resolve, reject) => {
-  const requestOptions = {
-    method: 'GET',
-    headers: { cookie }
-  };
-  return fetch(DB_URL +'/_config', requestOptions).then(res => res.json()).then(json => {
-    if (!json || json.error) {
-      return reject('Bad config');
-    } else {
-      return resolve(json);
-    }
-  })
-}));
+const getConfig = (cookie) => new Promise((resolve, reject) => {
+  if (!cookie) cookie = config.get('couchdb.cookie');
+  return fetch(DB_URL +'/_config', {
+      method: 'GET',
+      headers: { cookie }
+    })
+    .then(res => res.json())
+    .then(json => {
+      if (!json || json.error) {
+        if (json && json.error === 'unauthorized') {
+          config.reset('couchdb.cookie');
+          return loadConfig();
+        }
+        return reject(new Error('Bad config'));
+      }
+      return json;
+    })
+    .then(resolve)
+});
 
-const connect = () => connection ? connection : (connection = nano(DB_CONNECTION_URL));
-const connectDB = (db) => connect().use(db);
+const loadConfig = () => config.get('couchdb.cookie') ? getConfig() : auth().then(getConfig);
 
 const makeAuthHeaders = (userCtx) => {
   const headers = {};

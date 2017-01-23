@@ -12,7 +12,7 @@ const BULK_SIZE = config.get('logger.bulkSize');
 function log(text, chain, time) {
   if (!time) time = new Date();
   if (!chain) chain = ['Logger'];
-  console.log(time.iso() +' ['+ chain.reverse().join('->') +']: '+ text);
+  console.log(time.iso() +' ['+ chain.reverse().join('→') +']: '+ text);
 }
 
 let db;
@@ -34,7 +34,6 @@ function Logger(props = {}) {
   let log_index = 0;
 
   let db_saving = DB_SAVE;
-
 
   const save = (toSave) => new Promise((resolve, reject) => {
     db.bulk({ docs: toSave }, (error) => {
