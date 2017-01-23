@@ -32,10 +32,8 @@ function DDoc(db, props = {}) {
 
   function init() {
     return new Promise((resolve, reject) => {
-      db.get('_design/'+ name, { local_seq: true, rev }, (err, body) => {
-        if (err) {
-          return reject(err);
-        }
+      db.get('_design/'+ name, { local_seq: true, rev }, (error, body) => {
+        if (error) return reject(error);
 
         id = body._id;
         rev = body._rev;

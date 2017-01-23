@@ -20,13 +20,13 @@ module.exports = function () {
   const options = Object.isObject(arguments[0]) ? arguments[0] : {};
   let url = Object.isString(arguments[0]) ? arguments[0] : options.url;
 
-  if (!url) return Promise.reject('Bad url');
+  if (!url) return Promise.reject(new Error('Bad url: '+ url));
 
   const queryParams = {};
 
   if (options.method) {
     const method = options.method.toUpperCase();
-    if (!HTTP_METHODS[method]) return Promise.reject('Bad method');
+    if (!HTTP_METHODS[method]) return Promise.reject(new Error('Bad method: '+ method));
     queryParams.method = method;
   } else {
     queryParams.method = 'GET';
@@ -34,8 +34,8 @@ module.exports = function () {
 
   if (options.node) {
     const nodeURL = getNodeURL(options.node);
-    if (!nodeURL) return Promise.reject('Bad node');
-    if (/^https?:/.test(url)) return Promise.reject('Bad url');
+    if (!nodeURL) return Promise.reject(new Error('Bad node: '+ options.node));
+    if (/^https?:/.test(url)) return Promise.reject(new Error('Bad url: '+ url));
     url = getNodeURL(options.node) + (url[0] === '/' ? '' : '/') + url;
   }
 

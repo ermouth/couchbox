@@ -123,7 +123,7 @@ function DB(name, props = {}) {
   };
 
   const initDDocs = (state) => {
-    if (worker_seq > 0 && !state[worker_seq]) return Promise.reject('No db watcher by seq: '+ worker_seq);
+    if (worker_seq > 0 && !state[worker_seq]) return Promise.reject(new Error('No db watcher by seq: '+ worker_seq));
 
     const workers = Object.keys(state).sort((a,b) => a - b).reverse().map(seq => +seq);
 
@@ -262,7 +262,7 @@ function DB(name, props = {}) {
       }
     });
 
-    if (!hooksAll.length) return Promise.reject('Bad hooks');
+    if (!hooksAll.length) return Promise.reject(new Error('Bad hooks'));
     return Promise.all(hooksAll.map(startHook.fill(change)));
   };
 
@@ -287,7 +287,7 @@ function DB(name, props = {}) {
         });
       }
     }
-    return Promise.reject('Bad hook result');
+    return Promise.reject(new Error('Bad hook result'));
   };
   const onHookError = (hookName, change, error) => {
     log({ message: 'Hook error: '+ hookName, error });
@@ -300,10 +300,10 @@ function DB(name, props = {}) {
   const saveBatch = (toSave) => {
     if (Object.isObject(toSave)) return saveDoc(toSave);
     else if (Object.isArray(toSave)) return Promise.all(toSave.map(doc => saveDoc(doc)));
-    else return Promise.reject('Bad results: ('+ JSON.stringify(toSave) +')');
+    else return Promise.reject(new Error('Bad results: ('+ JSON.stringify(toSave) +')'));
   };
   const saveDoc = (doc) => {
-    if (!doc) return Promise.reject('Bad document');
+    if (!doc) return Promise.reject(new Error('Bad document'));
     let docDB = db;
     if (doc._db) {
       docDB = couchdb.connectDB(doc._db);

@@ -27,8 +27,8 @@ const auth = () => new Promise((resolve, reject) => {
   const oldCookie = config.get('couchdb.cookie');
   if (oldCookie) return resolve(oldCookie);
   if (!auth_attempts) return reject(new Error('End last auth attempt'));
-  nano(DB_URL).auth(DB_USER, DB_PASS, function (err, body, headers) {
-    if (err) return reject(err);
+  nano(DB_URL).auth(DB_USER, DB_PASS, function (error, body, headers) {
+    if (error) return reject(error);
     let cookie;
     if (headers && headers['set-cookie'] && headers['set-cookie'][0]) {
       cookie = headers['set-cookie'][0].split(';')[0];
