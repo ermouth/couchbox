@@ -90,7 +90,20 @@ const defaultConfig = {
     value: undefined,
     map: val => val,
     check: val => val && val.length > 0
-  }
+  },
+
+  'redis.ip': {
+    env: 'REDIS_IP',
+    value: 'localhost',
+    map: val => val,
+    check: val => val && val.length > 0
+  },
+  'redis.port': {
+    env: 'REDIS_PORT',
+    value: 6379,
+    map: val => +val,
+    check: val => val > 0
+  },
 };
 
 const makeConfig = () => {

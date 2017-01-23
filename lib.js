@@ -3,13 +3,7 @@ const crypto = require('crypto');
 const UglifyJS = require('uglify-js');
 
 
-const hash = module.exports.hash = function hash(data) {
-  let md5sum = crypto.createHash('md5');
-  md5sum.update(JSON.stringify(data));
-  const sum = md5sum.digest('hex');
-  md5sum = null;
-  return sum;
-};
+const hash = module.exports.hash = (data) => crypto.createHash('md5').update(JSON.stringify(data)).digest('hex');
 
 const parseJSON = module.exports.parseJSON = function parseJSON(json) {
   let result;
@@ -22,13 +16,12 @@ const parseJSON = module.exports.parseJSON = function parseJSON(json) {
 };
 
 const coverFunction = (funcSrc) => '(' + funcSrc + ')';
+
 const uglifyParse = (funcSrc) => UglifyJS.parse(coverFunction(funcSrc));
 
 const getGlobals = module.exports.getGlobals = function getGlobals(funcSrc) {
   if (!funcSrc) return null;
-
   const ast = uglifyParse(funcSrc);
-
   ast.figure_out_scope();
   if (typeof(ast.globals) == "object" && ast.globals._size) {
     return Object.keys(ast.globals._values).map(valueKey => ast.globals._values[valueKey].name);
@@ -69,6 +62,7 @@ const getField = module.exports.getField = (obj = {}, path) => {
   }
   return null;
 };
+
 const addField = module.exports.addField = (obj = {}, path, value) => {
   const fieldPath = Object.isString(path) ? path.split('.') : path;
   const field = fieldPath.shift();
@@ -80,7 +74,19 @@ const addField = module.exports.addField = (obj = {}, path, value) => {
   return obj;
 };
 
+const evalFunc = module.exports.evalFunc = (funcSrc) => eval(coverFunction(funcSrc));
+
 const makeFunc = module.exports.makeFunc = function makeFunc(funcSrc) {
   uglifyParse(funcSrc);
-  return eval(coverFunction(funcSrc));
+  return evalFunc(funcSrc);
 };
+
+const makeRequire = module.exports.makeRequire = function makeRequire(funcSrc) {
+  if (funcSrc) return evalFunc('(function() {' +
+    'let exports = {};' +
+    'let module = { exports };' +
+    funcSrc +';' +
+    'return module.exports || exports;})()');
+  else return undefined;
+};
+

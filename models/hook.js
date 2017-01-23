@@ -15,12 +15,12 @@ const HOOK_DEFAULT_TIMEOUT = 10e3;
 const HOOK_DEFAULT_MODE = HOOK_MODES['transitive'];
 
 
-const contextGlobal = { Error, setTimeout, Promise, isArray: Array.isArray };
-const availableGlobals = Object.keys(contextGlobal).concat(['resolve', 'reject']);
+const contextGlobal = { Error, setTimeout, Promise, isArray: Object.isArray, toJSON: JSON.stringify };
+const availableGlobals = Object.keys(contextGlobal).concat(['resolve', 'reject', 'Object', 'Array', 'Function', 'RegExp', 'Number', 'String']);
 
 
 function Hook(name, params = {}, props = {}) {
-  const { ctx, methods } = props;
+  const { ctx = {}, methods = {} } = props;
   const logger = new Logger({
     prefix: 'Hook '+ name,
     logger: props.logger
@@ -37,11 +37,16 @@ function Hook(name, params = {}, props = {}) {
   let _lambda;
   let isGood = false;
 
-  function _require(fieldName) {
-    let field;
-    try { field = ctx[fieldName]; }
-    catch (error) { log({ message: 'Error require field: '+ fieldName, error }); }
-    return field;
+  function _require(property) {
+    if (property && ctx.hasOwnProperty(property)) {
+      const compiledKey = '_'+ property;
+      let compiled = ctx[compiledKey];
+      if (!compiled) {
+        try { compiled = ctx[compiledKey] = lib.makeRequire(ctx[property]); }
+        catch (error) { log({ message: 'Error require property: '+ property, error }); }
+      }
+      return compiled;
+    }
   }
 
   function _compileLambda(lambdaSrc) {

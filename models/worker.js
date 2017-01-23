@@ -11,8 +11,8 @@ function Worker(cluster, props = {}) {
   });
   const log = logger.getLog();
 
-  const onMessage = props.onMessage || new Function();
-  const onError = props.onError || new Function();
+  const onMessage = props.onMessage || function(){};
+  const onError = props.onError || function(){};
   const onExit = props.onExit;
 
   let isClosing = false;

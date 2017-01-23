@@ -6,6 +6,7 @@ const Filter = require('./filter');
 const Hook = require('./hook');
 
 // methods
+const cache = require('../utils/cache');
 const fetch = require('../utils/fetch');
 const Bucket = require('../utils/bucket');
 
@@ -25,7 +26,6 @@ function DDoc(db, props = {}) {
 
   const hooks = new Map();
   const filters = new Map();
-  const filtersIndex = [];
   let id;
   let rev = props.rev;
   let seq;
@@ -57,6 +57,9 @@ function DDoc(db, props = {}) {
                   break;
                 case 'bucket':
                   hookMethods['_bucket'] = new Bucket(db);
+                  break;
+                case 'cache':
+                  hookMethods['_cache'] = cache;
                   break;
               }
             });

@@ -16,11 +16,11 @@ function DB(name, props = {}) {
   const logger = new Logger({ prefix: 'DB '+ name, logger: props.logger });
   const log = logger.getLog();
 
-  const _onOldWorker = props.onOldWorker || new Function();
-  const _onStartFeed = props.onStartFeed || new Function();
-  const _onStopFeed = props.onStopFeed || new Function();
-  const _onInit = props.onInit || new Function();
-  const _onClose = props.onClose || new Function();
+  const _onOldWorker = props.onOldWorker || function(){};
+  const _onStartFeed = props.onStartFeed || function(){};
+  const _onStopFeed = props.onStopFeed || function(){};
+  const _onInit = props.onInit || function(){};
+  const _onClose = props.onClose || function(){};
 
   const db = couchdb.connectDB(name);
   const dbDocId = '_local/' + name;
