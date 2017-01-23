@@ -79,7 +79,7 @@ function DB(name, props = {}) {
       }
       if (body && body._rev) {
         dbDocRev = body._rev;
-        return resolve(body && body.data ? lib.parseJSON(body.data) : {});
+        return resolve(body && body.data ? lib.parseJSON(body.data) || {} : {});
       }
       resolve({});
     });
@@ -126,7 +126,7 @@ function DB(name, props = {}) {
   const initDDocs = (state) => {
     if (worker_seq > 0 && !state[worker_seq]) return Promise.reject(new Error('No db watcher by seq: '+ worker_seq));
 
-    const workers = Object.keys(state).sort((a,b) => a - b).reverse().map(seq => +seq);
+    const workers = Object.keys(state).sort((a, b) => a - b).reverse().map(seq => +seq);
 
     if (worker_seq) {
       const workerIndex = workers.indexOf(worker_seq);
@@ -140,9 +140,10 @@ function DB(name, props = {}) {
     }
 
     // Init latest worker
-    return Promise.all(Object.keys(props.ddocs).map(key => initDDoc({ name: key, methods: props.ddocs[key] })))
-      .then((sequences) => {
-        worker_seq = sequences.sort((a,b)=>b-a)[0];
+    return Promise.all(Object.keys(props.ddocs)
+      .map(key => initDDoc({ name: key, methods: props.ddocs[key] })))
+      .then((ddocs_sequences) => {
+        worker_seq = ddocs_sequences.sort((a, b) => b-a)[0];
         workers.forEach((workerSeq) => {
           if (worker_seq === workerSeq) setWorkerInfo(state[workerSeq], 'actual');
           else _onOldWorker({ seq: workerSeq });
@@ -159,7 +160,7 @@ function DB(name, props = {}) {
   const onInitDDocs = () => {
     ddocsInfo = ddocs.map((ddoc, index) => {
       ddocksO[ddoc.name] = index;
-      return ddoc.getInfo()
+      return ddoc.getInfo();
     });
     _onInit({ seq: worker_seq });
     return updateDBState();
