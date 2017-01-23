@@ -27,6 +27,7 @@ function DB(name, props = {}) {
   let dbDocRev;
 
   const ddocs = [];
+  const ddocksO = {};
   const queue = [];
   let inProcess = {};
   let worker_seq = +(props.seq || 0);
@@ -156,7 +157,10 @@ function DB(name, props = {}) {
     return ddoc.init();
   };
   const onInitDDocs = () => {
-    ddocsInfo = ddocs.map(ddoc => ddoc.getInfo());
+    ddocsInfo = ddocs.map((ddoc, index) => {
+      ddocksO[ddoc.name] = index;
+      return ddoc.getInfo()
+    });
     _onInit({ seq: worker_seq });
     return updateDBState();
   };
@@ -224,7 +228,9 @@ function DB(name, props = {}) {
     if (ddocName && ddocs.length && ddocs.filter(ddoc => ddoc.name === ddocName).length) {
       log('Stop on ddoc change: '+ ddocName);
       worker_type = 'old';
-      close();
+      return close();
+    } else {
+      return processQueue();
     }
   };
   const onDoc = (change) => {
@@ -248,22 +254,19 @@ function DB(name, props = {}) {
   };
   const onOldChange = (hooksNames, change) => {
     const hooksAll = [];
-    const ddocksO = {};
-    ddocsInfo.forEach((ddoc, index) => {
-      ddocksO[ddoc.name] = index;
-    });
 
     hooksNames.map(hookNameFull => {
       const hookName = hookNameFull.split('/');
-      const ddoc = ddocksO[hookName[0]] ? ddocs[ddocksO[hookName[0]]] : null;
+      const ddoc = ddocksO[hookName[0]] >= 0 ? ddocs[ddocksO[hookName[0]]] : null;
       if (ddoc) {
         const hook = ddoc.getHook(hookName[1]);
         if (hook && hook.isGood()) hooksAll.push(hook);
       }
     });
 
-    if (!hooksAll.length) return Promise.reject(new Error('Bad hooks'));
-    return Promise.all(hooksAll.map(startHook.fill(change)));
+    return hooksAll.length
+      ? Promise.all(hooksAll.map(startHook.fill(change)))
+      : Promise.reject(new Error('Bad hooks'));
   };
 
   const startHook = (change, hook) => {

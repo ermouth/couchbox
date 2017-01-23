@@ -45,7 +45,11 @@ const getConfig = (cookie) => new Promise((resolve, reject) => {
   if (!cookie) cookie = config.get('couchdb.cookie');
   return fetch(DB_URL +'/_config', {
       method: 'GET',
-      headers: { cookie }
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
+        cookie
+      }
     })
     .then(res => res.json())
     .then(json => {
