@@ -339,6 +339,7 @@ function DB(name, props = {}) {
       event: 'hook/error',
       error
     });
+    return Promise.resolve();
   }; // log hook error
 
   const saveResults = (docs) => {
