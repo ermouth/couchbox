@@ -3,6 +3,13 @@ const lib = require('./lib');
 const { env } = process;
 
 const defaultConfig = {
+  'couchbox.nodename': {
+    env: 'NODE_NAME',
+    value: undefined,
+    map: val => val.toString(),
+    check: val => val > 0
+  },
+
   'system.configTimeout': {
     env: 'DB_CONFIG_TIMEOUT',
     value: 10000,

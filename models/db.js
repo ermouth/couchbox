@@ -74,7 +74,11 @@ function DB(name, props = {}) {
   const getDBState = () => new Promise((resolve, reject) => {
     db.get(dbDocId, function(error, body) {
       if (error && error.message !== 'missing') {
-        log({ message: 'Error on load local bucket state: '+ dbDocId, error });
+        log({
+          message: 'Error on load local bucket state: '+ dbDocId,
+          event: 'bucket/error',
+          error
+        });
         return reject(error);
       }
       if (body && body._rev) {
@@ -100,7 +104,11 @@ function DB(name, props = {}) {
         if (error && error.message === 'Document update conflict.') {
           return updateDBState();
         }
-        log({ message: 'Error on save bucket state', error });
+        log({
+          message: 'Error on save bucket state',
+          event: 'bucket/error',
+          error
+        });
         reject(error);
       } else {
         dbDocRev = body.rev;
@@ -119,7 +127,11 @@ function DB(name, props = {}) {
       .then(processQueue); // start process queue
   }; // init bucket-worker
   const onInitError = (error) => {
-    log({ message: 'Error on init db: '+ name, error });
+    log({
+      message: 'Error on init db: '+ name,
+      event: 'bucket/error',
+      error
+    });
     close();
   }; // catch errors on initialisation
 
@@ -168,7 +180,10 @@ function DB(name, props = {}) {
   }; // then all ddocs started call _onInit
 
   const startChanges = () => new Promise((resolve, reject) => {
-    log('Start changes since '+ last_seq +' between: '+ max_seq);
+    log({
+      message: 'Start changes since '+ last_seq +' between: '+ max_seq,
+      event: 'bucket/changes'
+    });
     const limit = max_seq - worker_seq;
     db.changes({ since: last_seq, limit, include_docs: true }, (error, changes) => {
       if (error) return reject(error);
@@ -193,7 +208,10 @@ function DB(name, props = {}) {
   const newChange = (seq, id, rev, doc) => ({ seq, id, doc, changes: [ { rev } ] }); // make queue change item from process
 
   const startFeed = () => {
-    log('Start feed '+ worker_seq +' since: '+ last_seq);
+    log({
+      message: 'Start feed '+ worker_seq +' since: '+ last_seq,
+      event: 'bucket/feed'
+    });
     feed = db.follow({ since: last_seq, include_docs: true });
     feed.on('change', onChange);
     feed.follow();
@@ -201,7 +219,10 @@ function DB(name, props = {}) {
   }; // start feed from last_seq
   const stopFeed = () => {
     if (hasFeed()) {
-      log('Stop feed');
+      log({
+        message: 'Stop feed',
+        event: 'bucket/feedStop'
+      });
       feed.stop();
       _onStopFeed();
     }
@@ -228,7 +249,10 @@ function DB(name, props = {}) {
   const onDDoc = (change) => {
     const ddocName = change.id.split('/')[1];
     if (ddocName && ddocs.length && ddocs.filter(ddoc => ddoc.name === ddocName).length) {
-      log('Stop on ddoc change: '+ ddocName);
+      log({
+        message: 'Stop on ddoc change: '+ ddocName,
+        event: 'bucket/ddocStop'
+      });
       worker_type = 'old';
       return close();
     } else {
@@ -272,7 +296,11 @@ function DB(name, props = {}) {
   }; // start not completed hooks from process for change
 
   const startHook = (change, hook) => {
-    log('Start hook: ' + hook.name);
+    log({
+      message: 'Start hook: ' + hook.name,
+      ref: change.id,
+      event: 'hook/start'
+    });
     return hook.run(change) // run hook
       .then(onHook.fill(hook.name, change)) // if ok run onHook
       .catch(onHookError.fill(hook.name, change)) // else run onHookError
@@ -284,18 +312,26 @@ function DB(name, props = {}) {
   const onHook = (hookName, change, result) => {
     if (result && result.code === 200 && result.docs) { // check hook results
       if (!result.docs.length) { // empty results
-        log('Empty hook results: ' + hookName);
         return Promise.resolve();
       } else { // some results
         return saveResults(result.docs).then(() => { // save results
-          log('Saved hook result: ' + hookName);
+          log({
+            message: 'Saved hook results: ' + hookName,
+            ref: change.id,
+            event: 'hook/save'
+          });
         });
       }
     }
     return Promise.reject(new Error('Bad hook result')); // bad results
   }; // then hook done
   const onHookError = (hookName, change, error) => {
-    log({ message: 'Hook error: '+ hookName, error });
+    log({
+      message: 'Hook error: ' + hookName,
+      ref: change.id,
+      event: 'hook/error',
+      error
+    });
   }; // log hook error
 
   const saveResults = (docs) => {
@@ -339,7 +375,10 @@ function DB(name, props = {}) {
   const close = () => {
     stopFeed(); // previously stop feed
     if (isRunning()) return setTimeout(close, CHECK_PROCESSES_TIMEOUT); // if worker has tasks wait
-    log('Close');
+    log({
+      message: 'Close',
+      event: 'bucket/close'
+    });
     updateDBState(true).then(() => { // on close
       _onClose(worker_seq); // call _onClose
     });

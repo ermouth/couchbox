@@ -35,8 +35,11 @@ function Logger(props = {}) {
 
   let db_saving = DB_SAVE;
 
-  const save = (toSave) => new Promise((resolve, reject) => {
-    db.bulk({ docs: toSave }, (error) => {
+  const save = (events) => new Promise((resolve, reject) => {
+    const node = config.get('couchbox.nodename') || 'couchbox';
+    const type = 'flog';
+    const stamp = Date.now();
+    db.insert({ events, type, node, stamp }, (error) => {
       if (error) {
         log(JSON.stringify({ error }), [_prefix]);
         return reject(error);
@@ -52,16 +55,42 @@ function Logger(props = {}) {
       return reject(new Error(error));
     }
     if (log_index === 0) return resolve();
-    const toSave = logs.slice(0, log_index);
+    const events = logs.slice(0, log_index);
     log_index = 0;
-    save(toSave).then(resolve).catch(reject);
+    save(events).then(resolve).catch(reject);
   });
 
   const endLog = _parent ? _parent.log : function(data) {
     const { time, chain, msg } = data;
-    if (db_saving) logs[log_index++] = data;
-    log(JSON.stringify(msg), chain, time);
-    if (db_saving && log_index >= BULK_SIZE) saveToDB();
+
+    let message, event = { chain: chain.reverse().join('→') };
+    if (Object.isString(msg)) {
+      event.message = message = msg;
+    }else if (!Object.isObject(msg) || (!msg.message && !msg.error && !msg.principal && !msg.event && !msg.ref)) {
+      event.message = message = JSON.stringify(msg);
+    } else {
+      message = '';
+      if (msg.message) {
+        event.message = Object.isString(msg.message) ? msg.message : JSON.stringify(msg.message);
+        message += event.message;
+      }
+      if (msg.error) {
+        event.error = JSON.stringify(msg.error);
+        if (msg.error.message) message += (message.length ? ' ' : '') +'"'+ msg.error.message +'"';
+        else message += (message.length ? ' ' : '') + event.error;
+      }
+      if (msg.principal) event.principal = msg.principal;
+      if (msg.event) event.event = msg.event;
+      if (msg.ref) event.ref = msg.ref;
+    }
+
+    log(message, chain, time);
+    if (db_saving) {
+      if (!event.principal) event.principal = config.get('couchdb.user');
+      event.stamp = time.getTime();
+      logs[log_index++] = event;
+      if (log_index >= BULK_SIZE) saveToDB();
+    }
   };
 
   const preLog = ({ time, chain, msg }) => {

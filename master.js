@@ -8,7 +8,7 @@ const config = require('./config');
 module.exports = function initMaster(cluster) {
   const logger = new Logger({ prefix: 'Master '+ process.pid });
   const log = logger.getLog();
-  log('Started');
+  log({ message: 'Started', event: 'sandbox/start' });
 
   const sendMessage = (pid, msg, data) => workers.has(pid) && workers.get(pid).fork.send({ msg, data });
 
@@ -20,6 +20,16 @@ module.exports = function initMaster(cluster) {
   let configUpdateTimeout;
 
   const configMap = {
+    'couchbox': (conf = {}) => {
+      if (!Object.isObject(conf)) return null;
+      let needToUpdate = false;
+      const { nodename } = conf;
+      if (nodename && nodename.length > 0 && config.get('couchbox.nodename') !== nodename) {
+        needToUpdate = true;
+        config.set('couchbox.nodename', nodename);
+      }
+      return needToUpdate;
+    },
     'hooks': (conf = {}) => {
       if (!Object.isObject(conf)) return null;
       let needToUpdate = false;
@@ -63,15 +73,14 @@ module.exports = function initMaster(cluster) {
         needToUpdate = configMap[confKey] && configMap[confKey](newConf[confKey]) || needToUpdate;
       });
       if (needToUpdate) { // if one or more from changes updated
-        log('Updated hooks config');
-        configHash = lib.hash(['redis', 'couchdb', 'hooks'].map(cfg => config.get(cfg))); // update configHash by critical fields
+        log({ message: 'Updated hooks config', event: 'sandbox/configUpdate' });
+        configHash = lib.hash(['couchbox', 'couchdb', 'hooks', 'redis'].map(cfg => config.get(cfg))); // update configHash by critical fields
         updateWorkers(); // start update workers
       }
       if (!isClosing) configUpdateTimeout = setTimeout(loadConfig, config.get('system.configTimeout')); // start timeout on next config update if worker is running
     });
   } // load and process couchdb config
   function updateWorkers() {
-    log('Update workers');
     const dbsTmp = {};
     Object.keys(hooksConfig).forEach((dbdocKey) => {
       const dbdoc = dbdocKey.split(/\\/);
@@ -162,7 +171,7 @@ module.exports = function initMaster(cluster) {
   const onOldWorker = (dbName, data = {}) => {
     const seq = +data.seq;
     if (seq > 0) { // if worker has seq
-      if (getWorkerByDBandSeq(dbName, seq).length) log('Worker '+ seq +' already started');
+      if (getWorkerByDBandSeq(dbName, seq).length) { /** log('Worker '+ seq +' already started'); */ }
       else startWorker(dbName, seq); // if master has no worker with seq - try to start old worker
     }
   }; // when detected old worker
@@ -188,7 +197,7 @@ module.exports = function initMaster(cluster) {
   const stopWorker = (worker) => sendMessage(worker.pid, 'close'); // send close to worker
 
   function onClose() {
-    log('Close');
+    log({ message: 'Close', event: 'sandbox/close' });
     isClosing = true;
     clearTimeout(configUpdateTimeout); // stop config update
 
@@ -196,7 +205,7 @@ module.exports = function initMaster(cluster) {
 
     const onLog = (error) => { // on log saved
       logger.goOffline(); // disconnect log from db
-      if (error) log({ message:'Error save log', error });
+      if (error) log({ message: 'Close', event: 'sandbox/logError', error });
     };
 
     logger.saveForced() // start save log forced
@@ -206,7 +215,7 @@ module.exports = function initMaster(cluster) {
 
   // detect exit
   process.on('SIGINT', onClose); // on close command
-  process.on('exit', () => { log('Closed'); }); // on master closed
+  process.on('exit', () => { log({ message: 'Closed', event: 'sandbox/closed' }); }); // on master closed
 
   // init
   loadConfig();

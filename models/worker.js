@@ -39,11 +39,11 @@ function Worker(cluster, props = {}) {
   process.on('exit', () => { log('Closed'); });
 
   function _onError(error) {
-    log({ message: name +' error', error });
+    // log({ message: name +' error', error });
     onError(error);
   }
   function _onSIGINT() {
-    log('SIGINT');
+    // log('SIGINT');
     _onClose();
   }
 
@@ -53,7 +53,7 @@ function Worker(cluster, props = {}) {
   }
 
   function startClose() {
-    log('Close');
+    // log('Close');
     isClosing = true;
     const onLog = (error) => {
       logger.goOffline();

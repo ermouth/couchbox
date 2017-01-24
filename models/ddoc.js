@@ -35,24 +35,29 @@ function DDoc(db, props = {}) {
   function init() {
     return new Promise((resolve, reject) => {
       db.get('_design/'+ name, { local_seq: true, rev }, (error, body) => {
-        if (error) return reject(error);
+        if (error) {
+          log({
+            message: 'Error on load ddoc: '+ name,
+            event: 'ddoc/error',
+            error
+          });
+          return reject(error);
+        }
 
         id = body._id;
         rev = body._rev;
         seq = body._local_seq;
 
         if (body.filters && body.hooks) {
-
-          const { _require, ctx } = initModules(body);
-
-          console.log('ctx', ctx);
+          const filterProps = { logger };
+          const hookProps = Object.assign({}, filterProps, initModules(body));
 
           Object.keys(body.filters).forEach(filterKey => {
             if (!body.hooks[filterKey]) return null;
             const fieldName = name +'/'+ filterKey;
-            const filter = new Filter(fieldName, body.filters[filterKey], { logger });
+            const filter = new Filter(fieldName, body.filters[filterKey], filterProps);
             if (filter && filter.isGood) {
-              const hook = new Hook(fieldName, body.hooks[filterKey], { _require, ctx, logger });
+              const hook = new Hook(fieldName, body.hooks[filterKey], hookProps);
               if (hook && hook.isGood) {
                 hooks.set(filterKey, hook);
                 filters.set(filterKey, filter);
@@ -61,6 +66,11 @@ function DDoc(db, props = {}) {
           });
         }
 
+        log({
+          message: 'Started ddoc: '+ name,
+          event: 'ddoc/init',
+          error
+        });
         return resolve(seq);
       });
     });
@@ -138,7 +148,11 @@ function DDoc(db, props = {}) {
         try {
           vm.runInContext(script, context, { timeout: config.get('hooks.timeout') }).call(ctx, newModule, newModule.exports, (property) => _require(property, newModule));
         } catch (error) {
-          log({ message: 'Error on require property: '+ property, error });
+          log({
+            message: 'Error on require property: '+ property,
+            event: 'ddoc/error',
+            error
+          });
         }
         module_cache[newModule.id] = newModule.exports;
       }
@@ -159,12 +173,20 @@ function DDoc(db, props = {}) {
         filterResult = filters.get(filterKey).filter(change.doc);
       } catch(error) {
         filterResult = false;
-        log({ message:'Error on filter: '+ name +'/'+ filterKey, error });
+        log({
+          message: 'Error on filter: '+ name +'/'+ filterKey,
+          event: 'ddoc/error',
+          error
+        });
       }
       if (filterResult === true) {
         const hook = getHook(filterKey);
         if (hook) hooksResult.push(hook);
-        else log({ message:'Error on filter: '+ name +'/'+ filterKey, error: 'Cannot get hook by filter key' });
+        else log({
+          message: 'Error on filter: '+ name +'/'+ filterKey,
+          event: 'ddoc/error',
+          error: new Error('Cannot get hook by filter key')
+        });
       }
     }
     return hooksResult;

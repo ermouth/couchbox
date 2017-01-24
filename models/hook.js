@@ -27,7 +27,8 @@ function Hook(name, params = {}, props = {}) {
   if (!params.lambda) {
     log({
       message: 'Error run hook lambda: '+ name,
-      error: new Error('No lambda')
+      error: new Error('No lambda'),
+      event: 'hook/error'
     });
     return { name, isGood: false };
   }
@@ -39,26 +40,32 @@ function Hook(name, params = {}, props = {}) {
   const attachments = params.attachments || false;
   const conflicts = params.conflicts || false;
 
-  const hookGlobals = { log, require: _require };
+  const hookGlobals = { require: _require };
   const context = new vm.createContext(Object.assign({}, lambdaGlobals, hookGlobals));
 
   const validationResult = lib.validateGlobals(lambdaSrc, { available: availableGlobals.concat(Object.keys(hookGlobals)) });
   if (validationResult && validationResult.length) {
     log({
       message: 'Error run hook lambda: '+ name,
-      error: new Error('Bad function validation: '+ JSON.stringify(validationResult))
+      error: new Error('Bad function validation: '+ JSON.stringify(validationResult)),
+      event: 'hook/error',
     });
     return { name, isGood: false };
   }
 
-  const _script = new vm.Script('(function(doc, change) { return new Promise((resolve, reject) => (' + lambdaSrc + ').call(this, doc, change) ); })');
+  const _script = new vm.Script('(function(log, doc, change) { return new Promise((resolve, reject) => (' + lambdaSrc + ').call(this, doc, change) ); })');
 
   const _lambda = (change) => {
     let result;
+    const _log = (message, now) => log(Object.assign({ message }, { ref: change.id, event: 'hook/message' }), now);
     try {
-      result = _script.runInContext(context, { timeout }).call(ctx, change.doc, change);
+      result = _script.runInContext(context, { timeout }).call(ctx, _log, change.doc, change);
     } catch(error) {
-      log({ message: 'Error run hook lambda: '+ name, error });
+      log({
+        message: 'Error run hook lambda: '+ name,
+        event: 'hook/error',
+        error
+      });
       result = undefined;
     }
     return result ? result.timeout(timeout) : result;

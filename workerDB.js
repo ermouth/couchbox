@@ -7,7 +7,10 @@ module.exports = function initWorker(cluster, props = {}) {
   let db;
   const worker = new Worker(cluster, {
     onExit: () => {
-      log('On worker exit');
+      log({
+        message: 'On worker exit',
+        event: 'worker/exir'
+      });
       if (db && db.isRunning()) db.close();
       else worker.close();
     }
@@ -15,10 +18,16 @@ module.exports = function initWorker(cluster, props = {}) {
   const { logger } = worker;
   const log = logger.getLog();
 
-  log('Started with '+ Object.keys(props).map(key => (key +'='+ JSON.stringify(props[key]).replace(/"/g, ''))).join(' '));
+  log({
+    message: 'Started with '+ Object.keys(props).map(key => (key +'='+ JSON.stringify(props[key]).replace(/"/g, ''))).join(' '),
+    event: 'worker/start'
+  });
 
   if (!(props.db && props.ddocs && Object.keys(props.ddocs).length)) {
-    log('Bad params - close worker');
+    log({
+      error: new Error('Bad params'),
+      event: 'worker/error'
+    });
     worker.close();
     return null;
   }
@@ -28,26 +37,29 @@ module.exports = function initWorker(cluster, props = {}) {
     logger, seq, ddocs,
 
     onOldWorker: (data) => {
-      log('Detect old worker: '+ data.seq);
+      // log('Detect old worker: '+ data.seq);
       worker.sendToMaster('oldWorker', data);
     },
 
     onStartFeed: () => {
-      log('On start feed');
+      // log('On start feed');
       worker.sendToMaster('startFeed');
     },
     onStopFeed: () => {
-      log('On stop feed');
+      // log('On stop feed');
       worker.sendToMaster('stopFeed');
     },
 
     onInit: (data) => {
-      log('Init worker:' + data.seq);
+      // log('Init worker:' + data.seq);
       worker.sendToMaster('init', data);
     },
 
     onClose: (data) => {
-      log('Start closing');
+      log({
+        message: 'Close',
+        event: 'worker/close'
+      });
       worker.sendToMaster('close', data);
       worker.close();
     }

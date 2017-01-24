@@ -13,4 +13,4 @@ module.exports.lambdaGlobals = {
   Math, JSON, Promise, isArray: Object.isArray, toJSON: JSON.stringify
 };
 
-module.exports.availableGlobals = Object.keys(module.exports.lambdaGlobals).concat(['resolve', 'reject']);
+module.exports.availableGlobals = Object.keys(module.exports.lambdaGlobals).concat(['resolve', 'reject', 'log']);

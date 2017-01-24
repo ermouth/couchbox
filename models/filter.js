@@ -16,7 +16,11 @@ function Filter(name, lambda, props) {
     isGood = true;
   } catch(error) {
     isGood = false;
-    log({ message: 'Error compile filter lambda: '+ name, error });
+    log({
+      message: 'Error compile filter lambda: '+ name,
+      event: 'filter/error',
+      error
+    });
   }
 
   return {
