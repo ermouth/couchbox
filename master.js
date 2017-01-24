@@ -112,7 +112,8 @@ module.exports = function initMaster(cluster) {
     if ( // don't start worker if
       isClosing // master closing
       || !dbs.has(db) // in dbs no worker db
-      || getWorkersByDBandFeed(db).length // exist one or more workers with by db
+      || (seq && getWorkerByDBandSeq(db, seq).length) // seq and worker already exist
+      || (!seq && getWorkersByDBandFeed(db).length) // no seq && exist one or more workers with by db
     ) return null;
 
     const { ddocs, ddocsHash } = dbs.get(db);
