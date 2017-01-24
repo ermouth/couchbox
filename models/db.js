@@ -286,7 +286,7 @@ function DB(name, props = {}) {
       const ddoc = ddocksO[hookName[0]] >= 0 ? ddocs[ddocksO[hookName[0]]] : null;
       if (ddoc) {
         const hook = ddoc.getHook(hookName[1]);
-        if (hook && hook.isGood()) hooksAll.push(hook);
+        if (hook && hook.isGood) hooksAll.push(hook);
       }
     });
 
