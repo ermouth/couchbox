@@ -326,6 +326,7 @@ function DB(name, props = {}) {
             ref: change.id,
             event: 'hook/save'
           });
+          return Promise.resolve();
         });
       }
     }
