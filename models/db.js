@@ -57,7 +57,7 @@ function DB(name, props = {}) {
     const { seq } = change;
     if (inProcess.hasOwnProperty(seq)) {
       inProcess[seq][CHANGE_DOC_HOOKS] = inProcess[seq][CHANGE_DOC_HOOKS].remove(hook);
-      if (!inProcess[seq][CHANGE_DOC_HOOKS].length) delete inProcess[seq];
+      if (inProcess[seq][CHANGE_DOC_HOOKS].length === 0) delete inProcess[seq];
     }
   }; // remove hook from process list by change, if hook is last in change - remove change from processes
 
@@ -101,9 +101,7 @@ function DB(name, props = {}) {
 
     db.insert(newData, function(error, body) {
       if (error || body.ok !== true) {
-        if (error && error.message === 'Document update conflict.') {
-          return updateDBState();
-        }
+        if (error && error.message === 'Document update conflict.') return updateDBState().then(resolve);
         log({
           message: 'Error on save bucket state',
           event: 'bucket/error',
@@ -197,8 +195,9 @@ function DB(name, props = {}) {
   }); // load changes since last_seq with limit (max_seq - last_seq) and skip changes with seq greater then max_seq => push changes in queue
   const startInProcessChanges = () => Promise.all(Object.keys(inProcess).sort((a, b) => a - b).map(addProcessToQueue)); // sort old processes and call addProcessToQueue
   const addProcessToQueue = (processSeq) => new Promise((resolve, reject) => {
-    const id = inProcess[processSeq][CHANGE_DOC_ID];
-    const rev = inProcess[processSeq][CHANGE_DOC_REV];
+    const procItem = inProcess[processSeq];
+    const id = procItem[CHANGE_DOC_ID];
+    const rev = procItem[CHANGE_DOC_REV];
     db.get(id, { rev }, (error, doc) => {
       if (error) return reject(error);
       queue.push(newChange(processSeq, id, rev, doc));
@@ -295,31 +294,29 @@ function DB(name, props = {}) {
       : Promise.reject(new Error('Bad hooks'));
   }; // start not completed hooks from process for change
 
-  const startHook = (change, hook) => {
+  const startHook = (change, hook) => new Promise((resolve) => {
     log({
       message: 'Start hook: ' + hook.name,
       ref: change.id,
       event: 'hook/start'
     });
-    return hook.run(change) // run hook
+    hook.run(change) // run hook
       .then(onHook.fill(hook.name, change)) // if ok run onHook
       .catch(onHookError.fill(hook.name, change)) // else run onHookError
       .finally(() => {
         setOutProcess(change, hook.name);
-        return updateDBState();
+        updateDBState().then(resolve);
       }); // in final remove hook-change from processes and update bucket-worker state
-  }; // start hook on change
+  }); // start hook on change
   const onHook = (hookName, change, result) => {
     log({
-      message: result.docs,
+      message: result.message || result.docs,
       code: result.code,
       ref: change.id,
       event: 'hook/results'
     });
     if (result && result.code === 200 && result.docs) { // check hook results
-      if (!result.docs.length) { // empty results
-        return Promise.resolve();
-      } else { // some results
+      if (result.docs.length) {
         return saveResults(result.docs).then(() => { // save results
           log({
             message: 'Saved hook results: ' + hookName,
@@ -329,6 +326,7 @@ function DB(name, props = {}) {
           return Promise.resolve();
         });
       }
+      return Promise.resolve(); // empty results
     }
     return Promise.reject(new Error('Bad hook result')); // bad results
   }; // then hook done

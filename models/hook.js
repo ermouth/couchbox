@@ -53,13 +53,14 @@ function Hook(name, params = {}, props = {}) {
     return { name, isGood: false };
   }
 
-  const _script = new vm.Script('(function(log, doc, change) { return new Promise((resolve, reject) => (' + lambdaSrc + ').call(this, doc, change) ); })');
+  const _script = new vm.Script('(function(log, doc) { return new Promise((resolve, reject) => (' + lambdaSrc + ').call(this, doc) ); })');
 
   const _lambda = (change) => {
     let result;
     const _log = (message, now) => log(Object.assign({ message }, { ref: change.id, event: 'hook/message' }), now);
+    const doc = Object.clone(change.doc, true);
     try {
-      result = _script.runInContext(context, { timeout }).call(ctx, _log, change.doc, change);
+      result = _script.runInContext(context, { timeout }).call(ctx, _log, doc);
     } catch(error) {
       log({
         message: 'Error run hook lambda: '+ name,

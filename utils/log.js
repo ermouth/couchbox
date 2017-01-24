@@ -63,7 +63,7 @@ function Logger(props = {}) {
   const endLog = _parent ? _parent.log : function(data) {
     const { time, chain, msg } = data;
 
-    let message, event = { chain: chain.reverse().join('→') };
+    let message, event = {  };
     if (Object.isString(msg)) {
       event.message = message = msg;
     }else if (!Object.isObject(msg) || (!msg.message && !msg.error && !msg.principal && !msg.event && !msg.ref)) {
@@ -87,6 +87,7 @@ function Logger(props = {}) {
 
     log(message, chain, time);
     if (db_saving) {
+      event.chain = chain.reverse().join('→');
       if (!event.principal) event.principal = config.get('couchdb.user');
       event.stamp = time.getTime();
       logs[log_index++] = event;
