@@ -16,29 +16,29 @@ function DB(name, props = {}) {
   const logger = new Logger({ prefix: 'DB '+ name, logger: props.logger });
   const log = logger.getLog();
 
-  const _onOldWorker = props.onOldWorker || function(){};
-  const _onStartFeed = props.onStartFeed || function(){};
-  const _onStopFeed = props.onStopFeed || function(){};
-  const _onInit = props.onInit || function(){};
-  const _onClose = props.onClose || function(){};
+  const _onOldWorker = props.onOldWorker || function(){}; // Call when current worker is latest and detect in state (_local/bucket) old workers
+  const _onStartFeed = props.onStartFeed || function(){}; // Call when start follow feed changes
+  const _onStopFeed = props.onStopFeed || function(){}; // Call when stop follow feed changes
+  const _onInit = props.onInit || function(){}; // Call on init all ddocs
+  const _onClose = props.onClose || function(){}; // Call on closing
 
   const db = couchdb.connectDB(name);
   const dbDocId = '_local/' + name;
   let dbDocRev;
 
   const ddocs = [];
-  const ddocksO = {};
-  const queue = [];
-  let inProcess = {};
-  let worker_seq = +(props.seq || 0);
-  let last_seq = 0;
-  let max_seq = 0;
+  const ddocksO = {}; // ddocs id=>index in ddocs
+  const queue = []; // changes queue
+  let inProcess = {}; // changes in process
+  let worker_seq = +(props.seq || 0); // worker sequence - by latest ddoc seq
+  let last_seq = 0; // sequence of last doc in queue
+  let max_seq = 0; // max sequence - if worker is old then worker close on change with this sequence
   let ddocsInfo;
   let feed;
   let worker_type = 'actual';
 
-  const hasFeed = () => !!feed && !feed.dead;
-  const hasTasks = () => queue.length > 0 || Object.keys(inProcess).length > 0;
+  const hasFeed = () => !!feed && !feed.dead; // return true if worker has feed and feed is alive
+  const hasTasks = () => queue.length > 0 || Object.keys(inProcess).length > 0; // return true if queue has tasks or worker has working processes
   const isRunning = () => hasFeed() || hasTasks();
 
   const setInProcess = (change, hook) => {
@@ -52,20 +52,20 @@ function DB(name, props = {}) {
       inProcess[seq][CHANGE_DOC_REV] = _rev;
       inProcess[seq][CHANGE_DOC_HOOKS] = [ hook ];
     }
-  };
+  }; // add change with hooks list in process list
   const setOutProcess = (change, hook) => {
     const { seq } = change;
     if (inProcess.hasOwnProperty(seq)) {
       inProcess[seq][CHANGE_DOC_HOOKS] = inProcess[seq][CHANGE_DOC_HOOKS].remove(hook);
       if (!inProcess[seq][CHANGE_DOC_HOOKS].length) delete inProcess[seq];
     }
-  };
+  }; // remove hook from process list by change, if hook is last in change - remove change from processes
 
   const setWorkerInfo = (worker, type) => {
     last_seq = worker.last_seq;
     inProcess = worker.inProcess;
     worker_type = type;
-  };
+  }; // set worker info loaded from state
   const getWorkerInfo = () => ({
     ddocs: ddocsInfo,
     last_seq,

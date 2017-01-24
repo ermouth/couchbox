@@ -22,7 +22,7 @@ function Filter(name, lambda, props) {
   return {
     name,
     filter: (doc) => isGood && !!_lambda(doc),
-    isGood: () => isGood === true
+    isGood
   };
 }
 

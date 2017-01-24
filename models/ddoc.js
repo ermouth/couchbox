@@ -1,9 +1,11 @@
 const Promise = require('bluebird');
+const vm = require('vm');
 const lib = require('../lib');
 const Logger = require('../utils/log');
-
+const { lambdaGlobals } = require('./lambdaGlobal');
 const Filter = require('./filter');
 const Hook = require('./hook');
+const config = require('../config');
 
 // methods
 const cache = require('../utils/cache');
@@ -39,39 +41,19 @@ function DDoc(db, props = {}) {
         rev = body._rev;
         seq = body._local_seq;
 
-        const ctx = {};
-        Object.keys(body).forEach(key => {
-          if (!key || key[0] === '_' || CONTEXT_DENY[key]) return null;
-          ctx[key] = body[key];
-        });
-
         if (body.filters && body.hooks) {
 
-          const hookMethods = {};
-          if (methods && methods.length) {
-            methods.split(/\s+/g).compact(true).forEach(method => {
-              if (hookMethods.hasOwnProperty(method)) return null;
-              switch (method) {
-                case 'fetch':
-                  hookMethods['_fetch'] = fetch;
-                  break;
-                case 'bucket':
-                  hookMethods['_bucket'] = new Bucket(db);
-                  break;
-                case 'cache':
-                  hookMethods['_cache'] = cache;
-                  break;
-              }
-            });
-          }
+          const { _require, ctx } = initModules(body);
+
+          console.log('ctx', ctx);
 
           Object.keys(body.filters).forEach(filterKey => {
             if (!body.hooks[filterKey]) return null;
             const fieldName = name +'/'+ filterKey;
             const filter = new Filter(fieldName, body.filters[filterKey], { logger });
-            if (filter && filter.isGood()) {
-              const hook = new Hook(fieldName, body.hooks[filterKey], { ctx, methods: hookMethods, logger });
-              if (hook && hook.isGood()) {
+            if (filter && filter.isGood) {
+              const hook = new Hook(fieldName, body.hooks[filterKey], { _require, ctx, logger });
+              if (hook && hook.isGood) {
                 hooks.set(filterKey, hook);
                 filters.set(filterKey, filter);
               }
@@ -83,6 +65,88 @@ function DDoc(db, props = {}) {
       });
     });
   }
+
+  const initModules = (body) => {
+    const module_cache = {};
+    const ctx = {};
+    Object.keys(body).forEach(key => {
+      if (!key || key[0] === '_' || CONTEXT_DENY[key]) return null;
+      ctx[key] = body[key];
+    });
+    if (methods && methods.length) {
+      methods.split(/\s+/g).compact(true).forEach(method => {
+        if (ctx.hasOwnProperty(method)) return null;
+        switch (method) {
+          case 'fetch':
+            ctx['_fetch'] = fetch;
+            break;
+          case 'bucket':
+            ctx['_bucket'] = new Bucket(db);
+            break;
+          case 'cache':
+            ctx['_cache'] = cache;
+            break;
+        }
+      });
+    }
+
+    const context = new vm.createContext(Object.assign({ log }, lambdaGlobals));
+
+    function resolveModule(path, mod = {}, root) {
+      const { current, parent, id } = mod;
+      if (path.length == 0) {
+        if (typeof current !== 'string') {
+          throw new Error('Invalid require path: Must require a JavaScript string, not: '+ (typeof current));
+        }
+        return { current, parent, id, exports : {} };
+      }
+      // we need to traverse the path
+      const pathNode = path.shift();
+      if (pathNode === '..') {
+        if (!(parent && parent.parent)) {
+          throw new Error('Invalid require path: Object has no parent: '+ JSON.stringify(current));
+        }
+        return resolveModule(path, {
+          id : id.slice(0, id.lastIndexOf('/')),
+          parent : parent.parent,
+          current : parent.current
+        });
+      } else if (pathNode === '.') {
+        if (!parent) {
+          throw new Error('Invalid require path: Object has no parent: '+ JSON.stringify(current));
+        }
+        return resolveModule(path, { parent, current, id });
+      } else if (root) {
+        mod = { current: root };
+      }
+      if (mod.current[pathNode] === undefined) {
+        throw new Error('Invalid require path: Object has no property "'+ pathNode +'". '+ JSON.stringify(mod.current));
+      }
+      return resolveModule(path, {
+        current : mod.current[pathNode],
+        parent : mod,
+        id : mod.id ? mod.id + '/' + pathNode : pathNode
+      });
+    }
+
+    function _require(property, module) {
+      module = module || {};
+      const newModule = resolveModule(property.split('/'), module.parent, ctx);
+      if (!module_cache.hasOwnProperty(newModule.id)) {
+        module_cache[newModule.id] = {};
+        const script = '(function (module, exports, require) { ' + newModule.current + '\n })';
+        try {
+          vm.runInContext(script, context, { timeout: config.get('hooks.timeout') }).call(ctx, newModule, newModule.exports, (property) => _require(property, newModule));
+        } catch (error) {
+          log({ message: 'Error on require property: '+ property, error });
+        }
+        module_cache[newModule.id] = newModule.exports;
+      }
+      return module_cache[newModule.id];
+    }
+
+    return { ctx, _require };
+  };
 
   const getInfo = () => ({ name, rev, methods });
   const getHook = (hookName) => hooks.has(hookName) ? hooks.get(hookName) : null;

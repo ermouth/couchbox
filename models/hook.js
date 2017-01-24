@@ -3,6 +3,7 @@ const Promise = require('bluebird');
 const vm = require('vm');
 const lib = require('../lib');
 const Logger = require('../utils/log');
+const { lambdaGlobals, availableGlobals } = require('./lambdaGlobal');
 const config = require('../config');
 
 
@@ -14,80 +15,59 @@ const HOOK_MODES = {
 const HOOK_DEFAULT_TIMEOUT = 10e3;
 const HOOK_DEFAULT_MODE = HOOK_MODES['transitive'];
 
-
-const contextGlobal = { Error, setTimeout, Promise, isArray: Object.isArray, toJSON: JSON.stringify };
-const availableGlobals = Object.keys(contextGlobal).concat(['resolve', 'reject', 'Object', 'Array', 'Function', 'RegExp', 'Number', 'String']);
-
-
 function Hook(name, params = {}, props = {}) {
-  const { ctx = {}, methods = {} } = props;
+  const { _require, ctx = {} } = props;
   const logger = new Logger({
     prefix: 'Hook '+ name,
     logger: props.logger
   });
   const log = logger.getLog();
 
+
+  if (!params.lambda) {
+    log({
+      message: 'Error run hook lambda: '+ name,
+      error: new Error('No lambda')
+    });
+    return { name, isGood: false };
+  }
+
+  const lambdaSrc = params.lambda;
   const timeout = params.timeout && params.timeout > 0 ? params.timeout : (config.get('hooks.timeout') || HOOK_DEFAULT_TIMEOUT);
   const mode = params.mode && HOOK_MODES[params.mode] ? params.mode : HOOK_DEFAULT_MODE;
   const since = params.since && params.since > 0 ? params.since : 'now';
   const attachments = params.attachments || false;
   const conflicts = params.conflicts || false;
 
-  let _script;
-  let _lambda;
-  let isGood = false;
+  const hookGlobals = { log, require: _require };
+  const context = new vm.createContext(Object.assign({}, lambdaGlobals, hookGlobals));
 
-  function _require(property) {
-    if (property && ctx.hasOwnProperty(property)) {
-      const compiledKey = '_'+ property;
-      let compiled = ctx[compiledKey];
-      if (!compiled) {
-        try { compiled = ctx[compiledKey] = lib.makeRequire(ctx[property]); }
-        catch (error) { log({ message: 'Error require property: '+ property, error }); }
-      }
-      return compiled;
+  const validationResult = lib.validateGlobals(lambdaSrc, { available: availableGlobals.concat(Object.keys(hookGlobals)) });
+  if (validationResult && validationResult.length) {
+    log({
+      message: 'Error run hook lambda: '+ name,
+      error: new Error('Bad function validation: '+ JSON.stringify(validationResult))
+    });
+    return { name, isGood: false };
+  }
+
+  const _script = new vm.Script('(function(doc, change) { return new Promise((resolve, reject) => (' + lambdaSrc + ').call(this, doc, change) ); })');
+
+  const _lambda = (change) => {
+    let result;
+    try {
+      result = _script.runInContext(context, { timeout }).call(ctx, change.doc, change);
+    } catch(error) {
+      log({ message: 'Error run hook lambda: '+ name, error });
+      result = undefined;
     }
-  }
-
-  function _compileLambda(lambdaSrc) {
-    const lambdaGlobal = { log, require: _require };
-    const lambdaScope = Object.assign({}, methods);
-
-    const validationResult = lib.validateGlobals(lambdaSrc, { available: availableGlobals.concat(Object.keys(lambdaGlobal)) });
-    if (validationResult && validationResult.length) {
-      throw new Error('Bad function validation: '+ JSON.stringify(validationResult));
-    }
-
-    _script = new vm.Script('new Promise((resolve, reject) => (' + lambdaSrc + ').call(lambdaScope, doc, change) );');
-
-    _lambda = (change) => {
-      const boxScope = Object.assign({}, contextGlobal, lambdaGlobal, { lambdaScope, doc: change.doc, change });
-      const boxParams = { timeout };
-
-      let result;
-      try {
-        result = _script.runInNewContext(boxScope, boxParams);
-      } catch(error) {
-        log({ message: 'Error run hook lambda: '+ name, error });
-        result = undefined;
-      }
-
-      return result ? result.timeout(timeout) : result;
-    };
-  }
-
-  try {
-    _compileLambda(params.lambda);
-    isGood = true;
-  } catch (error) {
-    isGood = false;
-    log({ message: 'Error compile hook lambda: '+ name, error });
-  }
+    return result ? result.timeout(timeout) : result;
+  };
 
   return {
     name,
     run: _lambda,
-    isGood: () => isGood === true
+    isGood: true
   };
 }
 
