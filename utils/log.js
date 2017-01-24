@@ -79,6 +79,7 @@ function Logger(props = {}) {
         if (msg.error.message) message += (message.length ? ' ' : '') +'"'+ msg.error.message +'"';
         else message += (message.length ? ' ' : '') + event.error;
       }
+      if (msg.code) event.code = msg.code;
       if (msg.principal) event.principal = msg.principal;
       if (msg.event) event.event = msg.event;
       if (msg.ref) event.ref = msg.ref;

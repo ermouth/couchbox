@@ -310,6 +310,12 @@ function DB(name, props = {}) {
       }); // in final remove hook-change from processes and update bucket-worker state
   }; // start hook on change
   const onHook = (hookName, change, result) => {
+    log({
+      message: result.docs,
+      code: result.code,
+      ref: change.id,
+      event: 'hook/results'
+    });
     if (result && result.code === 200 && result.docs) { // check hook results
       if (!result.docs.length) { // empty results
         return Promise.resolve();
