@@ -70,7 +70,7 @@ function DB(name, props = {}) {
     ddocs: ddocsInfo,
     last_seq,
     inProcess
-  });
+  }); // generate Object with worker state
   const getDBState = () => new Promise((resolve, reject) => {
     db.get(dbDocId, function(error, body) {
       if (error && error.message !== 'missing') {
@@ -83,9 +83,9 @@ function DB(name, props = {}) {
       }
       resolve({});
     });
-  });
+  }); // load db state from _local/{bucket} document
   const updateDBState = (closing) => new Promise((resolve, reject) => getDBState().then(state => {
-    if (closing && worker_type === 'old') {
+    if (closing && worker_type === 'old') { // if gracefully close old worker - remove it from db state
       delete state[worker_seq];
     } else {
       state[worker_seq] = getWorkerInfo();
@@ -107,21 +107,21 @@ function DB(name, props = {}) {
         resolve(body);
       }
     });
-  }));
+  })); // patching _local/{bucket} with worker state
 
   const init = () => {
-    getDBState()
-      .then(initDDocs)
-      .then(onInitDDocs)
-      .then(startInProcessChanges)
-      .then(() => worker_type === 'old' ? startChanges() : startFeed())
-      .catch(onInitError)
-      .then(processQueue);
-  };
+    getDBState() // load state
+      .then(initDDocs) // init ddocs from state or latest in db
+      .then(onInitDDocs) // call _onInit
+      .then(startInProcessChanges) // start old changes from loaded state
+      .then(() => worker_type === 'old' ? startChanges() : startFeed()) // if worker old - start load changes else subscribe on changes feed
+      .catch(onInitError) // catch errors on initialisation
+      .then(processQueue); // start process queue
+  }; // init bucket-worker
   const onInitError = (error) => {
     log({ message: 'Error on init db: '+ name, error });
     close();
-  };
+  }; // catch errors on initialisation
 
   const initDDocs = (state) => {
     if (worker_seq > 0 && !state[worker_seq]) return Promise.reject(new Error('No db watcher by seq: '+ worker_seq));
@@ -129,6 +129,7 @@ function DB(name, props = {}) {
     const workers = Object.keys(state).sort((a, b) => a - b).reverse().map(seq => +seq);
 
     if (worker_seq) {
+      // search worker in state
       const workerIndex = workers.indexOf(worker_seq);
       // Init exist worker
       if (workerIndex > 0) {
@@ -156,7 +157,7 @@ function DB(name, props = {}) {
     const ddoc = new DDoc(db, { name, rev, methods, logger });
     ddocs.push(ddoc);
     return ddoc.init();
-  };
+  }; // create & load ddoc
   const onInitDDocs = () => {
     ddocsInfo = ddocs.map((ddoc, index) => {
       ddocksO[ddoc.name] = index;
@@ -164,7 +165,7 @@ function DB(name, props = {}) {
     });
     _onInit({ seq: worker_seq });
     return updateDBState();
-  };
+  }; // then all ddocs started call _onInit
 
   const startChanges = () => new Promise((resolve, reject) => {
     log('Start changes since '+ last_seq +' between: '+ max_seq);
@@ -178,8 +179,8 @@ function DB(name, props = {}) {
       }
       resolve();
     });
-  });
-  const startInProcessChanges = () => Promise.all(Object.keys(inProcess).sort((a, b) => a - b).map(addProcessToQueue));
+  }); // load changes since last_seq with limit (max_seq - last_seq) and skip changes with seq greater then max_seq => push changes in queue
+  const startInProcessChanges = () => Promise.all(Object.keys(inProcess).sort((a, b) => a - b).map(addProcessToQueue)); // sort old processes and call addProcessToQueue
   const addProcessToQueue = (processSeq) => new Promise((resolve, reject) => {
     const id = inProcess[processSeq][CHANGE_DOC_ID];
     const rev = inProcess[processSeq][CHANGE_DOC_REV];
@@ -188,7 +189,8 @@ function DB(name, props = {}) {
       queue.push(newChange(processSeq, id, rev, doc));
       return resolve();
     });
-  });
+  }); // load old process document and push it to queue
+  const newChange = (seq, id, rev, doc) => ({ seq, id, doc, changes: [ { rev } ] }); // make queue change item from process
 
   const startFeed = () => {
     log('Start feed '+ worker_seq +' since: '+ last_seq);
@@ -196,22 +198,21 @@ function DB(name, props = {}) {
     feed.on('change', onChange);
     feed.follow();
     _onStartFeed();
-  };
+  }; // start feed from last_seq
   const stopFeed = () => {
     if (hasFeed()) {
       log('Stop feed');
       feed.stop();
       _onStopFeed();
     }
-  };
+  }; // stop feed and call _onStopFeed
 
-  const onEndQueue = () => !hasFeed() && close();
+  const onEndQueue = () => !hasFeed() && close(); // call after process last item in queue and start close if no feed
 
-  const newChange = (seq, id, rev, doc) => ({ seq, id, doc, changes: [ { rev } ] });
   const onChange = (change) => {
     queue.push(change);
     return processQueue();
-  };
+  }; // on change event push it to queue and run process queue
   const processQueue = () => {
     const change = queue.shift();
     if (change) {
@@ -222,7 +223,7 @@ function DB(name, props = {}) {
       }
     }
     else onEndQueue();
-  };
+  }; // load & remove first task from queue, if doc is ddoc -> run onDDoc else run onDoc
 
   const onDDoc = (change) => {
     const ddocName = change.id.split('/')[1];
@@ -233,7 +234,7 @@ function DB(name, props = {}) {
     } else {
       return processQueue();
     }
-  };
+  }; // if ddoc included in current bucket start closing worker else process next task
   const onDoc = (change) => {
     const { seq } = change;
     if (inProcess[seq]) {
@@ -241,7 +242,7 @@ function DB(name, props = {}) {
     } else {
       return onNewChange(change);
     }
-  };
+  };  // check if change is old (in processes from state) run onOldChange else run onNewChange
   const onNewChange = (change) => {
     const { seq } = change;
 
@@ -252,7 +253,7 @@ function DB(name, props = {}) {
 
     hooksAll.forEach(hook => setInProcess(change, hook.name));
     return updateDBState().then(() => Promise.all(hooksAll.map(startHook.fill(change))));
-  };
+  }; // filter hooks by doc, push they in process list, update bucket-worker state and run
   const onOldChange = (hooksNames, change) => {
     const hooksAll = [];
 
@@ -268,44 +269,44 @@ function DB(name, props = {}) {
     return hooksAll.length
       ? Promise.all(hooksAll.map(startHook.fill(change)))
       : Promise.reject(new Error('Bad hooks'));
-  };
+  }; // start not completed hooks from process for change
 
   const startHook = (change, hook) => {
     log('Start hook: ' + hook.name);
-    return hook.run(change)
-      .then(onHook.fill(hook.name, change))
-      .catch(onHookError.fill(hook.name, change))
+    return hook.run(change) // run hook
+      .then(onHook.fill(hook.name, change)) // if ok run onHook
+      .catch(onHookError.fill(hook.name, change)) // else run onHookError
       .finally(() => {
         setOutProcess(change, hook.name);
         return updateDBState();
-      });
-  };
+      }); // in final remove hook-change from processes and update bucket-worker state
+  }; // start hook on change
   const onHook = (hookName, change, result) => {
-    if (result && result.code === 200 && result.docs) {
-      if (!result.docs.length) {
+    if (result && result.code === 200 && result.docs) { // check hook results
+      if (!result.docs.length) { // empty results
         log('Empty hook results: ' + hookName);
         return Promise.resolve();
-      } else {
-        return saveResults(result.docs).then(() => {
+      } else { // some results
+        return saveResults(result.docs).then(() => { // save results
           log('Saved hook result: ' + hookName);
         });
       }
     }
-    return Promise.reject(new Error('Bad hook result'));
-  };
+    return Promise.reject(new Error('Bad hook result')); // bad results
+  }; // then hook done
   const onHookError = (hookName, change, error) => {
     log({ message: 'Hook error: '+ hookName, error });
-  };
+  }; // log hook error
 
   const saveResults = (docs) => {
     if (docs && docs.length) return saveBatch(docs.shift()).then(() => saveResults(docs));
     return Promise.resolve();
-  };
+  }; // save results sequential by first order recursively
   const saveBatch = (toSave) => {
-    if (Object.isObject(toSave)) return saveDoc(toSave);
-    else if (Object.isArray(toSave)) return Promise.all(toSave.map(doc => saveDoc(doc)));
-    else return Promise.reject(new Error('Bad results: ('+ JSON.stringify(toSave) +')'));
-  };
+    if (Object.isObject(toSave)) return saveDoc(toSave); // if data is Object save as one document
+    else if (Object.isArray(toSave)) return Promise.all(toSave.map(doc => saveDoc(doc))); // if data is Array save as many docs in parallel
+    else return Promise.reject(new Error('Bad results: ('+ JSON.stringify(toSave) +')')); // return error if data is not Object or Array
+  }; // check to save data and save
   const saveDoc = (doc) => {
     if (!doc) return Promise.reject(new Error('Bad document'));
     let docDB = db;
@@ -314,7 +315,7 @@ function DB(name, props = {}) {
       delete doc['_db'];
     }
     return getOldDoc(docDB, doc).then(oldDoc => updateDoc(docDB, oldDoc, doc));
-  };
+  }; // save one doc: load old by result params and update
   const getOldDoc = (docDB, doc) => new Promise((resolve, reject) => {
     const id = doc._id;
     const rev = doc._rev;
@@ -326,23 +327,23 @@ function DB(name, props = {}) {
       }
       return resolve(result);
     });
-  });
+  }); // load old document
   const updateDoc = (docDB, oldDoc, newDoc) => new Promise((resolve, reject) => {
     if (oldDoc) newDoc._rev = oldDoc._rev;
     docDB.insert(newDoc, (error, result) => {
       if (error) return reject(error);
       return resolve(result);
     })
-  });
+  }); // update by old and new documents
 
   const close = () => {
-    stopFeed();
-    if (isRunning()) return setTimeout(close, CHECK_PROCESSES_TIMEOUT);
+    stopFeed(); // previously stop feed
+    if (isRunning()) return setTimeout(close, CHECK_PROCESSES_TIMEOUT); // if worker has tasks wait
     log('Close');
-    updateDBState(true).then(() => {
-      _onClose(worker_seq);
+    updateDBState(true).then(() => { // on close
+      _onClose(worker_seq); // call _onClose
     });
-  };
+  }; // start close if bucket-worker and call _onClose
 
   init();
   return { close, isRunning };

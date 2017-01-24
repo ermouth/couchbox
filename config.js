@@ -118,7 +118,7 @@ const makeConfig = () => {
     }
   });
   return conf;
-};
+}; // parse config from env variables
 
 const config = module.exports = makeConfig();
 
@@ -132,9 +132,9 @@ module.exports.toEnv = () => {
     conf[field.env] = lib.getField(config, fieldPath);
   });
   return conf;
-};
+}; // serialize config to env variables
 
-module.exports.get = (fieldPath) => lib.getField(config, fieldPath);
+module.exports.get = (fieldPath) => lib.getField(config, fieldPath); // return config property fieldPath may be 'prop' or 'parent.prop'
 
 module.exports.set = (fieldPath, val) => {
   const field = defaultConfig[fieldPath];
@@ -145,11 +145,11 @@ module.exports.set = (fieldPath, val) => {
     return true;
   }
   return false;
-};
+}; // set property, need valid val
 
 module.exports.reset = (fieldPath) => {
   const field = defaultConfig[fieldPath];
   if (!field) return null;
   lib.addField(config, fieldPath, undefined);
   return true;
-};
+}; // set property to undefined

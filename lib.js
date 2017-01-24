@@ -80,13 +80,3 @@ const makeFunc = module.exports.makeFunc = function makeFunc(funcSrc) {
   uglifyParse(funcSrc);
   return evalFunc(funcSrc);
 };
-
-const makeRequire = module.exports.makeRequire = function makeRequire(funcSrc) {
-  if (funcSrc) return evalFunc('(function() {' +
-    'let exports = {};' +
-    'let module = { exports };' +
-    funcSrc +';' +
-    'return module.exports || exports;})()');
-  else return undefined;
-};
-

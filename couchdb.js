@@ -20,8 +20,8 @@ const DB_CONNECTION_URL = DB_CONNECTION +'://'+ DB_USER +':'+ DB_PASS +'@'+ DB_A
 let auth_attempts = 5;
 let connection;
 
-const connect = () => connection ? connection : (connection = nano(DB_CONNECTION_URL));
-const connectDB = (db) => connect().use(db);
+const connect = () => connection ? connection : (connection = nano(DB_CONNECTION_URL)); // return db connection
+const connectDB = (db) => connect().use(db); // return db-bucket connection
 
 const auth = () => new Promise((resolve, reject) => {
   const oldCookie = config.get('couchdb.cookie');
@@ -39,7 +39,7 @@ const auth = () => new Promise((resolve, reject) => {
     }
     reject(new Error('Bad auth'));
   });
-});
+}); // authenticate in db by credentials in config and update auth cookie in config
 
 const getConfig = (cookie) => new Promise((resolve, reject) => {
   if (!cookie) cookie = config.get('couchdb.cookie');
@@ -63,9 +63,9 @@ const getConfig = (cookie) => new Promise((resolve, reject) => {
       return json;
     })
     .then(resolve)
-});
+}); // load couchdb _config, auth by cookie in param or in config
 
-const loadConfig = () => config.get('couchdb.cookie') ? getConfig() : auth().then(getConfig);
+const loadConfig = () => config.get('couchdb.cookie') ? getConfig() : auth().then(getConfig); // start load coundb _config, if no auth cookie - previously authenticate in couchdb
 
 const makeAuthHeaders = (userCtx) => {
   const headers = {};
@@ -77,7 +77,7 @@ const makeAuthHeaders = (userCtx) => {
     headers['X-Auth-CouchDB-Token'] = crypto.createHmac('sha1', config.get('couchdb.secret')).update(userCtx.name).digest('hex');
   }
   return headers;
-};
+}; // return HTTP header for virtual auth by userCtx
 
 module.exports = {
   auth,
