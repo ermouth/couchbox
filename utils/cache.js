@@ -2,11 +2,11 @@ require('sugar');
 const Promise = require('bluebird');
 const stow = require('stow');
 const RedisBackend = require('stow/backends/redis');
-const redisClient = require('../redis');
+const { client } = require('../redis');
 // const config = require('../config');
 
 
-const cache = stow.createCache(RedisBackend, { client: redisClient });
+const cache = stow.createCache(RedisBackend, { client });
 
 const getCache = (key) => new Promise((resolve, reject) => {
   cache.get(key, (error, result) => error ? reject(error) : resolve(result));
@@ -22,7 +22,7 @@ const clearCache = (key) => new Promise((resolve, reject) => {
 });
 
 
-module.exports = () => {
+module.exports = function () {
   let key, tags, data;
 
   if (Object.isString(arguments[0])) key = arguments[0];
@@ -51,9 +51,8 @@ module.exports = () => {
       // If no data start update cache
       return setCache(key, data, tags);
     }
-  } else {
-    // Get cache by key
-    return getCache(key);
   }
 
+  // Get cache by key
+  return getCache(key);
 };

@@ -10,7 +10,8 @@ module.exports.lambdaGlobals = {
   Map, Set, Proxy, Symbol, WeakMap, WeakSet,
   Buffer, atob, btoa,
   setTimeout, clearTimeout, setInterval, clearInterval, setImmediate, clearImmediate,
-  Math, JSON, Promise, isArray: Object.isArray, toJSON: JSON.stringify
+  Math, JSON, Promise, isArray: Object.isArray, toJSON: JSON.stringify,
+  escape, unescape, parseInt, parseFloat, isNaN, isFinite
 };
 
 module.exports.availableGlobals = Object.keys(module.exports.lambdaGlobals).concat(['resolve', 'reject', 'log']);

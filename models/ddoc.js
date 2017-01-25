@@ -35,14 +35,7 @@ function DDoc(db, props = {}) {
   function init() {
     return new Promise((resolve, reject) => {
       db.get('_design/'+ name, { local_seq: true, rev }, (error, body) => {
-        if (error) {
-          log({
-            message: 'Error on load ddoc: '+ name,
-            event: 'ddoc/error',
-            error
-          });
-          return reject(error);
-        }
+        if (error) return reject(error);
 
         id = body._id;
         rev = body._rev;

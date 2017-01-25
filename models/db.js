@@ -33,7 +33,7 @@ function DB(name, props = {}) {
   let worker_seq = +(props.seq || 0); // worker sequence - by latest ddoc seq
   let last_seq = 0; // sequence of last doc in queue
   let max_seq = 0; // max sequence - if worker is old then worker close on change with this sequence
-  let ddocsInfo;
+  let ddocsInfo = [];
   let feed;
   let worker_type = 'actual';
 
@@ -89,6 +89,7 @@ function DB(name, props = {}) {
     });
   }); // load db state from _local/{bucket} document
   const updateDBState = (closing) => new Promise((resolve, reject) => getDBState().then(state => {
+    if (worker_seq === 0) return resolve(); // if no one ddoc - not save state
     if (closing && worker_type === 'old') { // if gracefully close old worker - remove it from db state
       delete state[worker_seq];
     } else {
@@ -153,27 +154,41 @@ function DB(name, props = {}) {
     // Init latest worker
     return Promise.all(Object.keys(props.ddocs)
       .map(key => initDDoc({ name: key, methods: props.ddocs[key] })))
-      .then((ddocs_sequences) => {
-        worker_seq = ddocs_sequences.sort((a, b) => b-a)[0];
+      .then(() => {
         workers.forEach((workerSeq) => {
           if (worker_seq === workerSeq) setWorkerInfo(state[workerSeq], 'actual');
           else _onOldWorker({ seq: workerSeq });
         });
-        if (!last_seq) last_seq = worker_seq;
+        if (!last_seq) {
+          last_seq = worker_seq ? worker_seq : 'now';
+        }
+        return Promise.resolve();
       });
   };
-  const initDDoc = (data) => {
+  const initDDoc = (data) => new Promise(resolve => {
     const { name, rev, methods } = data;
     const ddoc = new DDoc(db, { name, rev, methods, logger });
-    ddocs.push(ddoc);
-    return ddoc.init();
-  }; // create & load ddoc
+    ddoc.init()
+      .then((seq) => {
+        if (worker_seq < seq) worker_seq = seq;
+        ddocs.push(ddoc);
+        return Promise.resolve();
+      })
+      .catch(error => {
+        log({
+          message: 'Error on init ddoc: '+ name,
+          event: 'ddoc/error',
+          error
+        });
+      })
+      .finally(resolve);
+  }); // create & load ddoc
   const onInitDDocs = () => {
     ddocsInfo = ddocs.map((ddoc, index) => {
       ddocksO[ddoc.name] = index;
       return ddoc.getInfo();
     });
-    _onInit({ seq: worker_seq });
+    _onInit({ seq: worker_seq, type: worker_type });
     return updateDBState();
   }; // then all ddocs started call _onInit
 
@@ -247,7 +262,7 @@ function DB(name, props = {}) {
 
   const onDDoc = (change) => {
     const ddocName = change.id.split('/')[1];
-    if (ddocName && ddocs.length && ddocs.filter(ddoc => ddoc.name === ddocName).length) {
+    if (ddocName && props.ddocs[ddocName]) {
       log({
         message: 'Stop on ddoc change: '+ ddocName,
         event: 'bucket/ddocStop'
