@@ -13,6 +13,7 @@ function Worker(cluster, props = {}) {
 
   const onMessage = props.onMessage || function(){};
   const onError = props.onError || function(){};
+  const onUnhandledError = props.onUnhandledError || function(){};
   const onExit = props.onExit;
 
   let isClosing = false;
@@ -34,12 +35,25 @@ function Worker(cluster, props = {}) {
   });
 
   // detect exit
+  process.on('unhandledRejection', _onUnhandledError);
   process.on('uncaughtException', _onError);
   process.on('SIGINT', _onSIGINT);
-  process.on('exit', () => { log('Closed'); });
+  process.on('exit', () => {
+    log({
+      message: 'Closed',
+      event: 'worker/closed'
+    });
+  });
 
+  function _onUnhandledError(error) {
+    onUnhandledError(error);
+  }
   function _onError(error) {
-    // log({ message: name +' error', error });
+    log({
+      message: 'Worker '+ name +' error',
+      event: 'worker/error',
+      error
+    });
     onError(error);
   }
   function _onSIGINT() {

@@ -4,15 +4,25 @@ const DB = require('./models/db');
 
 module.exports = function initWorker(cluster, props = {}) {
 
+  const dbName = props.db;
   let db;
   const worker = new Worker(cluster, {
+    onUnhandledError: (error) => {
+      log({
+        message: 'UnhandledError db '+ dbName,
+        event: 'db/error',
+        error
+      });
+    },
     onExit: () => {
       log({
         message: 'On worker exit',
-        event: 'worker/exir'
+        event: 'worker/exit'
       });
-      if (db && db.isRunning()) db.close();
-      else worker.close();
+      if (db) {
+        if (db.isRunning()) return db.close();
+      }
+      return worker.close();
     }
   });
   const { logger } = worker;
@@ -33,7 +43,7 @@ module.exports = function initWorker(cluster, props = {}) {
   }
 
   const { seq, ddocs } = props;
-  db = new DB(props.db, {
+  db = new DB(dbName, {
     logger, seq, ddocs,
 
     onOldWorker: (data) => {

@@ -14,4 +14,4 @@ module.exports.lambdaGlobals = {
   escape, unescape, parseInt, parseFloat, isNaN, isFinite
 };
 
-module.exports.availableGlobals = Object.keys(module.exports.lambdaGlobals).concat(['resolve', 'reject', 'log']);
+module.exports.availableGlobals = Object.keys(module.exports.lambdaGlobals).concat([ 'require', 'log', 'resolve', 'reject']);

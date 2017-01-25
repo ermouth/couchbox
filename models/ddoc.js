@@ -93,7 +93,7 @@ function DDoc(db, props = {}) {
       });
     }
 
-    const context = new vm.createContext(Object.assign({ log }, lambdaGlobals));
+    const context = new vm.createContext(lambdaGlobals);
 
     function resolveModule(path, mod = {}, root) {
       const { current, parent, id } = mod;
@@ -137,9 +137,9 @@ function DDoc(db, props = {}) {
       const newModule = resolveModule(property.split('/'), module.parent, ctx);
       if (!module_cache.hasOwnProperty(newModule.id)) {
         module_cache[newModule.id] = {};
-        const script = '(function (module, exports, require) { ' + newModule.current + '\n })';
+        const script = '(function (module, exports, require, log) { ' + newModule.current + '\n })';
         try {
-          vm.runInContext(script, context, { timeout: config.get('hooks.timeout') }).call(ctx, newModule, newModule.exports, (property) => _require(property, newModule));
+          vm.runInContext(script, context, { timeout: config.get('hooks.timeout') }).call(ctx, newModule, newModule.exports, (property) => _require(property, newModule), log);
         } catch (error) {
           log({
             message: 'Error on require property: '+ property,
@@ -152,7 +152,7 @@ function DDoc(db, props = {}) {
       return module_cache[newModule.id];
     }
 
-    return { ctx, _require };
+    return { context, ctx, _require };
   };
 
   const getInfo = () => ({ name, rev, methods });

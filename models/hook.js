@@ -16,13 +16,21 @@ const HOOK_DEFAULT_TIMEOUT = 10e3;
 const HOOK_DEFAULT_MODE = HOOK_MODES['transitive'];
 
 function Hook(name, params = {}, props = {}) {
-  const { _require, ctx = {} } = props;
+  const { _require, ctx = {}, context } = props;
   const logger = new Logger({
     prefix: 'Hook '+ name,
     logger: props.logger
   });
   const log = logger.getLog();
 
+  if (!context) {
+    log({
+      message: 'Error no hook context: '+ name,
+      error: new Error('No context'),
+      event: 'hook/error'
+    });
+    return { name, isGood: false };
+  }
 
   if (!params.lambda) {
     log({
@@ -40,10 +48,7 @@ function Hook(name, params = {}, props = {}) {
   const attachments = params.attachments || false;
   const conflicts = params.conflicts || false;
 
-  const hookGlobals = { require: _require };
-  const context = new vm.createContext(Object.assign({}, lambdaGlobals, hookGlobals));
-
-  const validationResult = lib.validateGlobals(lambdaSrc, { available: availableGlobals.concat(Object.keys(hookGlobals)) });
+  const validationResult = lib.validateGlobals(lambdaSrc, { available: availableGlobals });
   if (validationResult && validationResult.length) {
     log({
       message: 'Error run hook lambda: '+ name,
@@ -53,14 +58,14 @@ function Hook(name, params = {}, props = {}) {
     return { name, isGood: false };
   }
 
-  const _script = new vm.Script('(function(log, doc) { return new Promise((resolve, reject) => (' + lambdaSrc + ').call(this, doc) ); })');
+  const _script = new vm.Script('(function(require, log, doc) { return new Promise((resolve, reject) => (' + lambdaSrc + ').call(this, doc) ); })');
 
   const _lambda = (change) => {
     let result;
     const _log = (message, now) => log(Object.assign({ message }, { ref: change.id, event: 'hook/message' }), now);
     const doc = Object.clone(change.doc, true);
     try {
-      result = _script.runInContext(context, { timeout }).call(ctx, _log, doc);
+      result = _script.runInContext(context, { timeout }).call(ctx, _require, _log, doc);
     } catch(error) {
       log({
         message: 'Error run hook lambda: '+ name,

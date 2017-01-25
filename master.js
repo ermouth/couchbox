@@ -7,6 +7,7 @@ const config = require('./config');
 
 const WORKER_TYPE_ACTUAL = 'actual';
 const WORKER_TYPE_OLD = 'old';
+const WORKER_WAIT_TIMEOUT = 500;
 
 // Master worker
 module.exports = function initMaster(cluster) {
@@ -130,13 +131,13 @@ module.exports = function initMaster(cluster) {
       || !dbs.has(db) // in dbs no worker db
       || (seq > 0
         ? getWorkerByDbSeq(db, seq).length > 0 // seq and worker already exist
-        : getWorkersByDbFeed(db).length > 0 // no seq && exist one or more workers with by db
+        : getWorkersByDbFeed(db).length > 0 // no seq && exist one or more workers with feed by db
       )
     ) return null;
 
     if (!seq && getStartingWorkerByDb(db).length > 0) {
       // if we have not initialised workers who can has feed and current worker can has feed - wait not initialised workers
-      return setTimeout(startWorker.fill(db, seq), 500);
+      return setTimeout(startWorker.fill(db, seq), WORKER_WAIT_TIMEOUT);
     }
 
     const { ddocs, ddocsHash } = dbs.get(db);
