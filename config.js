@@ -2,114 +2,142 @@ require('sugar');
 const lib = require('./lib');
 const { env } = process;
 
+const mapInt = (val) => +val;
+const mapStr = (val) => val;
+const mapBool = (val) => val === true || val === 'true';
+const checkBool = (val) => val === true || val === false;
+const checkNumPlus = (val) => val > 0;
+const checkStr = (val) => val && val.length > 0;
+const checkIn = (en, val) => val && en.hasOwnProperty(val);
+const checkEnum = (items) => { const en = {}; items.forEach(i => (en[i] = true)); return checkIn.fill(en); };
+
 const defaultConfig = {
   'couchbox.nodename': {
     env: 'NODE_NAME',
     value: undefined,
-    map: val => val.toString(),
-    check: val => val > 0
+    map: mapStr,
+    check: checkStr
   },
 
   'system.configTimeout': {
     env: 'DB_CONFIG_TIMEOUT',
     value: 10000,
-    map: val => +val,
-    check: val => val > 0
+    map: mapInt,
+    check: checkNumPlus
   },
 
   'hooks.timeout': {
     env: 'DB_HOOK_TIMEOUT',
-      value: 5000,
-      map: val => +val,
-      check: val => val > 0
+    value: 5000,
+    map: mapInt,
+    check: checkNumPlus
   },
 
   'logger.db': {
     env: 'LOGGER_DB',
     value: 'log',
-    map: val => val,
-    check: val => val && val.length > 0
+    map: mapStr,
+    check: checkStr
   },
   'logger.dbSave': {
     env: 'LOGGER_DB_SAVE',
     value: false,
-    map: val => val === true || val === 'true',
-    check: val => val === true || val === false
+    map: mapBool,
+    check: checkBool
   },
   'logger.bulkSize': {
     env: 'LOGGER_BULK_SIZE',
     value: 100,
-    map: val => +val,
-    check: val => val > 0
+    map: mapInt,
+    check: checkNumPlus
   },
 
   'nodes.domain': {
     env: 'NODES_DOMAIN',
     value: 'vezdelegko.ru',
-    map: val => val,
-    check: val => val && val.length > 0
+    map: mapStr,
+    check: checkStr
   },
   'nodes.domainPrefix': {
     env: 'NODES_DOMAIN_PREFIX',
     value: 'https://couch-',
-    map: val => val,
-    check: val => val && val.length > 0
+    map: mapStr,
+    check: checkStr
   },
 
   'couchdb.connection': {
     env: 'DB_CONNECTION',
     value: 'http',
-    map: val => val,
-    check: val => val === 'http' || val === 'https'
+    map: mapStr,
+    check: checkEnum(['http', 'https'])
   },
   'couchdb.ip': {
     env: 'DB_IP',
     value: 'localhost',
-    map: val => val,
-    check: val => val && val.length > 0
+    map: mapStr,
+    check: checkStr
   },
   'couchdb.port': {
     env: 'DB_PORT',
     value: 5984,
-    map: val => +val,
-    check: val => val > 0
+    map: mapInt,
+    check: checkNumPlus
   },
   'couchdb.user': {
     env: 'DB_USER',
     value: 'system',
-    map: val => val,
-    check: val => val && val.length > 0
+    map: mapStr,
+    check: checkStr
   },
   'couchdb.pass': {
     env: 'DB_PASS',
     value: 'momomo',
-    map: val => val,
-    check: val => val && val.length > 0
+    map: mapStr,
+    check: checkStr
   },
   'couchdb.secret': {
     env: 'DB_SECRET',
     value: undefined,
-    map: val => val,
-    check: val => val && val.length > 0
+    map: mapStr,
+    check: checkStr
   },
   'couchdb.cookie': {
     env: 'DB_COOKIE',
     value: undefined,
-    map: val => val,
-    check: val => val && val.length > 0
+    map: mapStr,
+    check: checkStr
   },
 
   'redis.ip': {
     env: 'REDIS_IP',
     value: 'localhost',
-    map: val => val,
-    check: val => val && val.length > 0
+    map: mapStr,
+    check: checkStr
   },
   'redis.port': {
     env: 'REDIS_PORT',
     value: 6379,
-    map: val => +val,
-    check: val => val > 0
+    map: mapInt,
+    check: checkNumPlus
+  },
+
+  'socket.enabled': {
+    env: 'SOCKET',
+    value: false,
+    map: mapBool,
+    check: checkBool
+  },
+  'socket.count': {
+    env: 'SOCKET_COUNT',
+    value: 1,
+    map: mapInt,
+    check: checkNumPlus
+  },
+  'socket.port': {
+    env: 'SOCKET_PORT',
+    value: 3000,
+    map: mapInt,
+    check: checkNumPlus
   },
 };
 
@@ -143,11 +171,22 @@ module.exports.toEnv = () => {
 
 module.exports.get = (fieldPath) => lib.getField(config, fieldPath); // return config property fieldPath may be 'prop' or 'parent.prop'
 
+module.exports.parse = (fieldPath, val) => {
+  const field = defaultConfig[fieldPath];
+  if (!field) return undefined;
+  return field.map(val);
+};
+
+module.exports.check = (fieldPath, val) => {
+  const field = defaultConfig[fieldPath];
+  return field && field.check(val);
+};
+
 module.exports.set = (fieldPath, val) => {
   const field = defaultConfig[fieldPath];
   if (!field) return null;
   const value = field.map(val);
-  if (value) {
+  if (field.check(value)) {
     lib.addField(config, fieldPath, value);
     return true;
   }

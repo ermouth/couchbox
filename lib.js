@@ -2,8 +2,9 @@ require('sugar');
 const crypto = require('crypto');
 const UglifyJS = require('uglify-js');
 
+const uuid = module.exports.uuid = (now = Date.now()) => (now+'').substr(0,12)+('0000'+Number.random(46656,2821109907455).toString(36)).substr(-8);
 
-const hash = module.exports.hash = (data) => crypto.createHash('md5').update(JSON.stringify(data)).digest('hex');
+const hashMD5 = module.exports.hashMD5 = (data) => crypto.createHash('md5').update(JSON.stringify(data)).digest('hex');
 
 const parseJSON = module.exports.parseJSON = function parseJSON(json) {
   let result;

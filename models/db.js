@@ -11,8 +11,16 @@ const CHANGE_DOC_ID = 0;
 const CHANGE_DOC_REV = 1;
 const CHANGE_DOC_HOOKS = 2;
 
+const {
+  LOG_EVENT_BUCKET_FEED, LOG_EVENT_BUCKET_FEED_STOP, LOG_EVENT_BUCKET_CHANGES, LOG_EVENT_BUCKET_CLOSE, LOG_EVENT_BUCKET_ERROR,
+  LOG_EVENT_BUCKET_DDOC_STOP, LOG_EVENT_DDOC_ERROR,
+  LOG_EVENT_HOOK_START, LOG_EVENT_HOOK_RESULT, LOG_EVENT_HOOK_SAVE, LOG_EVENT_HOOK_ERROR
+} = require('../constants/logEvents');
 
-function DB(name, props = {}) {
+const { BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD } = require('../constants/bucket');
+
+function DB(props = {}) {
+  const name = props.name;
   const logger = new Logger({ prefix: 'DB '+ name, logger: props.logger });
   const log = logger.getLog();
 
@@ -22,7 +30,7 @@ function DB(name, props = {}) {
   const _onInit = props.onInit || function(){}; // Call on init all ddocs
   const _onClose = props.onClose || function(){}; // Call on closing
 
-  const db = couchdb.connectDB(name);
+  const db = couchdb.connectBucket(name);
   const dbDocId = '_local/' + name;
   let dbDocRev;
 
@@ -35,7 +43,7 @@ function DB(name, props = {}) {
   let max_seq = 0; // max sequence - if worker is old then worker close on change with this sequence
   let ddocsInfo = [];
   let feed;
-  let worker_type = 'actual';
+  let worker_type = BUCKET_WORKER_TYPE_ACTUAL;
 
   const hasFeed = () => !!feed && !feed.dead; // return true if worker has feed and feed is alive
   const hasTasks = () => queue.length > 0 || Object.keys(inProcess).length > 0; // return true if queue has tasks or worker has working processes
@@ -76,7 +84,7 @@ function DB(name, props = {}) {
       if (error && error.message !== 'missing') {
         log({
           message: 'Error on load local bucket state: '+ dbDocId,
-          event: 'bucket/error',
+          event: LOG_EVENT_BUCKET_ERROR,
           error
         });
         return reject(error);
@@ -90,7 +98,7 @@ function DB(name, props = {}) {
   }); // load db state from _local/{bucket} document
   const updateDBState = (closing) => new Promise((resolve, reject) => getDBState().then(state => {
     if (worker_seq === 0) return resolve(); // if no one ddoc - not save state
-    if (closing && worker_type === 'old') { // if gracefully close old worker - remove it from db state
+    if (closing && worker_type === BUCKET_WORKER_TYPE_OLD) { // if gracefully close old worker - remove it from db state
       delete state[worker_seq];
     } else {
       state[worker_seq] = getWorkerInfo();
@@ -105,7 +113,7 @@ function DB(name, props = {}) {
         if (error && error.message === 'Document update conflict.') return updateDBState().then(resolve);
         log({
           message: 'Error on save bucket state',
-          event: 'bucket/error',
+          event: LOG_EVENT_BUCKET_ERROR,
           error
         });
         reject(error);
@@ -121,14 +129,14 @@ function DB(name, props = {}) {
       .then(initDDocs) // init ddocs from state or latest in db
       .then(onInitDDocs) // call _onInit
       .then(startInProcessChanges) // start old changes from loaded state
-      .then(() => worker_type === 'old' ? startChanges() : startFeed()) // if worker old - start load changes else subscribe on changes feed
+      .then(() => worker_type === BUCKET_WORKER_TYPE_OLD ? startChanges() : startFeed()) // if worker old - start load changes else subscribe on changes feed
       .catch(onInitError) // catch errors on initialisation
       .then(processQueue); // start process queue
   }; // init bucket-worker
   const onInitError = (error) => {
     log({
       message: 'Error on init db: '+ name,
-      event: 'bucket/error',
+      event: LOG_EVENT_BUCKET_ERROR,
       error
     });
     close();
@@ -146,7 +154,7 @@ function DB(name, props = {}) {
       if (workerIndex > 0) {
         max_seq = workers[workerIndex - 1];
         const worker = state[worker_seq];
-        setWorkerInfo(worker, 'old');
+        setWorkerInfo(worker, BUCKET_WORKER_TYPE_OLD);
         return Promise.all(worker.ddocs.map(initDDoc));
       }
     }
@@ -156,7 +164,7 @@ function DB(name, props = {}) {
       .map(key => initDDoc({ name: key, methods: props.ddocs[key] })))
       .then(() => {
         workers.forEach((workerSeq) => {
-          if (worker_seq === workerSeq) setWorkerInfo(state[workerSeq], 'actual');
+          if (worker_seq === workerSeq) setWorkerInfo(state[workerSeq], BUCKET_WORKER_TYPE_ACTUAL);
           else _onOldWorker({ seq: workerSeq });
         });
         if (!last_seq) {
@@ -177,7 +185,7 @@ function DB(name, props = {}) {
       .catch(error => {
         log({
           message: 'Error on init ddoc: '+ name,
-          event: 'ddoc/error',
+          event: LOG_EVENT_DDOC_ERROR,
           error
         });
       })
@@ -195,7 +203,7 @@ function DB(name, props = {}) {
   const startChanges = () => new Promise((resolve, reject) => {
     log({
       message: 'Start changes since '+ last_seq +' between: '+ max_seq,
-      event: 'bucket/changes'
+      event: LOG_EVENT_BUCKET_CHANGES
     });
     const limit = max_seq - worker_seq;
     db.changes({ since: last_seq, limit, include_docs: true }, (error, changes) => {
@@ -224,7 +232,7 @@ function DB(name, props = {}) {
   const startFeed = () => {
     log({
       message: 'Start feed '+ worker_seq +' since: '+ last_seq,
-      event: 'bucket/feed'
+      event: LOG_EVENT_BUCKET_FEED
     });
     feed = db.follow({ since: last_seq, include_docs: true });
     feed.on('change', onChange);
@@ -235,7 +243,7 @@ function DB(name, props = {}) {
     if (hasFeed()) {
       log({
         message: 'Stop feed',
-        event: 'bucket/feedStop'
+        event: LOG_EVENT_BUCKET_FEED_STOP
       });
       feed.stop();
       _onStopFeed();
@@ -265,9 +273,9 @@ function DB(name, props = {}) {
     if (ddocName && props.ddocs[ddocName]) {
       log({
         message: 'Stop on ddoc change: '+ ddocName,
-        event: 'bucket/ddocStop'
+        event: LOG_EVENT_BUCKET_DDOC_STOP
       });
-      worker_type = 'old';
+      worker_type = BUCKET_WORKER_TYPE_OLD;
       return close();
     } else {
       return processQueue();
@@ -313,7 +321,7 @@ function DB(name, props = {}) {
     log({
       message: 'Start hook: ' + hook.name,
       ref: change.id,
-      event: 'hook/start'
+      event: LOG_EVENT_HOOK_START
     });
     hook.run(change) // run hook
       .then(onHook.fill(hook.name, change)) // if ok run onHook
@@ -328,7 +336,7 @@ function DB(name, props = {}) {
       message: result.message || result.docs,
       code: result.code,
       ref: change.id,
-      event: 'hook/results'
+      event: LOG_EVENT_HOOK_RESULT
     });
     if (result && result.code === 200 && result.docs) { // check hook results
       if (result.docs.length) {
@@ -336,7 +344,7 @@ function DB(name, props = {}) {
           log({
             message: 'Saved hook results: ' + hookName,
             ref: change.id,
-            event: 'hook/save'
+            event: LOG_EVENT_HOOK_SAVE
           });
           return Promise.resolve();
         });
@@ -349,7 +357,7 @@ function DB(name, props = {}) {
     log({
       message: 'Hook error: ' + hookName,
       ref: change.id,
-      event: 'hook/error',
+      event: LOG_EVENT_HOOK_ERROR,
       error
     });
     return Promise.resolve();
@@ -368,7 +376,7 @@ function DB(name, props = {}) {
     if (!doc) return Promise.reject(new Error('Bad document'));
     let docDB = db;
     if (doc._db) {
-      docDB = couchdb.connectDB(doc._db);
+      docDB = couchdb.connectBucket(doc._db);
       delete doc['_db'];
     }
     return getOldDoc(docDB, doc).then(oldDoc => updateDoc(docDB, oldDoc, doc));
@@ -386,11 +394,12 @@ function DB(name, props = {}) {
     });
   }); // load old document
   const updateDoc = (docDB, oldDoc, newDoc) => new Promise((resolve, reject) => {
-    if (oldDoc) newDoc._rev = oldDoc._rev;
-    docDB.insert(newDoc, (error, result) => {
-      if (error) return reject(error);
-      return resolve(result);
-    })
+    if (oldDoc) { // doc update
+      newDoc._rev = oldDoc._rev;
+    } else { // new doc
+      if (!newDoc._id) newDoc._id = lib.uuid(); // set id as uuid if no id
+    }
+    docDB.insert(newDoc, (error, result) => error ? reject(error) : resolve(result));
   }); // update by old and new documents
 
   const close = () => {
@@ -398,15 +407,17 @@ function DB(name, props = {}) {
     if (isRunning()) return setTimeout(close, CHECK_PROCESSES_TIMEOUT); // if worker has tasks wait
     log({
       message: 'Close',
-      event: 'bucket/close'
+      event: LOG_EVENT_BUCKET_CLOSE
     });
     updateDBState(true).then(() => { // on close
       _onClose(worker_seq); // call _onClose
     });
   }; // start close if bucket-worker and call _onClose
 
-  init();
-  return { close, isRunning };
+  return {
+    init, close,
+    isRunning
+  };
 }
 
 module.exports = DB;

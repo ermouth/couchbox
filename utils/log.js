@@ -1,5 +1,6 @@
 require('sugar');
 const Promise = require('bluebird');
+const lib = require('../lib');
 const couchdb = require('../couchdb');
 const config = require('../config');
 
@@ -8,17 +9,20 @@ const DB_NAME = config.get('logger.db');
 const DB_SAVE = config.get('logger.dbSave') === true;
 const BULK_SIZE = config.get('logger.bulkSize');
 
+const LOG_DEFAULT_NODE = 'couchbox';
+const LOG_DOCUMENT_TYPE = 'flog';
+const LOG_CHAIN_DELIMITER = '→';
 
 function log(text, chain, time) {
   if (!time) time = new Date();
   if (!chain) chain = ['Logger'];
-  console.log(time.iso() +' ['+ chain.reverse().join('→') +']: '+ text);
+  console.log(time.iso() +' ['+ chain.reverse().join(LOG_CHAIN_DELIMITER) +']: '+ text);
 }
 
 let db;
 let connectedDB = false;
 if (DB_SAVE) {
-  db = couchdb.connectDB(DB_NAME);
+  db = couchdb.connectBucket(DB_NAME);
   db.info((error, info) => {
     if (error) log('No db: '+ DB_NAME);
     else if (!info) log('No db info: '+ DB_NAME);
@@ -36,10 +40,11 @@ function Logger(props = {}) {
   let db_saving = DB_SAVE;
 
   const save = (events) => new Promise((resolve, reject) => {
-    const node = config.get('couchbox.nodename') || 'couchbox';
-    const type = 'flog';
+    const node = config.get('nodename') || LOG_DEFAULT_NODE;
+    const type = LOG_DOCUMENT_TYPE;
     const stamp = Date.now();
-    db.insert({ events, type, node, stamp }, (error) => {
+    const _id = lib.uuid(stamp);
+    db.insert({ _id, events, type, node, stamp }, (error) => {
       if (error) {
         log(JSON.stringify({ error }), [_prefix]);
         return reject(error);

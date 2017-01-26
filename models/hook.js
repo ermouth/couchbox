@@ -3,9 +3,11 @@ const Promise = require('bluebird');
 const vm = require('vm');
 const lib = require('../lib');
 const Logger = require('../utils/log');
-const { lambdaGlobals, availableGlobals } = require('./lambdaGlobal');
+const { availableGlobals } = require('./lambdaGlobal');
 const config = require('../config');
 
+
+const { LOG_EVENT_HOOK_ERROR, LOG_EVENT_HOOK_LOG } = require('../constants/logEvents');
 
 const HOOK_MODES = {
   'parallel': 'parallel',
@@ -27,7 +29,7 @@ function Hook(name, params = {}, props = {}) {
     log({
       message: 'Error no hook context: '+ name,
       error: new Error('No context'),
-      event: 'hook/error'
+      event: LOG_EVENT_HOOK_ERROR
     });
     return { name, isGood: false };
   }
@@ -36,7 +38,7 @@ function Hook(name, params = {}, props = {}) {
     log({
       message: 'Error run hook lambda: '+ name,
       error: new Error('No lambda'),
-      event: 'hook/error'
+      event: LOG_EVENT_HOOK_ERROR
     });
     return { name, isGood: false };
   }
@@ -53,7 +55,7 @@ function Hook(name, params = {}, props = {}) {
     log({
       message: 'Error run hook lambda: '+ name,
       error: new Error('Bad function validation: '+ JSON.stringify(validationResult)),
-      event: 'hook/error',
+      event: LOG_EVENT_HOOK_ERROR,
     });
     return { name, isGood: false };
   }
@@ -62,14 +64,14 @@ function Hook(name, params = {}, props = {}) {
 
   const _lambda = (change) => {
     let result;
-    const _log = (message, now) => log(Object.assign({ message }, { ref: change.id, event: 'hook/message' }), now);
+    const _log = (message, now) => log(Object.assign({ message }, { ref: change.id, event: LOG_EVENT_HOOK_LOG }), now);
     const doc = Object.clone(change.doc, true);
     try {
       result = _script.runInContext(context, { timeout }).call(ctx, _require, _log, doc);
     } catch(error) {
       log({
         message: 'Error run hook lambda: '+ name,
-        event: 'hook/error',
+        event: LOG_EVENT_HOOK_ERROR,
         error
       });
       result = undefined;

@@ -7,6 +7,9 @@ const Filter = require('./filter');
 const Hook = require('./hook');
 const config = require('../config');
 
+
+const { LOG_EVENT_DDOC_INIT, LOG_EVENT_DDOC_ERROR } = require('../constants/logEvents');
+
 // methods
 const cache = require('../utils/cache');
 const fetch = require('../utils/fetch');
@@ -61,7 +64,7 @@ function DDoc(db, props = {}) {
 
         log({
           message: 'Started ddoc: '+ name,
-          event: 'ddoc/init',
+          event: LOG_EVENT_DDOC_INIT,
           error
         });
         return resolve(seq);
@@ -94,6 +97,8 @@ function DDoc(db, props = {}) {
     }
 
     const context = new vm.createContext(lambdaGlobals);
+
+    const timeout = config.get('hooks.timeout');
 
     function resolveModule(path, mod = {}, root) {
       const { current, parent, id } = mod;
@@ -139,11 +144,11 @@ function DDoc(db, props = {}) {
         module_cache[newModule.id] = {};
         const script = '(function (module, exports, require, log) { ' + newModule.current + '\n })';
         try {
-          vm.runInContext(script, context, { timeout: config.get('hooks.timeout') }).call(ctx, newModule, newModule.exports, (property) => _require(property, newModule), log);
+          vm.runInContext(script, context, { timeout }).call(ctx, newModule, newModule.exports, (property) => _require(property, newModule), log);
         } catch (error) {
           log({
             message: 'Error on require property: '+ property,
-            event: 'ddoc/error',
+            event: LOG_EVENT_DDOC_ERROR,
             error
           });
         }
@@ -168,7 +173,7 @@ function DDoc(db, props = {}) {
         filterResult = false;
         log({
           message: 'Error on filter: '+ name +'/'+ filterKey,
-          event: 'ddoc/error',
+          event: LOG_EVENT_DDOC_ERROR,
           error
         });
       }
@@ -177,7 +182,7 @@ function DDoc(db, props = {}) {
         if (hook) hooksResult.push(hook);
         else log({
           message: 'Error on filter: '+ name +'/'+ filterKey,
-          event: 'ddoc/error',
+          event: LOG_EVENT_DDOC_ERROR,
           error: new Error('Cannot get hook by filter key')
         });
       }

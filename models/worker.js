@@ -1,26 +1,19 @@
 require('sugar');
+const EventEmitter = require('events');
 const lib = require('../lib');
 const Logger = require('../utils/log');
 
+const { LOG_EVENT_LOG_ERROR, LOG_EVENT_WORKER_CLOSED, LOG_EVENT_WORKER_ERROR } = require('../constants/logEvents');
+const { WORKER_EVENT_EXIT, WORKER_EVENT_MESSAGE, WORKER_EVENT_ERROR, WORKER_EVENT_UNHANDLED_ERROR } = require('../constants/worker');
 
 function Worker(cluster, props = {}) {
   const pid = process.pid;
   const name = props.name || 'Worker';
-  const logger = new Logger({
-    prefix: name +' '+ pid
-  });
+  const logger = new Logger({ prefix: name +' '+ pid });
   const log = logger.getLog();
 
-  const onMessage = props.onMessage || function(){};
-  const onError = props.onError || function(){};
-  const onUnhandledError = props.onUnhandledError || function(){};
-  const onExit = props.onExit;
-
-  let isClosing = false;
-
-  function sendToMaster(msg, data) {
-    process.send({ msg, data });
-  }
+  const emitter = new EventEmitter();
+  const sendToMaster = (msg, data) => process.send({ msg, data });
 
   process.on('message', (message) => {
     const { msg } = message;
@@ -31,7 +24,7 @@ function Worker(cluster, props = {}) {
       default:
         break;
     }
-    onMessage(message);
+    emitter.emit(WORKER_EVENT_MESSAGE, message);
   });
 
   // detect exit
@@ -41,20 +34,20 @@ function Worker(cluster, props = {}) {
   process.on('exit', () => {
     log({
       message: 'Closed',
-      event: 'worker/closed'
+      event: LOG_EVENT_WORKER_CLOSED
     });
   });
 
   function _onUnhandledError(error) {
-    onUnhandledError(error);
+    emitter.emit(WORKER_EVENT_UNHANDLED_ERROR, error);
   }
   function _onError(error) {
     log({
-      message: 'Worker '+ name +' error',
-      event: 'worker/error',
+      message: name +' error',
+      event: LOG_EVENT_WORKER_ERROR,
       error
     });
-    onError(error);
+    emitter.emit(WORKER_EVENT_ERROR, error);
   }
   function _onSIGINT() {
     // log('SIGINT');
@@ -62,29 +55,23 @@ function Worker(cluster, props = {}) {
   }
 
   function _onClose() {
-    if (onExit) onExit();
-    else startClose();
+    if (emitter.listenerCount(WORKER_EVENT_EXIT) > 0) emitter.emit(WORKER_EVENT_EXIT);
+    else close();
   }
 
-  function startClose() {
-    // log('Close');
-    isClosing = true;
-    const onLog = (error) => {
-      logger.goOffline();
-      if (error) log({ message:'Error save log', error });
-      process.exit();
-    };
+  function close() {
     logger.saveForced()
-      .catch(onLog)
-      .then(onLog);
+      .catch(error => log({ message:'Error save log', event: LOG_EVENT_LOG_ERROR, error }))
+      .finally(() => {
+        logger.goOffline();
+        process.exit();
+      });
   }
 
   return {
-    pid,
-    logger,
+    pid, logger, emitter,
     sendToMaster,
-    close: startClose,
-    isClosing: () => isClosing === true
+    close
   }
 }
 

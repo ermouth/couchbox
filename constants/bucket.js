@@ -1,0 +1,4 @@
+module.exports = {
+  BUCKET_WORKER_TYPE_OLD: 0,
+  BUCKET_WORKER_TYPE_ACTUAL: 1
+};

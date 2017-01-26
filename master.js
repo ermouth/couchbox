@@ -4,35 +4,98 @@ const Logger = require('./utils/log');
 const couchdb = require('./couchdb');
 const config = require('./config');
 
+const {
+  LOG_EVENT_LOG_ERROR,
+  LOG_EVENT_SANDBOX_START, LOG_EVENT_SANDBOX_CONFIG, LOG_EVENT_SANDBOX_CLOSE, LOG_EVENT_SANDBOX_CLOSED
+} = require('./constants/logEvents');
 
-const WORKER_TYPE_ACTUAL = 'actual';
-const WORKER_TYPE_OLD = 'old';
+const { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET } = require('./constants/worker');
+
+const { BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD } = require('./constants/bucket');
 const WORKER_WAIT_TIMEOUT = 500;
 
 // Master worker
 module.exports = function initMaster(cluster) {
   const logger = new Logger({ prefix: 'Master '+ process.pid });
   const log = logger.getLog();
-  log({ message: 'Started', event: 'sandbox/start' });
-
-  const sendMessage = (pid, msg, data) => workers.has(pid) && workers.get(pid).fork.send({ msg, data });
+  log({
+    message: 'Started',
+    event: LOG_EVENT_SANDBOX_START
+  });
 
   const workers = new Map(); // map of current workers
-  const dbs = new Map(); // map of current dbs params
+  const setWorker = (worker) => {
+    if (worker && worker.pid) {
+      workers.set(worker.pid, worker);
+      return worker;
+    }
+  }; // set worker state
+  const setWorkerProp = (pid, prop, val) => {
+    if (workers.has(pid)) {
+      const worker = workers.get(pid);
+      worker[prop] = val;
+      setWorker(worker);
+    }
+  }; // update prop in worker state
 
-  let hooksConfig = {};
   let isClosing = false;
-  let configUpdateTimeout;
 
+  const sendMessage = (pid, msg, data) => workers.has(pid) && workers.get(pid).fork.send({ msg, data });
+  function onClose() {
+    if (isClosing) return null;
+    log({ message: 'Close', event: LOG_EVENT_SANDBOX_CLOSE });
+    isClosing = true;
+    clearTimeout(configUpdateTimeout); // stop config update
+
+    for (let pid of workers.keys()) sendMessage(pid, 'close'); // send close for all workers
+
+    logger.saveForced() // start save log forced
+      .catch(error => log({ message: 'Close', event: LOG_EVENT_LOG_ERROR, error }))
+      .finally(() => {
+        logger.goOffline();
+      });
+  } // on close master
+  process.on('SIGINT', onClose); // on close command
+  process.on('exit', () => { log({ message: 'Closed', event: LOG_EVENT_SANDBOX_CLOSED }); }); // on master closed
+
+  const dbs = new Map(); // map of current dbs params
+  let hooksConfig = {};
+
+  // Config
   const configMap = {
     'couchbox': (conf = {}) => {
       if (!Object.isObject(conf)) return null;
       let needToUpdate = false;
-      const { nodename } = conf;
-      if (nodename && nodename.length > 0 && config.get('couchbox.nodename') !== nodename) {
+      let field;
+
+      field = 'couchbox.nodename';
+      const nodename = config.parse(field, conf.nodename);
+      if (config.check(field, nodename) && config.get(field) !== nodename) {
         needToUpdate = true;
-        config.set('couchbox.nodename', nodename);
+        config.set(field, nodename);
       }
+
+      field = 'socket.enabled';
+      const socket = config.parse(field, conf.socket);
+      if (config.check(field, socket) && config.get(field) !== socket) {
+        needToUpdate = true;
+        config.set(field, socket);
+      }
+
+      field = 'socket.port';
+      const socket_port = config.parse(field, conf.socket_port);
+      if (config.check(field, socket_port) && config.get(field) !== socket) {
+        needToUpdate = true;
+        config.set(field, socket_port);
+      }
+
+      field = 'socket.count';
+      const socket_count = config.parse(field, conf.socket_count);
+      if (config.check(field, socket_count) && config.get(field) !== socket_count) {
+        needToUpdate = true;
+        config.set(field, socket_count);
+      }
+
       return needToUpdate;
     },
     'hooks': (conf = {}) => {
@@ -41,17 +104,21 @@ module.exports = function initMaster(cluster) {
       Object.keys(conf).forEach(dbKey => {
         if (!needToUpdate && hooksConfig[dbKey] !== conf[dbKey]) needToUpdate = true;
       });
-      if (needToUpdate) hooksConfig = conf;
+      if (needToUpdate) {
+        hooksConfig = conf;
+      }
       return needToUpdate;
     },
     'couchdb': (conf = {}) => {
       if (!Object.isObject(conf)) return null;
       let needToUpdate = false;
+      let field;
 
-      const processTimeout = +conf.os_process_timeout;
-      if (processTimeout && processTimeout > 0 && config.get('hooks.timeout') !== processTimeout) {
+      field = 'hooks.timeout';
+      const processTimeout = config.parse(field, conf.os_process_timeout);
+      if (config.check(field, processTimeout) && config.get(field) !== processTimeout) {
         needToUpdate = true;
-        config.set('hooks.timeout', processTimeout);
+        config.set(field, processTimeout);
       }
 
       return needToUpdate;
@@ -59,33 +126,44 @@ module.exports = function initMaster(cluster) {
     'couch_httpd_auth':  (conf = {}) => {
       if (!Object.isObject(conf)) return null;
       let needToUpdate = false;
+      let field;
 
-      if (config.get('couchdb.secret') !== conf.secret) {
+      field = 'couchdb.secret';
+      const secret = config.parse(field, conf.secret);
+      if (config.check(field, secret) && config.get(field) !== secret) {
         needToUpdate = true;
-        config.set('couchdb.secret', conf.secret);
+        config.set(field, secret);
       }
 
       return needToUpdate;
     }
   }; // map for couchdb config
-  let configHash; // hash of config
+  let configUpdateTimeout;
 
-  function loadConfig() {
-    couchdb.loadConfig().then(newConf => {
-      if (isClosing) return null;
-      let needToUpdate = false;
-      Object.keys(newConf).forEach(confKey => {
-        needToUpdate = configMap[confKey] && configMap[confKey](newConf[confKey]) || needToUpdate;
-      });
-      if (needToUpdate) { // if one or more from changes updated
-        log({ message: 'Updated hooks config', event: 'sandbox/configUpdate' });
-        configHash = lib.hash(['couchbox', 'couchdb', 'hooks', 'redis'].map(cfg => config.get(cfg))); // update configHash by critical fields
-        updateWorkers(); // start update workers
-      }
-      if (!isClosing) configUpdateTimeout = setTimeout(loadConfig, config.get('system.configTimeout')); // start timeout on next config update if worker is running
+  let configBucketHash; // hash of bucket workers config
+  let configSocketHash; // hash of socket workers config
+
+  const loadConfig = () => couchdb.loadConfig().then(newConf => {
+    if (isClosing) return null;
+    let needToUpdate = false;
+    Object.keys(newConf).forEach(confKey => {
+      needToUpdate = configMap[confKey] && configMap[confKey](newConf[confKey]) || needToUpdate;
     });
-  } // load and process couchdb config
-  function updateWorkers() {
+    if (needToUpdate) { // if one or more from changes updated
+      log({
+        message: 'Updated hooks config',
+        event: LOG_EVENT_SANDBOX_CONFIG
+      });
+      configBucketHash = lib.hashMD5(['couchbox', 'couchdb', 'hooks', 'redis'].map(config.get)); // update configBucketHash by critical fields
+      configSocketHash = lib.hashMD5(['couchbox', 'socket'].map(config.get)); // update configBucketHash by critical fields
+      updateBucketWorkers(); // start update bucket workers
+      // updateSocketWorkers();
+    }
+    if (!isClosing) configUpdateTimeout = setTimeout(loadConfig, config.get('system.configTimeout')); // start timeout on next config update if worker is running
+  }); // load and process couchdb config
+
+
+  function updateBucketWorkers() {
     const dbsTmp = {};
     const dbs_keys = [];
 
@@ -93,14 +171,14 @@ module.exports = function initMaster(cluster) {
       const dbdoc = dbdocKey.split(/\\/);
       const db = dbdoc[0];
       const ddoc = dbdoc[1];
-      if (!dbsTmp[db]) dbsTmp[db] = { ddocs: {}, configHash };
+      if (!dbsTmp[db]) dbsTmp[db] = { ddocs: {}, configHash: configBucketHash };
       dbsTmp[db].ddocs[ddoc] = hooksConfig[dbdocKey];
     }); // make temp dbs
 
     Object.keys(dbsTmp).forEach(db_key => {
       const db_ddocs = dbsTmp[db_key] && dbsTmp[db_key].ddocs ? dbsTmp[db_key].ddocs : null;
       if (db_ddocs && Object.keys(db_ddocs).length) {
-        dbsTmp[db_key].ddocsHash = lib.hash(db_ddocs); // set hash of ddocs config
+        dbsTmp[db_key].ddocsHash = lib.hashMD5(db_ddocs); // set hash of ddocs config
         dbs_keys.push(db_key);
       }
       else dbsTmp[db_key] = null;
@@ -112,142 +190,171 @@ module.exports = function initMaster(cluster) {
       const newDB = dbsTmp[db_key];
       if (!newDB) { // stop db workers
         dbs.delete(db_key);
-        stopWorkersByDb(db_key);
+        stopBucketWorkersByDb(db_key);
       } else if (!oldDB) { // start new worker
         dbs.set(db_key, newDB);
-        startWorker(db_key);
+        startWorkerBucket(db_key);
       } else if (oldDB.configHash !== newDB.configHash || oldDB.ddocsHash !== newDB.ddocsHash) { // restart worker
         dbs.delete(db_key);
-        stopWorkersByDb(db_key);
+        stopBucketWorkersByDb(db_key);
         dbs.set(db_key, newDB);
-        startWorker(db_key);
+        startWorkerBucket(db_key);
       }
     });
   }
 
-  function startWorker(db, seq) {
-    if ( // don't start worker if
-      isClosing // master closing
-      || !dbs.has(db) // in dbs no worker db
-      || (seq > 0
-        ? getWorkerByDbSeq(db, seq).length > 0 // seq and worker already exist
-        : getWorkersByDbFeed(db).length > 0 // no seq && exist one or more workers with feed by db
-      )
-    ) return null;
+  function updateSocketWorkers() {
+    const socketAvailable = config.get('socket.enabled');
+    if (!socketAvailable) return stopSocketWorkers();
 
-    if (!seq && getStartingWorkerByDb(db).length > 0) {
-      // if we have not initialised workers who can has feed and current worker can has feed - wait not initialised workers
-      return setTimeout(startWorker.fill(db, seq), WORKER_WAIT_TIMEOUT);
+    const aliveWorkers = [];
+    getSocketWorkers().forEach(worker => {
+      if (socketWorkerIsDead(worker)) {}
+      else if (worker.configHash !== configSocketHash) {}
+      else aliveWorkers.push(worker);
+    });
+
+    const needToStart = config.get('socket.count') - aliveWorkers.length;
+    if (needToStart === 0) return null;
+    else if (needToStart > 0) (needToStart).times(startWorkerSocket);
+    else {
+      console.log();
+      console.log('need to close', needToStart);
+      console.log();
     }
+  }
 
-    const { ddocs, ddocsHash } = dbs.get(db);
-    const workerProps = JSON.stringify({ forkType: 'db', db, seq, ddocs });
-    const fork = cluster.fork(Object.assign(
-      config.toEnv(), // send current config
-      { workerProps } // send worker properties
-    ));
-    const { pid } = fork.process;
-    setWorker({ pid, db, seq, fork, configHash, ddocsHash, feed: false });
+  // Workers manipulations
 
-    fork.on('exit', onWorkerExit.fill(pid, db));
-    fork.on('message', onWorkerMessage.fill(pid, db));
-  } // worker stater
+  const getWorkers = () => Array.from(workers.values());
+  const removeWorker = (pid) => workers.has(pid) ? workers.delete(pid) : null; // remove worker by pid
+  const stopWorker = (worker) => sendMessage(worker.pid, 'close'); // send close to worker
 
-  const onWorkerMessage = (pid, db, message) => {
-    switch (message.msg) {
-      case 'init':
-        onWorkerInit(pid, db, message.data);
-        break;
-      case 'startFeed':
-        onWorkerStartFeed(pid, db);
-        break;
-      case 'stopFeed':
-        onWorkerStopFeed(pid, db);
-        break;
-      case 'oldWorker':
-        onOldWorker(db, message.data);
-        break;
-      default:
-        break;
+
+  // Bucket workers manipulations
+
+  const bucketWorkerHasFeed = (worker) => worker.seq >= 0 && worker.type === BUCKET_WORKER_TYPE_ACTUAL && worker.feed === true; // filter worker with feed
+  const bucketWorkerIsReady = (worker) => worker.seq >= 0 && (worker.type === BUCKET_WORKER_TYPE_OLD || (worker.type === BUCKET_WORKER_TYPE_ACTUAL && worker.feed === true)); // filter initialised workers
+  const bucketWorkerNotReady = (worker) => !bucketWorkerIsReady(worker); // filter not initialised workers
+
+  const getBucketWorkers = () => getWorkers().filter(({ forkType }) => forkType === WORKER_TYPE_BUCKET);
+  const getBucketWorkersByDb = (dbName) => getBucketWorkers().filter(({ db }) => db === dbName); // return workers by db
+  const getBucketWorkersByDbFeed = (dbName) => getBucketWorkersByDb(dbName).filter(bucketWorkerHasFeed); // return workers by db who has feed
+  const getBucketWorkerByDbSeq = (dbName, seq) => seq >= 0 ? getBucketWorkersByDb(dbName).filter(worker => worker.seq === seq) : []; // return workers by db and seq
+  const getBucketStartingWorkerByDb = (dbName) => getBucketWorkersByDb(dbName).filter(bucketWorkerNotReady); // return workers by db and seq
+  const stopBucketWorkersByDb = (dbName) => getBucketWorkersByDb(dbName).forEach(stopWorker); // stop workers by db
+
+  const onBucketWorkerInit = (pid, dbName, data = {}) => {
+    const { seq, type } = data;
+    setWorkerProp(pid, 'type', type);
+    if (seq >= 0) setWorkerProp(pid, 'seq', +seq);
+  }; // when worker started - update worker seq
+  const onBucketWorkerStartFeed = (pid, dbName) => {
+    setWorkerProp(pid, 'feed', true);
+  }; // when worker subscribed on feed - update workers meta
+  const onBucketWorkerStopFeed = (pid, dbName) => {
+    setWorkerProp(pid, 'feed', false);
+    setWorkerProp(pid, 'type', BUCKET_WORKER_TYPE_OLD);
+    startWorkerBucket(dbName);
+  }; // when worker unsubscribed from feed - update workers meta and try to start new
+  const onBucketWorkerOld = (dbName, data = {}) => {
+    const seq = +data.seq;
+    if (seq > 0) { // if worker has seq
+      if (getBucketWorkerByDbSeq(dbName, seq).length) { /** log('Worker '+ seq +' already started'); */ }
+      else startWorkerBucket(dbName, seq); // if master has no worker with seq - try to start old worker
     }
-  }; // workers listener
+  }; // when detected old worker
   const onWorkerExit = (pid, dbName, message, code) => {
     // detect if worker killed - start new worker
     if (!message && code === 'SIGKILL' && workers.has(pid)) { // if worker crashed
       const { seq } = workers.get(pid);
       removeWorker(pid);
-      if (seq > 0) startWorker(dbName, seq); // try restart worker
+      if (seq > 0) startWorkerBucket(dbName, seq); // try restart worker
     } else { // if worker closed gracefully
       removeWorker(pid);
     }
   }; // when worker closed
-  const onWorkerInit = (pid, dbName, data = {}) => {
-    const { seq, type } = data;
-    setWorkerProp(pid, 'type', type);
-    if (seq >= 0) setWorkerProp(pid, 'seq', +seq);
-  }; // when worker started - update worker seq
-  const onWorkerStartFeed = (pid, dbName) => {
-    setWorkerProp(pid, 'feed', true);
-  }; // when worker subscribed on feed - update workers meta
-  const onWorkerStopFeed = (pid, dbName) => {
-    setWorkerProp(pid, 'feed', false);
-    setWorkerProp(pid, 'type', WORKER_TYPE_OLD);
-    startWorker(dbName);
-  }; // when worker unsubscribed from feed - update workers meta and try to start new
-  const onOldWorker = (dbName, data = {}) => {
-    const seq = +data.seq;
-    if (seq > 0) { // if worker has seq
-      if (getWorkerByDbSeq(dbName, seq).length) { /** log('Worker '+ seq +' already started'); */ }
-      else startWorker(dbName, seq); // if master has no worker with seq - try to start old worker
+
+  function startWorkerBucket(db, seq) {
+    if ( // don't start worker if
+      isClosing // master closing
+      || !dbs.has(db) // in dbs no worker db
+      || (seq > 0
+          ? getBucketWorkerByDbSeq(db, seq).length > 0 // seq and worker already exist
+          : getBucketWorkersByDbFeed(db).length > 0 // no seq && exist one or more workers with feed by db
+      )
+    ) return null;
+
+    if (!seq && getBucketStartingWorkerByDb(db).length > 0) {
+      // if we have not initialised workers who can has feed and current worker can has feed - wait not initialised workers
+      return setTimeout(startWorkerBucket.fill(db, seq), WORKER_WAIT_TIMEOUT);
     }
-  }; // when detected old worker
 
-  const setWorker = (worker) => {
-    if (worker && worker.pid) {
-      workers.set(worker.pid, worker);
-      return worker;
-    }
-  }; // set worker state
-  const setWorkerProp = (pid, prop, val) => {
-    if (workers.has(pid)) {
-      const worker = workers.get(pid);
-      worker[prop] = val;
-      workers.set(pid, worker);
-    }
-  }; // update prop in worker state
+    const { ddocs, ddocsHash, configHash } = dbs.get(db);
+    const forkType = WORKER_TYPE_BUCKET;
+    const workerProps = JSON.stringify({ forkType, db, seq, ddocs });
+    const fork = cluster.fork(Object.assign(
+      config.toEnv(), // send current config
+      { workerProps } // send worker properties
+    ));
+    const { pid } = fork.process;
+    setWorker({ pid, fork, forkType, db, seq, ddocsHash, configHash, feed: false });
 
-  const workerHasFeed = (worker) => worker.seq >= 0 && worker.type === WORKER_TYPE_ACTUAL && worker.feed === true;
-  const workerIsReady = (worker) => worker.seq >= 0 && (worker.type === WORKER_TYPE_OLD || (worker.type === WORKER_TYPE_ACTUAL && worker.feed === true));
-  const workerNotReady = (worker) => !workerIsReady(worker);
-  const getWorkersByDb = (dbName) => Array.from(workers.values()).filter(worker => worker.db === dbName); // return workers by db
-  const getWorkersByDbFeed = (dbName) => getWorkersByDb(dbName).filter(workerHasFeed); // return workers by db who has feed
-  const getWorkerByDbSeq = (dbName, seq) => seq >= 0 ? getWorkersByDb(dbName).filter(worker => worker.seq === seq) : []; // return workers by db and seq
-  const getStartingWorkerByDb = (dbName) => getWorkersByDb(dbName).filter(workerNotReady); // return workers by db and seq
-  const removeWorker = (pid) => workers.has(pid) ? workers.delete(pid) : null; // remove worker by pid
-  const stopWorker = (worker) => sendMessage(worker.pid, 'close'); // send close to worker
-  const stopWorkersByDb = (dbName) => getWorkersByDb(dbName).forEach(stopWorker);
+    fork.on('exit', onWorkerExit.fill(pid, db));
+    fork.on('message', message => {
+      switch (message.msg) {
+        case 'init':
+          onBucketWorkerInit(pid, db, message.data);
+          break;
+        case 'startFeed':
+          onBucketWorkerStartFeed(pid, db);
+          break;
+        case 'stopFeed':
+          onBucketWorkerStopFeed(pid, db);
+          break;
+        case 'oldWorker':
+          onBucketWorkerOld(db, message.data);
+          break;
+        default:
+          break;
+      }
+    });
+  } // worker stater
 
-  function onClose() {
-    log({ message: 'Close', event: 'sandbox/close' });
-    isClosing = true;
-    clearTimeout(configUpdateTimeout); // stop config update
 
-    for (let pid of workers.keys()) sendMessage(pid, 'close'); // send close for all workers
+  // Socket workers manipulations
 
-    const onLog = (error) => { // on log saved
-      logger.goOffline(); // disconnect log from db
-      if (error) log({ message: 'Close', event: 'sandbox/logError', error });
-    };
+  const socketWorkerIsDead = (worker) => worker.init === false;
+  const getSocketWorkers = () => getWorkers().filter(({ forkType }) => forkType === WORKER_TYPE_SOCKET);
+  const stopSocketWorkers = () => getSocketWorkers().forEach(stopWorker); // stop all socket workers
 
-    logger.saveForced() // start save log forced
-      .catch(onLog)
-      .then(onLog);
-  } // on close master
+  function startWorkerSocket() {
+    const configHash = configSocketHash;
+    const forkType = WORKER_TYPE_SOCKET;
+    const workerProps = JSON.stringify({ forkType });
+    const fork = cluster.fork(Object.assign(
+      config.toEnv(), // send current config
+      { workerProps } // send worker properties
+    ));
+    const { pid } = fork.process;
+    setWorker({
+      pid, fork, forkType, configHash,
+      init: false
+    });
 
-  // detect exit
-  process.on('SIGINT', onClose); // on close command
-  process.on('exit', () => { log({ message: 'Closed', event: 'sandbox/closed' }); }); // on master closed
+    fork.on('exit', () => removeWorker(pid));
+    fork.on('message', message => {
+      switch (message.msg) {
+        case 'init':
+          setWorkerProp(pid, 'init', true);
+          break;
+        default:
+          break;
+      }
+    });
 
-  // init
+  } // worker stater
+
+  // Init
   loadConfig();
 };

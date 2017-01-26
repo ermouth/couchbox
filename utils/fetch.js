@@ -1,18 +1,13 @@
-const config = require('../config');
-const couchdb = require('../couchdb');
-
 require('sugar');
 const Promise = require('bluebird');
 const fetch = require('node-fetch');
+const couchdb = require('../couchdb');
+const config = require('../config');
 
 
-const HTTP_METHODS = {
-  'GET': 1,
-  'POST': 1,
-  'PUT': 1,
-  'DELETE': 1,
-  'HEAD': 1
-};
+const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'HEAD'];
+const HTTP_METHODS_VALID = {};
+HTTP_METHODS.forEach(m => HTTP_METHODS_VALID[m] = true);
 
 const getNodeURL = (node) => config.get('nodes.domainPrefix') + node +'.'+ config.get('nodes.domain');
 
@@ -26,10 +21,10 @@ module.exports = function () {
 
   if (options.method) {
     const method = options.method.toUpperCase();
-    if (!HTTP_METHODS[method]) return Promise.reject(new Error('Bad method: '+ method));
+    if (!HTTP_METHODS_VALID[method]) return Promise.reject(new Error('Bad method: '+ method));
     queryParams.method = method;
   } else {
-    queryParams.method = 'GET';
+    queryParams.method = HTTP_METHODS[0];
   }
 
   if (options.node) {

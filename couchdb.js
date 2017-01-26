@@ -21,7 +21,7 @@ let auth_attempts = 5;
 let connection;
 
 const connect = () => connection ? connection : (connection = nano(DB_CONNECTION_URL)); // return db connection
-const connectDB = (db) => connect().use(db); // return db-bucket connection
+const connectBucket = (db) => connect().use(db); // return db-bucket connection
 
 const auth = () => new Promise((resolve, reject) => {
   const oldCookie = config.get('couchdb.cookie');
@@ -83,6 +83,6 @@ module.exports = {
   auth,
   loadConfig,
   connect,
-  connectDB,
+  connectBucket,
   makeAuthHeaders
 };

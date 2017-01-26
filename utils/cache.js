@@ -14,7 +14,7 @@ const getCache = (key) => new Promise((resolve, reject) => {
 const setCache = (key, data, tags = {}) => new Promise((resolve, reject) => {
   cache.set(key, data, tags, error => error ? reject(error) : resolve());
 });
-const invalidateCache = (tags) => new Promise((resolve, reject) => {
+const invalidateCache = (tags = {}) => new Promise((resolve, reject) => {
   cache.invalidate(tags, error => error ? reject(error) : resolve());
 });
 const clearCache = (key) => new Promise((resolve, reject) => {
