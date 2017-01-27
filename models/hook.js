@@ -3,7 +3,7 @@ const Promise = require('bluebird');
 const vm = require('vm');
 const lib = require('../lib');
 const Logger = require('../utils/log');
-const { availableGlobals } = require('./lambdaGlobal');
+const { lambdaAvailable } = require('./lambdaGlobal');
 const config = require('../config');
 
 
@@ -46,18 +46,21 @@ function Hook(name, params = {}, props = {}) {
   const lambdaSrc = params.lambda;
   const timeout = params.timeout && params.timeout > 0 ? params.timeout : (config.get('hooks.timeout') || HOOK_DEFAULT_TIMEOUT);
   const attachments = params.attachments || false;
+  const validate = params.dubug !== true;
   const mode = params.mode && HOOK_MODES[params.mode] ? params.mode : HOOK_DEFAULT_MODE;
   const since = params.since && params.since > 0 ? params.since : 'now';
   const conflicts = params.conflicts || false;
 
-  const validationResult = lib.validateGlobals(lambdaSrc, { available: availableGlobals });
-  if (validationResult && validationResult.length) {
-    log({
-      message: 'Error run hook lambda: '+ name,
-      error: new Error('Bad function validation: '+ JSON.stringify(validationResult)),
-      event: LOG_EVENT_HOOK_ERROR,
-    });
-    return { name, isGood: false, attachments };
+  if (validate) {
+    const validationResult = lib.validateGlobals(lambdaSrc, { available: lambdaAvailable });
+    if (validationResult && validationResult.length) {
+      log({
+        message: 'Error run hook lambda: '+ name,
+        error: new Error('Bad function validation: '+ JSON.stringify(validationResult)),
+        event: LOG_EVENT_HOOK_ERROR,
+      });
+      return { name, isGood: false, attachments };
+    }
   }
 
   const _script = new vm.Script('(function(require, log, doc) { return new Promise((resolve, reject) => (' + lambdaSrc + ').call(this, doc) ); })');
