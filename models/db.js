@@ -255,7 +255,6 @@ function DB(props = {}) {
   const onEndQueue = () => !hasFeed() && close(); // call after process last item in queue and start close if no feed
 
   const onChange = (change) => {
-    console.log('change', change);
     queue.push(change);
     return processQueue();
   }; // on change event push it to queue and run process queue
