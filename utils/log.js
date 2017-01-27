@@ -19,6 +19,12 @@ function log(text, chain, time) {
   console.log(time.iso() +' ['+ chain.reverse().join(LOG_CHAIN_DELIMITER) +']: '+ text);
 }
 
+const errorMessageMap = (msg) => {
+  let detect = msg.match(/^Invalid require path: Object has no property ".+"\.\s/);
+  if (detect && detect.length === 1) msg = detect[0].slice(0,-2);
+  return msg;
+};
+
 let db;
 let connectedDB = false;
 if (DB_SAVE) {
@@ -81,7 +87,7 @@ function Logger(props = {}) {
       }
       if (msg.error) {
         event.error = JSON.stringify(msg.error);
-        if (msg.error.message) message += (message.length ? ' ' : '') +'"'+ msg.error.message +'"';
+        if (msg.error.message) message += (message.length ? ' ' : '') +'"'+ errorMessageMap(msg.error.message) +'"';
         else message += (message.length ? ' ' : '') + event.error;
       }
       if (msg.code) event.code = msg.code;
