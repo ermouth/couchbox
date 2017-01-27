@@ -127,12 +127,6 @@ const defaultConfig = {
     map: mapBool,
     check: checkBool
   },
-  'socket.count': {
-    env: 'SOCKET_COUNT',
-    value: 1,
-    map: mapInt,
-    check: checkNumPlus
-  },
   'socket.port': {
     env: 'SOCKET_PORT',
     value: 3000,
@@ -193,7 +187,7 @@ module.exports.set = (fieldPath, val) => {
   return false;
 }; // set property, need valid val
 
-module.exports.reset = (fieldPath) => {
+module.exports.clean = (fieldPath) => {
   const field = defaultConfig[fieldPath];
   if (!field) return null;
   lib.addField(config, fieldPath, undefined);

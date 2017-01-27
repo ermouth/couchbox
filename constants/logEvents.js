@@ -13,6 +13,7 @@ module.exports = {
   LOG_EVENT_WORKER_ERROR: 'worker/error',
 
   LOG_EVENT_SOCKET_START: 'socket/start',
+  LOG_EVENT_SOCKET_STOP: 'socket/stop',
   LOG_EVENT_SOCKET_ERROR: 'socket/error',
 
   LOG_EVENT_BUCKET_FEED: 'bucket/feed',

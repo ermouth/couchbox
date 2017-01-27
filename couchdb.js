@@ -55,7 +55,7 @@ const getConfig = (cookie) => new Promise((resolve, reject) => {
     .then(json => {
       if (!json || json.error) {
         if (json && json.error === 'unauthorized') {
-          config.reset('couchdb.cookie');
+          config.clean('couchdb.cookie');
           return loadConfig();
         }
         return reject(new Error('Bad config'));

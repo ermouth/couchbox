@@ -40,7 +40,6 @@ module.exports = function initWorker(cluster, props = {}) {
   });
 
   worker.emitter.on(WORKER_EVENT_EXIT, () => {
-    console.log('Worker exit');
     if (socket.isRunning()) return socket.close();
     log({
       message: 'On worker exit',

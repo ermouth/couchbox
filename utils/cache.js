@@ -2,11 +2,11 @@ require('sugar');
 const Promise = require('bluebird');
 const stow = require('stow');
 const RedisBackend = require('stow/backends/redis');
-const { client } = require('../redis');
+const redisClient = require('../redis');
 // const config = require('../config');
 
 
-const cache = stow.createCache(RedisBackend, { client });
+const cache = stow.createCache(RedisBackend, { client: redisClient });
 
 const getCache = (key) => new Promise((resolve, reject) => {
   cache.get(key, (error, result) => error ? reject(error) : resolve(result));

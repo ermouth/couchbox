@@ -10,4 +10,4 @@ const client = redis.createClient({
   port: REDIS_PORT
 });
 
-module.exports = { client };
+module.exports = client;

@@ -60,6 +60,7 @@ module.exports = function initMaster(cluster) {
 
   const dbs = new Map(); // map of current dbs params
   let hooksConfig = {};
+  let endpointsConfig = {};
 
   // Config
   const configMap = {
@@ -84,16 +85,9 @@ module.exports = function initMaster(cluster) {
 
       field = 'socket.port';
       const socket_port = config.parse(field, conf.socket_port);
-      if (config.check(field, socket_port) && config.get(field) !== socket) {
+      if (config.check(field, socket_port) && config.get(field) !== socket_port) {
         needToUpdate = true;
         config.set(field, socket_port);
-      }
-
-      field = 'socket.count';
-      const socket_count = config.parse(field, conf.socket_count);
-      if (config.check(field, socket_count) && config.get(field) !== socket_count) {
-        needToUpdate = true;
-        config.set(field, socket_count);
       }
 
       return needToUpdate;
@@ -106,6 +100,17 @@ module.exports = function initMaster(cluster) {
       });
       if (needToUpdate) {
         hooksConfig = conf;
+      }
+      return needToUpdate;
+    },
+    'endpoints': (conf = {}) => {
+      if (!Object.isObject(conf)) return null;
+      let needToUpdate = false;
+      Object.keys(conf).forEach(endKey => {
+        if (!needToUpdate && endpointsConfig[endKey] !== conf[endKey]) needToUpdate = true;
+      });
+      if (needToUpdate) {
+        endpointsConfig = conf;
       }
       return needToUpdate;
     },
@@ -142,6 +147,7 @@ module.exports = function initMaster(cluster) {
 
   let configBucketHash; // hash of bucket workers config
   let configSocketHash; // hash of socket workers config
+  let configEndpointHash; // hash of endpoint workers config
 
   const loadConfig = () => couchdb.loadConfig().then(newConf => {
     if (isClosing) return null;
@@ -154,10 +160,18 @@ module.exports = function initMaster(cluster) {
         message: 'Updated hooks config',
         event: LOG_EVENT_SANDBOX_CONFIG
       });
+
       configBucketHash = lib.hashMD5(['couchbox', 'couchdb', 'hooks', 'redis'].map(config.get)); // update configBucketHash by critical fields
-      configSocketHash = lib.hashMD5(['couchbox', 'socket'].map(config.get)); // update configBucketHash by critical fields
       updateBucketWorkers(); // start update bucket workers
-      // updateSocketWorkers();
+
+      configEndpointHash = lib.hashMD5(['couchbox', 'couchdb', 'redis'].map(config.get)); // update configEndpointHash by critical fields
+      updateEndpointWorkers(); // start update endpoint workers
+
+      const newConfigSocketHash = lib.hashMD5(['couchbox', 'socket', 'redis'].map(config.get)); // update configSocketHash by critical fields
+      if (newConfigSocketHash !== configSocketHash) {
+        configSocketHash = newConfigSocketHash;
+        updateSocketWorkers();
+      }
     }
     if (!isClosing) configUpdateTimeout = setTimeout(loadConfig, config.get('system.configTimeout')); // start timeout on next config update if worker is running
   }); // load and process couchdb config
@@ -204,25 +218,18 @@ module.exports = function initMaster(cluster) {
   }
 
   function updateSocketWorkers() {
-    const socketAvailable = config.get('socket.enabled');
-    if (!socketAvailable) return stopSocketWorkers();
+    if (!config.get('socket.enabled')) return stopSocketWorkers();
 
     const aliveWorkers = [];
     getSocketWorkers().forEach(worker => {
-      if (socketWorkerIsDead(worker)) {}
-      else if (worker.configHash !== configSocketHash) {}
+      if (worker.configHash !== configSocketHash) stopWorker(worker);
       else aliveWorkers.push(worker);
     });
 
-    const needToStart = config.get('socket.count') - aliveWorkers.length;
-    if (needToStart === 0) return null;
-    else if (needToStart > 0) (needToStart).times(startWorkerSocket);
-    else {
-      console.log();
-      console.log('need to close', needToStart);
-      console.log();
-    }
+    if (aliveWorkers.length === 0) startWorkerSocket();
   }
+
+  function updateEndpointWorkers() { }
 
   // Workers manipulations
 

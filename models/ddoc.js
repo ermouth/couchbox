@@ -13,6 +13,7 @@ const { LOG_EVENT_DDOC_INIT, LOG_EVENT_DDOC_ERROR } = require('../constants/logE
 // methods
 const cache = require('../utils/cache');
 const fetch = require('../utils/fetch');
+const socket = require('../utils/socket');
 const Bucket = require('../utils/bucket');
 
 const CONTEXT_DENY = {
@@ -85,6 +86,9 @@ function DDoc(db, props = {}) {
         switch (method) {
           case 'fetch':
             ctx['_fetch'] = fetch;
+            break;
+          case 'socket':
+            ctx['_socket'] = socket;
             break;
           case 'bucket':
             ctx['_bucket'] = new Bucket(db);
