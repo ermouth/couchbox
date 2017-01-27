@@ -1,4 +1,4 @@
 module.exports = {
-  BUCKET_WORKER_TYPE_OLD: 0,
-  BUCKET_WORKER_TYPE_ACTUAL: 1
+  SOCKET_NODE_DELIMITER: ':',
+  SOCKET_EVENT_PREFIX: 'socket.emit.'
 };

@@ -7,6 +7,7 @@ const config = require('../config');
 
 const NODE_NAME = config.get('couchbox.nodename');
 const SOCKET_PORT = config.get('socket.port');
+const { SOCKET_EVENT_PREFIX } = require('../constants/socket');
 const { LOG_EVENT_SOCKET_START, LOG_EVENT_SOCKET_STOP } = require('../constants/logEvents');
 
 function Socket(props = {}) {
@@ -33,7 +34,7 @@ function Socket(props = {}) {
         event: LOG_EVENT_SOCKET_START
       });
 
-      redisClient.subscribe(NODE_NAME +'.socket.emit');
+      redisClient.subscribe(SOCKET_EVENT_PREFIX + NODE_NAME);
 
       _onInit();
     });
