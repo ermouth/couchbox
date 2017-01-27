@@ -45,7 +45,6 @@ function Hook(name, params = {}, props = {}) {
 
   const lambdaSrc = params.lambda;
   const timeout = params.timeout && params.timeout > 0 ? params.timeout : (config.get('hooks.timeout') || HOOK_DEFAULT_TIMEOUT);
-  const attachments = params.attachments || false;
   const validate = params.dubug !== true;
   const mode = params.mode && HOOK_MODES[params.mode] ? params.mode : HOOK_DEFAULT_MODE;
   const since = params.since && params.since > 0 ? params.since : 'now';
@@ -59,7 +58,7 @@ function Hook(name, params = {}, props = {}) {
         error: new Error('Bad function validation: '+ JSON.stringify(validationResult)),
         event: LOG_EVENT_HOOK_ERROR,
       });
-      return { name, isGood: false, attachments };
+      return { name, isGood: false };
     }
   }
 
@@ -83,7 +82,7 @@ function Hook(name, params = {}, props = {}) {
   };
 
   return {
-    name, attachments,
+    name,
     run: _lambda,
     isGood: true
   };

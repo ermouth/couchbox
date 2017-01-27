@@ -34,7 +34,6 @@ function DDoc(db, props = {}) {
   let id;
   let rev = props.rev;
   let seq;
-  let attachments = false;
 
   function init() {
     return new Promise((resolve, reject) => {
@@ -56,7 +55,6 @@ function DDoc(db, props = {}) {
             if (filter && filter.isGood) {
               const hook = new Hook(fieldName, body.hooks[filterKey], hookProps);
               if (hook && hook.isGood) {
-                if (!attachments) attachments = hook.attachments;
                 hooks.set(filterKey, hook);
                 filters.set(filterKey, filter);
               }
@@ -69,7 +67,7 @@ function DDoc(db, props = {}) {
           event: LOG_EVENT_DDOC_INIT,
           error
         });
-        return resolve({ seq, attachments });
+        return resolve({ seq });
       });
     });
   }
