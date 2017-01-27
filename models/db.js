@@ -44,6 +44,7 @@ function DB(props = {}) {
   let ddocsInfo = [];
   let feed;
   let worker_type = BUCKET_WORKER_TYPE_ACTUAL;
+  let attachments = false;
 
   const hasFeed = () => !!feed && !feed.dead; // return true if worker has feed and feed is alive
   const hasTasks = () => queue.length > 0 || Object.keys(inProcess).length > 0; // return true if queue has tasks or worker has working processes
@@ -177,8 +178,9 @@ function DB(props = {}) {
     const { name, rev, methods } = data;
     const ddoc = new DDoc(db, { name, rev, methods, logger });
     ddoc.init()
-      .then((seq) => {
-        if (worker_seq < seq) worker_seq = seq;
+      .then(data => {
+        if (worker_seq < data.seq) worker_seq = data.seq;
+        if (!attachments) attachments = data.attachments;
         ddocs.push(ddoc);
         return Promise.resolve();
       })
@@ -206,7 +208,7 @@ function DB(props = {}) {
       event: LOG_EVENT_BUCKET_CHANGES
     });
     const limit = max_seq - worker_seq;
-    db.changes({ since: last_seq, limit, include_docs: true }, (error, changes) => {
+    db.changes({ since: last_seq, limit, include_docs: true, attachments }, (error, changes) => {
       if (error) return reject(error);
       if (changes && changes.results) {
         changes.results.forEach(change => {
@@ -234,7 +236,7 @@ function DB(props = {}) {
       message: 'Start feed '+ worker_seq +' since: '+ last_seq,
       event: LOG_EVENT_BUCKET_FEED
     });
-    feed = db.follow({ since: last_seq, include_docs: true });
+    feed = db.follow({ since: last_seq, include_docs: true, attachments });
     feed.on('change', onChange);
     feed.follow();
     _onStartFeed();
@@ -253,6 +255,7 @@ function DB(props = {}) {
   const onEndQueue = () => !hasFeed() && close(); // call after process last item in queue and start close if no feed
 
   const onChange = (change) => {
+    console.log('change', change);
     queue.push(change);
     return processQueue();
   }; // on change event push it to queue and run process queue
