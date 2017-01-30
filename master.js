@@ -4,6 +4,8 @@ const Logger = require('./utils/log');
 const couchdb = require('./couchdb');
 const config = require('./config');
 
+const sms = require('./utils/sms');
+
 const {
   LOG_EVENT_LOG_ERROR,
   LOG_EVENT_SANDBOX_START, LOG_EVENT_SANDBOX_CLOSE, LOG_EVENT_SANDBOX_CLOSED,
@@ -12,7 +14,7 @@ const {
   LOG_EVENT_SANDBOX_CONFIG_SOCKET
 } = require('./constants/logEvents');
 
-const { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET } = require('./constants/worker');
+const { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET, WORKER_TYPE_API } = require('./constants/worker');
 
 const { BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD } = require('./constants/bucket');
 const WORKER_WAIT_TIMEOUT = 500;
@@ -70,7 +72,10 @@ module.exports = function initMaster(cluster) {
         ['couchbox.nodename', 'nodename'],
         ['socket.enabled', 'socket'],
         ['socket.port', 'socket_port'],
-        ['socket.path', 'socket_path']
+        ['socket.path', 'socket_path'],
+        ['api.enabled', 'api'],
+        ['api.count', 'api_count'],
+        ['api.port', 'api_port']
       ].map(onConfigField.fill(conf));
     },
     'couchdb': (conf = {}) => {
@@ -157,7 +162,7 @@ module.exports = function initMaster(cluster) {
 
     // Check api worker and endpoints config
     let updateApi = false;
-    const newConfigApiHash = lib.hashMD5(['couchbox', 'couchdb', 'redis'].map(config.get)); // update configBucketHash by critical fields
+    const newConfigApiHash = lib.hashMD5(['couchbox', 'couchdb', 'redis', 'api'].map(config.get)); // update configBucketHash by critical fields
     if (configApiHash !== newConfigApiHash) {
       configApiHash = newConfigApiHash;
       updateApi = true;
@@ -232,10 +237,20 @@ module.exports = function initMaster(cluster) {
     });
 
     if (aliveWorkers.length === 0) startWorkerSocket();
+    aliveWorkers.length = 0;
   }
 
   function updateApiWorkers() {
+    if (!config.get('api.enabled')) return stopApiWorkers();
+    const aliveWorkers = [];
+    getApiWorkers().forEach(worker => {
+      if (worker.configHash !== configApiHash || worker.endpointsHash !== endpointsHash) stopWorker(worker);
+      else aliveWorkers.push(worker);
+    });
 
+    const toStart = config.get('api.count') - aliveWorkers.length;
+    aliveWorkers.length = 0;
+    if (toStart > 0) toStart.times(startWorkerApi);
   }
 
   // Workers manipulations
@@ -351,11 +366,46 @@ module.exports = function initMaster(cluster) {
     ));
     const { pid } = fork.process;
     setWorker({
-      pid, fork, forkType, configHash,
+      pid, fork, forkType,
+      configHash,
       init: false
     });
 
-    fork.on('exit', () => removeWorker(pid));
+    fork.on('exit', removeWorker.fill(pid));
+    fork.on('message', message => {
+      switch (message.msg) {
+        case 'init':
+          setWorkerProp(pid, 'init', true);
+          break;
+        default:
+          break;
+      }
+    });
+
+  } // socket worker stater
+
+
+  // API workers manipulations
+
+  const getApiWorkers = () => getWorkers().filter(({ forkType }) => forkType === WORKER_TYPE_API); // return socket workers
+  const stopApiWorkers = () => getApiWorkers().forEach(stopWorker); // stop all socket workers
+
+  function startWorkerApi() {
+    const configHash = configApiHash;
+    const forkType = WORKER_TYPE_API;
+    const workerProps = JSON.stringify({ forkType, endpoints });
+    const fork = cluster.fork(Object.assign(
+      config.toEnv(), // send current config
+      { workerProps } // send worker properties
+    ));
+    const { pid } = fork.process;
+    setWorker({
+      pid, fork, forkType,
+      configHash, endpointsHash,
+      init: false
+    });
+
+    fork.on('exit', removeWorker.fill(pid));
     fork.on('message', message => {
       switch (message.msg) {
         case 'init':

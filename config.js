@@ -139,6 +139,44 @@ const defaultConfig = {
     map: mapStr,
     check: checkStr
   },
+
+  'api.enabled': {
+    env: 'API',
+    value: false,
+    map: mapBool,
+    check: checkBool
+  },
+  'api.port': {
+    env: 'API_PORT',
+    value: 3000,
+    map: mapInt,
+    check: checkNumPlus
+  },
+  'api.count': {
+    env: 'API_PORT',
+    value: 1,
+    map: mapInt,
+    check: checkNumPlus
+  },
+
+  'aws.region': {
+    env: 'AWS_REGION',
+    value: 'eu-west-1',
+    map: mapStr,
+    check: checkStr
+  },
+  'aws.accessKey': {
+    env: 'AWS_KEY_ACCESS',
+    value: null,
+    map: mapStr,
+    check: checkStr
+  },
+  'aws.secretKey': {
+    env: 'AWS_KEY_SECRET',
+    value: null,
+    map: mapStr,
+    check: checkStr
+  },
 };
 
 const makeConfig = () => {

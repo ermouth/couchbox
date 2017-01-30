@@ -14,6 +14,7 @@ const { LOG_EVENT_DDOC_INIT, LOG_EVENT_DDOC_ERROR } = require('../constants/logE
 const cache = require('../utils/cache');
 const fetch = require('../utils/fetch');
 const socket = require('../utils/socket');
+const sms = require('../utils/sms');
 const Bucket = require('../utils/bucket');
 
 const CONTEXT_DENY = {
@@ -95,6 +96,9 @@ function DDoc(db, props = {}) {
             break;
           case 'cache':
             ctx['_cache'] = cache;
+            break;
+          case 'sms':
+            ctx['_sms'] = sms.fill(undefined, undefined, log);
             break;
         }
       });

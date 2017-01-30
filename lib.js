@@ -81,3 +81,13 @@ const makeFunc = module.exports.makeFunc = function makeFunc(funcSrc) {
   uglifyParse(funcSrc);
   return evalFunc(funcSrc);
 };
+
+const checkPhone = module.exports.checkPhone = function checkPhone(phone) {
+  if (!phone || phone.length < 9) return null;
+  try {
+    phone = phone.slice(0, 30).replace(/\D/g, '');
+    if (/^(7|8)9\d{9}$/.test(phone)) return phone.slice(1);
+    if (/^9\d{9}$/.test(phone)) return phone;
+  } catch (e) { }
+  return null;
+};

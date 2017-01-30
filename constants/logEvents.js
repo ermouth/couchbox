@@ -37,4 +37,6 @@ module.exports = {
   LOG_EVENT_HOOK_SAVE: 'hook/save',
   LOG_EVENT_HOOK_LOG: 'hook/message',
   LOG_EVENT_HOOK_ERROR: 'hook/error',
+
+  LOG_EVENT_TASK_SMS: 'task/sms',
 };

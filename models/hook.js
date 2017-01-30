@@ -6,6 +6,7 @@ const Logger = require('../utils/log');
 const { lambdaAvailable } = require('./lambdaGlobal');
 const config = require('../config');
 
+const sms = require('../utils/sms');
 
 const { LOG_EVENT_HOOK_ERROR, LOG_EVENT_HOOK_LOG } = require('../constants/logEvents');
 
@@ -66,10 +67,12 @@ function Hook(name, params = {}, props = {}) {
 
   const _lambda = (change) => {
     let result;
-    const _log = (message, now) => log(Object.assign({ message }, { ref: change.id, event: LOG_EVENT_HOOK_LOG }), now);
+    const _log = (message, now) => log(Object.assign({ ref: change.id, event: LOG_EVENT_HOOK_LOG }, Object.isObject(message) ? message : { message }), now);
     const doc = Object.clone(change.doc, true);
+    const methods = {};
+    if (ctx._sms) methods._sms = sms.fill(undefined, undefined, _log);
     try {
-      result = _script.runInContext(context, { timeout }).call(ctx, _require, _log, doc);
+      result = _script.runInContext(context, { timeout }).call(Object.assign({}, ctx, methods), _require, _log, doc);
     } catch(error) {
       log({
         message: 'Error run hook lambda: '+ name,
