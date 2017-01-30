@@ -129,9 +129,15 @@ const defaultConfig = {
   },
   'socket.port': {
     env: 'SOCKET_PORT',
-    value: 3000,
+    value: 8000,
     map: mapInt,
     check: checkNumPlus
+  },
+  'socket.path': {
+    env: 'SOCKET_PATH',
+    value: '/_socket',
+    map: mapStr,
+    check: checkStr
   },
 };
 

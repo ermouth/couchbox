@@ -14,6 +14,7 @@ module.exports = function (channel, message) {
   if (messagePath.length > 1 && messagePath[0].length !== 0) {
     nodename = messagePath[0];
     channel = messagePath.slice(1).join(SOCKET_NODE_DELIMITER);
+    if (channel.length === 0) return Promise.reject(new Error('Bad channel: '+ channel));
   }
   redisClient.publish(SOCKET_EVENT_PREFIX + nodename, JSON.stringify({ channel, message }));
   return Promise.resolve();

@@ -2,7 +2,11 @@ module.exports = {
   LOG_EVENT_LOG_ERROR: 'log/error',
 
   LOG_EVENT_SANDBOX_START: 'sandbox/start',
-  LOG_EVENT_SANDBOX_CONFIG: 'sandbox/config',
+  LOG_EVENT_SANDBOX_CONFIG_BUCKET: 'sandbox/configBucket',
+  LOG_EVENT_SANDBOX_CONFIG_HOOKS: 'sandbox/configHooks',
+  LOG_EVENT_SANDBOX_CONFIG_API: 'sandbox/configApi',
+  LOG_EVENT_SANDBOX_CONFIG_ENDPOINTS: 'sandbox/configEndpoints',
+  LOG_EVENT_SANDBOX_CONFIG_SOCKET: 'sandbox/configSocket',
   LOG_EVENT_SANDBOX_CLOSE: 'sandbox/close',
   LOG_EVENT_SANDBOX_CLOSED: 'sandbox/closed',
 

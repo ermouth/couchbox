@@ -6,7 +6,10 @@ const config = require('./config');
 
 const {
   LOG_EVENT_LOG_ERROR,
-  LOG_EVENT_SANDBOX_START, LOG_EVENT_SANDBOX_CONFIG, LOG_EVENT_SANDBOX_CLOSE, LOG_EVENT_SANDBOX_CLOSED
+  LOG_EVENT_SANDBOX_START, LOG_EVENT_SANDBOX_CLOSE, LOG_EVENT_SANDBOX_CLOSED,
+  LOG_EVENT_SANDBOX_CONFIG_BUCKET, LOG_EVENT_SANDBOX_CONFIG_HOOKS,
+  LOG_EVENT_SANDBOX_CONFIG_API, LOG_EVENT_SANDBOX_CONFIG_ENDPOINTS,
+  LOG_EVENT_SANDBOX_CONFIG_SOCKET
 } = require('./constants/logEvents');
 
 const { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET } = require('./constants/worker');
@@ -58,122 +61,124 @@ module.exports = function initMaster(cluster) {
   process.on('SIGINT', onClose); // on close command
   process.on('exit', () => { log({ message: 'Closed', event: LOG_EVENT_SANDBOX_CLOSED }); }); // on master closed
 
-  const dbs = new Map(); // map of current dbs params
-  let hooksConfig = {};
-  let endpointsConfig = {};
 
   // Config
   const configMap = {
     'couchbox': (conf = {}) => {
       if (!Object.isObject(conf)) return null;
-      let needToUpdate = false;
-      let field;
-
-      field = 'couchbox.nodename';
-      const nodename = config.parse(field, conf.nodename);
-      if (config.check(field, nodename) && config.get(field) !== nodename) {
-        needToUpdate = true;
-        config.set(field, nodename);
-      }
-
-      field = 'socket.enabled';
-      const socket = config.parse(field, conf.socket);
-      if (config.check(field, socket) && config.get(field) !== socket) {
-        needToUpdate = true;
-        config.set(field, socket);
-      }
-
-      field = 'socket.port';
-      const socket_port = config.parse(field, conf.socket_port);
-      if (config.check(field, socket_port) && config.get(field) !== socket_port) {
-        needToUpdate = true;
-        config.set(field, socket_port);
-      }
-
-      return needToUpdate;
-    },
-    'hooks': (conf = {}) => {
-      if (!Object.isObject(conf)) return null;
-      let needToUpdate = false;
-      Object.keys(conf).forEach(dbKey => {
-        if (!needToUpdate && hooksConfig[dbKey] !== conf[dbKey]) needToUpdate = true;
-      });
-      if (needToUpdate) {
-        hooksConfig = conf;
-      }
-      return needToUpdate;
-    },
-    'endpoints': (conf = {}) => {
-      if (!Object.isObject(conf)) return null;
-      let needToUpdate = false;
-      Object.keys(conf).forEach(endKey => {
-        if (!needToUpdate && endpointsConfig[endKey] !== conf[endKey]) needToUpdate = true;
-      });
-      if (needToUpdate) {
-        endpointsConfig = conf;
-      }
-      return needToUpdate;
+      [
+        ['couchbox.nodename', 'nodename'],
+        ['socket.enabled', 'socket'],
+        ['socket.port', 'socket_port'],
+        ['socket.path', 'socket_path']
+      ].map(onConfigField.fill(conf));
     },
     'couchdb': (conf = {}) => {
       if (!Object.isObject(conf)) return null;
-      let needToUpdate = false;
-      let field;
-
-      field = 'hooks.timeout';
-      const processTimeout = config.parse(field, conf.os_process_timeout);
-      if (config.check(field, processTimeout) && config.get(field) !== processTimeout) {
-        needToUpdate = true;
-        config.set(field, processTimeout);
-      }
-
-      return needToUpdate;
+      [
+        ['hooks.timeout', 'os_process_timeout']
+      ].map(onConfigField.fill(conf));
     },
     'couch_httpd_auth':  (conf = {}) => {
       if (!Object.isObject(conf)) return null;
-      let needToUpdate = false;
-      let field;
-
-      field = 'couchdb.secret';
-      const secret = config.parse(field, conf.secret);
-      if (config.check(field, secret) && config.get(field) !== secret) {
-        needToUpdate = true;
-        config.set(field, secret);
-      }
-
-      return needToUpdate;
+      [
+        ['couchdb.secret', 'secret']
+      ].map(onConfigField.fill(conf));
+    },
+    'hooks': (conf = {}) => {
+      if (!Object.isObject(conf)) return null;
+      hooks = conf;
+    },
+    'endpoints': (conf = {}) => {
+      if (!Object.isObject(conf)) return null;
+      endpoints = conf;
     }
   }; // map for couchdb config
+  const onConfigField = (conf, param) => {
+    const field = param[0];
+    const fieldNode = param[1];
+    const value = config.parse(field, conf[fieldNode]);
+    if (config.check(field, value) && config.get(field) !== value) {
+      config.set(field, value);
+    }
+  };
   let configUpdateTimeout;
+
+
+  const dbs = new Map(); // map of current dbs params
+  let hooks = {}; let hooksHash;
+  let endpoints = {}; let endpointsHash;
 
   let configBucketHash; // hash of bucket workers config
   let configSocketHash; // hash of socket workers config
-  let configEndpointHash; // hash of endpoint workers config
+  let configApiHash; // hash of api workers config
+
 
   const loadConfig = () => couchdb.loadConfig().then(newConf => {
+    // if worker is not running - don't update config and start config update timeout
     if (isClosing) return null;
-    let needToUpdate = false;
-    Object.keys(newConf).forEach(confKey => {
-      needToUpdate = configMap[confKey] && configMap[confKey](newConf[confKey]) || needToUpdate;
-    });
-    if (needToUpdate) { // if one or more from changes updated
+    Object.keys(newConf).forEach(confKey => configMap[confKey] && configMap[confKey](newConf[confKey]));
+
+
+    // Check socket config
+    const newConfigSocketHash = lib.hashMD5(['couchbox', 'socket', 'redis'].map(config.get)); // update configSocketHash by critical fields
+    if (newConfigSocketHash !== configSocketHash) {
+      log({
+        message: 'Updated socket worker config',
+        event: LOG_EVENT_SANDBOX_CONFIG_SOCKET
+      });
+      configSocketHash = newConfigSocketHash;
+      updateSocketWorkers();
+    }
+
+
+    // Check bucket worker and hooks config
+    let updateBuckets = false;
+    const newConfigBucketHash = lib.hashMD5(['couchbox', 'couchdb', 'hooks', 'redis'].map(config.get)); // update configBucketHash by critical fields
+    if (configBucketHash !== newConfigBucketHash) {
+      configBucketHash = newConfigBucketHash;
+      updateBuckets = true;
+      log({
+        message: 'Updated bucket worker config',
+        event: LOG_EVENT_SANDBOX_CONFIG_BUCKET
+      });
+    }
+    const newHooksHash = lib.hashMD5(hooks);
+    if (hooksHash !== newHooksHash) {
+      hooksHash = newHooksHash;
+      updateBuckets = true;
       log({
         message: 'Updated hooks config',
-        event: LOG_EVENT_SANDBOX_CONFIG
+        event: LOG_EVENT_SANDBOX_CONFIG_HOOKS
       });
-
-      configBucketHash = lib.hashMD5(['couchbox', 'couchdb', 'hooks', 'redis'].map(config.get)); // update configBucketHash by critical fields
-      updateBucketWorkers(); // start update bucket workers
-
-      configEndpointHash = lib.hashMD5(['couchbox', 'couchdb', 'redis'].map(config.get)); // update configEndpointHash by critical fields
-      updateEndpointWorkers(); // start update endpoint workers
-
-      const newConfigSocketHash = lib.hashMD5(['couchbox', 'socket', 'redis'].map(config.get)); // update configSocketHash by critical fields
-      if (newConfigSocketHash !== configSocketHash) {
-        configSocketHash = newConfigSocketHash;
-        updateSocketWorkers();
-      }
     }
-    if (!isClosing) configUpdateTimeout = setTimeout(loadConfig, config.get('system.configTimeout')); // start timeout on next config update if worker is running
+    if (updateBuckets) updateBucketWorkers(); // start update bucket workers
+
+
+    // Check api worker and endpoints config
+    let updateApi = false;
+    const newConfigApiHash = lib.hashMD5(['couchbox', 'couchdb', 'redis'].map(config.get)); // update configBucketHash by critical fields
+    if (configApiHash !== newConfigApiHash) {
+      configApiHash = newConfigApiHash;
+      updateApi = true;
+      log({
+        message: 'Updated api worker config',
+        event: LOG_EVENT_SANDBOX_CONFIG_API
+      });
+    }
+    const newEndpointsHash = lib.hashMD5(endpoints);
+    if (endpointsHash !== newEndpointsHash) {
+      endpointsHash = newEndpointsHash;
+      updateApi = true;
+      log({
+        message: 'Updated endpoints config',
+        event: LOG_EVENT_SANDBOX_CONFIG_ENDPOINTS
+      });
+    }
+    if (updateApi) updateApiWorkers(); // start update api workers
+
+    // start timeout on next config update if worker is running
+    configUpdateTimeout = setTimeout(loadConfig, config.get('system.configTimeout'));
   }); // load and process couchdb config
 
 
@@ -181,12 +186,12 @@ module.exports = function initMaster(cluster) {
     const dbsTmp = {};
     const dbs_keys = [];
 
-    Object.keys(hooksConfig).forEach((dbdocKey) => {
+    Object.keys(hooks).forEach((dbdocKey) => {
       const dbdoc = dbdocKey.split(/\\/);
       const db = dbdoc[0];
       const ddoc = dbdoc[1];
       if (!dbsTmp[db]) dbsTmp[db] = { ddocs: {}, configHash: configBucketHash };
-      dbsTmp[db].ddocs[ddoc] = hooksConfig[dbdocKey];
+      dbsTmp[db].ddocs[ddoc] = hooks[dbdocKey];
     }); // make temp dbs
 
     Object.keys(dbsTmp).forEach(db_key => {
@@ -229,7 +234,9 @@ module.exports = function initMaster(cluster) {
     if (aliveWorkers.length === 0) startWorkerSocket();
   }
 
-  function updateEndpointWorkers() { }
+  function updateApiWorkers() {
+
+  }
 
   // Workers manipulations
 
@@ -245,33 +252,33 @@ module.exports = function initMaster(cluster) {
   const bucketWorkerNotReady = (worker) => !bucketWorkerIsReady(worker); // filter not initialised workers
 
   const getBucketWorkers = () => getWorkers().filter(({ forkType }) => forkType === WORKER_TYPE_BUCKET);
-  const getBucketWorkersByDb = (dbName) => getBucketWorkers().filter(({ db }) => db === dbName); // return workers by db
-  const getBucketWorkersByDbFeed = (dbName) => getBucketWorkersByDb(dbName).filter(bucketWorkerHasFeed); // return workers by db who has feed
-  const getBucketWorkerByDbSeq = (dbName, seq) => seq >= 0 ? getBucketWorkersByDb(dbName).filter(worker => worker.seq === seq) : []; // return workers by db and seq
-  const getBucketStartingWorkerByDb = (dbName) => getBucketWorkersByDb(dbName).filter(bucketWorkerNotReady); // return workers by db and seq
-  const stopBucketWorkersByDb = (dbName) => getBucketWorkersByDb(dbName).forEach(stopWorker); // stop workers by db
+  const getBucketWorkersByDb = (dbName) => getBucketWorkers().filter(({ db }) => db === dbName); // return bucket workers by bucket
+  const getBucketWorkersByDbFeed = (dbName) => getBucketWorkersByDb(dbName).filter(bucketWorkerHasFeed); // return bucket workers by bucket who has feed
+  const getBucketWorkerByDbSeq = (dbName, seq) => seq >= 0 ? getBucketWorkersByDb(dbName).filter(worker => worker.seq === seq) : []; // return bucket workers by bucket and seq
+  const getBucketStartingWorkerByDb = (dbName) => getBucketWorkersByDb(dbName).filter(bucketWorkerNotReady); // return bucket workers by bucket and seq
+  const stopBucketWorkersByDb = (dbName) => getBucketWorkersByDb(dbName).forEach(stopWorker); // stop bucket workers by bucket
 
   const onBucketWorkerInit = (pid, dbName, data = {}) => {
     const { seq, type } = data;
     setWorkerProp(pid, 'type', type);
     if (seq >= 0) setWorkerProp(pid, 'seq', +seq);
-  }; // when worker started - update worker seq
+  }; // when bucket worker started - update worker seq
   const onBucketWorkerStartFeed = (pid, dbName) => {
     setWorkerProp(pid, 'feed', true);
-  }; // when worker subscribed on feed - update workers meta
+  }; // when bucket worker subscribed on feed - update worker's meta
   const onBucketWorkerStopFeed = (pid, dbName) => {
     setWorkerProp(pid, 'feed', false);
     setWorkerProp(pid, 'type', BUCKET_WORKER_TYPE_OLD);
     startWorkerBucket(dbName);
-  }; // when worker unsubscribed from feed - update workers meta and try to start new
+  }; // when bucket worker unsubscribed from feed - update worker's meta and try to start new
   const onBucketWorkerOld = (dbName, data = {}) => {
     const seq = +data.seq;
     if (seq > 0) { // if worker has seq
       if (getBucketWorkerByDbSeq(dbName, seq).length) { /** log('Worker '+ seq +' already started'); */ }
       else startWorkerBucket(dbName, seq); // if master has no worker with seq - try to start old worker
     }
-  }; // when detected old worker
-  const onWorkerExit = (pid, dbName, message, code) => {
+  }; // when detected old bucket worker
+  const onBucketWorkerExit = (pid, dbName, message, code) => {
     // detect if worker killed - start new worker
     if (!message && code === 'SIGKILL' && workers.has(pid)) { // if worker crashed
       const { seq } = workers.get(pid);
@@ -280,7 +287,7 @@ module.exports = function initMaster(cluster) {
     } else { // if worker closed gracefully
       removeWorker(pid);
     }
-  }; // when worker closed
+  }; // when bucket worker closed
 
   function startWorkerBucket(db, seq) {
     if ( // don't start worker if
@@ -307,7 +314,7 @@ module.exports = function initMaster(cluster) {
     const { pid } = fork.process;
     setWorker({ pid, fork, forkType, db, seq, ddocsHash, configHash, feed: false });
 
-    fork.on('exit', onWorkerExit.fill(pid, db));
+    fork.on('exit', onBucketWorkerExit.fill(pid, db));
     fork.on('message', message => {
       switch (message.msg) {
         case 'init':
@@ -326,13 +333,12 @@ module.exports = function initMaster(cluster) {
           break;
       }
     });
-  } // worker stater
+  } // bucket worker stater
 
 
   // Socket workers manipulations
 
-  const socketWorkerIsDead = (worker) => worker.init === false;
-  const getSocketWorkers = () => getWorkers().filter(({ forkType }) => forkType === WORKER_TYPE_SOCKET);
+  const getSocketWorkers = () => getWorkers().filter(({ forkType }) => forkType === WORKER_TYPE_SOCKET); // return socket workers
   const stopSocketWorkers = () => getSocketWorkers().forEach(stopWorker); // stop all socket workers
 
   function startWorkerSocket() {
@@ -360,7 +366,7 @@ module.exports = function initMaster(cluster) {
       }
     });
 
-  } // worker stater
+  } // socket worker stater
 
   // Init
   loadConfig();
