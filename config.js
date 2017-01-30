@@ -146,17 +146,17 @@ const defaultConfig = {
     map: mapBool,
     check: checkBool
   },
-  'api.port': {
-    env: 'API_PORT',
-    value: 3000,
-    map: mapInt,
-    check: checkNumPlus
-  },
-  'api.count': {
-    env: 'API_PORT',
-    value: 1,
-    map: mapInt,
-    check: checkNumPlus
+  'api.ports': {
+    env: 'API_PORTS',
+    value: '3000',
+    map: (val) =>  val && val.length
+      ? Object.isString(val)
+        ? val.split(',').map(mapInt).filter(checkNumPlus)
+        : Object.isArray(val)
+          ? val.map(mapInt).filter(checkNumPlus)
+          : null
+      : null,
+    check: (val) => val.filter(checkNumPlus).unique().length === val.length
   },
 
   'aws.region': {

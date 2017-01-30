@@ -2,13 +2,15 @@ const Promise = require('bluebird');
 const vm = require('vm');
 const lib = require('../lib');
 const Logger = require('../utils/log');
-const { lambdaGlobals } = require('./lambdaGlobal');
-const Filter = require('./filter');
+const { lambdaGlobals } = require('../constants/lambdaGlobal');
 const Hook = require('./hook');
 const config = require('../config');
 
 
-const { LOG_EVENT_DDOC_INIT, LOG_EVENT_DDOC_ERROR } = require('../constants/logEvents');
+const {
+  LOG_EVENT_DDOC_INIT, LOG_EVENT_DDOC_ERROR,
+  LOG_EVENT_FILTER_ERROR
+} = require('../constants/logEvents');
 
 // methods
 const cache = require('../utils/cache');
@@ -22,6 +24,35 @@ const CONTEXT_DENY = {
   'filters': true,
   'hooks': true
 };
+
+function Filter(name, lambda, props) {
+  const logger = new Logger({
+    prefix: 'Filter '+ name,
+    logger: props.logger
+  });
+  const log = logger.getLog();
+
+  let _lambda;
+  let isGood = false;
+
+  try {
+    _lambda = lib.makeFunc(lambda);
+    isGood = true;
+  } catch(error) {
+    isGood = false;
+    log({
+      message: 'Error compile filter lambda: '+ name,
+      event: LOG_EVENT_FILTER_ERROR,
+      error
+    });
+  }
+
+  return {
+    name,
+    filter: (doc) => isGood && !!_lambda(doc),
+    isGood
+  };
+}
 
 function DDoc(db, props = {}) {
   const { name, methods } = props;

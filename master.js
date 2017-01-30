@@ -74,8 +74,7 @@ module.exports = function initMaster(cluster) {
         ['socket.port', 'socket_port'],
         ['socket.path', 'socket_path'],
         ['api.enabled', 'api'],
-        ['api.count', 'api_count'],
-        ['api.port', 'api_port']
+        ['api.ports', 'api_ports']
       ].map(onConfigField.fill(conf));
     },
     'couchdb': (conf = {}) => {
@@ -192,7 +191,7 @@ module.exports = function initMaster(cluster) {
     const dbs_keys = [];
 
     Object.keys(hooks).forEach((dbdocKey) => {
-      const dbdoc = dbdocKey.split(/\\/);
+      const dbdoc = dbdocKey.split(/\\|\|/);
       const db = dbdoc[0];
       const ddoc = dbdoc[1];
       if (!dbsTmp[db]) dbsTmp[db] = { ddocs: {}, configHash: configBucketHash };
@@ -241,16 +240,16 @@ module.exports = function initMaster(cluster) {
   }
 
   function updateApiWorkers() {
-    if (!config.get('api.enabled')) return stopApiWorkers();
-    const aliveWorkers = [];
-    getApiWorkers().forEach(worker => {
-      if (worker.configHash !== configApiHash || worker.endpointsHash !== endpointsHash) stopWorker(worker);
-      else aliveWorkers.push(worker);
-    });
-
-    const toStart = config.get('api.count') - aliveWorkers.length;
-    aliveWorkers.length = 0;
-    if (toStart > 0) toStart.times(startWorkerApi);
+    // if (!config.get('api.enabled')) return stopApiWorkers();
+    // const aliveWorkers = [];
+    // getApiWorkers().forEach(worker => {
+    //   if (worker.configHash !== configApiHash || worker.endpointsHash !== endpointsHash) stopWorker(worker);
+    //   else aliveWorkers.push(worker);
+    // });
+    //
+    // const toStart = config.get('api.count') - aliveWorkers.length;
+    // aliveWorkers.length = 0;
+    // if (toStart > 0) toStart.times(startWorkerApi);
   }
 
   // Workers manipulations

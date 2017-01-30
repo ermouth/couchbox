@@ -3,7 +3,7 @@ const Promise = require('bluebird');
 const vm = require('vm');
 const lib = require('../lib');
 const Logger = require('../utils/log');
-const { lambdaAvailable } = require('./lambdaGlobal');
+const { lambdaAvailable } = require('../constants/lambdaGlobal');
 const config = require('../config');
 
 const sms = require('../utils/sms');

@@ -1,8 +1,9 @@
 const lib = require('./lib');
 const Worker = require('./models/worker');
+const API = require('./models/api');
 
 
-const { LOG_EVENT_WORKER_START, LOG_EVENT_WORKER_EXIT, LOG_EVENT_SOCKET_ERROR } = require('./constants/logEvents');
+const { LOG_EVENT_WORKER_START, LOG_EVENT_WORKER_EXIT, LOG_EVENT_SOCKET_ERROR, LOG_EVENT_WORKER_CLOSE } = require('./constants/logEvents');
 const { WORKER_EVENT_EXIT, WORKER_EVENT_UNHANDLED_ERROR } = require('./constants/worker');
 
 module.exports = function initWorker(cluster, props = {}) {
@@ -15,6 +16,22 @@ module.exports = function initWorker(cluster, props = {}) {
     event: LOG_EVENT_WORKER_START
   });
 
+  const api = new API({
+    logger,
+
+    onInit: (data) => {
+      worker.sendToMaster('init', data);
+    },
+    onClose: (data) => {
+      log({
+        message: 'Close',
+        event: LOG_EVENT_WORKER_CLOSE
+      });
+      worker.sendToMaster('close', data);
+      worker.close();
+    }
+  });
+
   worker.emitter.on(WORKER_EVENT_UNHANDLED_ERROR, (error) => {
     log({
       message: 'UnhandledError api',
@@ -24,10 +41,13 @@ module.exports = function initWorker(cluster, props = {}) {
   });
 
   worker.emitter.on(WORKER_EVENT_EXIT, () => {
+    if (api.isRunning()) return api.close();
     log({
       message: 'On worker exit',
       event: LOG_EVENT_WORKER_EXIT
     });
     return worker.close();
   });
+
+  api.init();
 };

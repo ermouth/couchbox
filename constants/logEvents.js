@@ -20,6 +20,10 @@ module.exports = {
   LOG_EVENT_SOCKET_STOP: 'socket/stop',
   LOG_EVENT_SOCKET_ERROR: 'socket/error',
 
+  LOG_EVENT_API_START: 'api/start',
+  LOG_EVENT_API_STOP: 'api/stop',
+  LOG_EVENT_API_ERROR: 'api/error',
+
   LOG_EVENT_BUCKET_FEED: 'bucket/feed',
   LOG_EVENT_BUCKET_FEED_STOP: 'bucket/feedStop',
   LOG_EVENT_BUCKET_CHANGES: 'bucket/changes',
