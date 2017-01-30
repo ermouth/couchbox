@@ -156,7 +156,7 @@ const defaultConfig = {
           ? val.map(mapInt).filter(checkNumPlus)
           : null
       : null,
-    check: (val) => val.filter(checkNumPlus).unique().length === val.length
+    check: (val) => val && ((val.length > 0 && val.filter(checkNumPlus).unique().length === val.length) || val.length === 0)
   },
 
   'aws.region': {
