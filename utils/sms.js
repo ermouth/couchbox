@@ -6,7 +6,7 @@ const { checkPhone } = require('../lib');
 const logger = new Logger({ prefix: 'SMS' });
 const _log = logger.getLog();
 
-const { LOG_EVENT_TASK_SMS } = require('../constants/logEvents');
+const { LOG_EVENT_TASK_SMS, LOG_EVENT_TASK_SMS_ERROR } = require('../constants/logEvents');
 
 const sms = (number, message, log) => {
   if (!(message && message.length)) return Promise.reject(new Error('Empty message'));
@@ -25,7 +25,18 @@ const sms = (number, message, log) => {
   });
 
   return new Promise((resolve, reject) => {
-    SNS.publish(params, (error, data) => error ? reject(error) : resolve(data));
+    SNS.publish(params, (error, data) => {
+      if (error) {
+        log({
+          message: 'Error send SMS: "'+ params.Message +'" to: '+ params.PhoneNumber,
+          event: LOG_EVENT_TASK_SMS_ERROR,
+          error
+        });
+        reject(error);
+      } else {
+        resolve(data);
+      }
+    });
   });
 };
 
