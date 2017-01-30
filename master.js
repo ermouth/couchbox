@@ -240,16 +240,15 @@ module.exports = function initMaster(cluster) {
   }
 
   function updateApiWorkers() {
-    // if (!config.get('api.enabled')) return stopApiWorkers();
-    // const aliveWorkers = [];
-    // getApiWorkers().forEach(worker => {
-    //   if (worker.configHash !== configApiHash || worker.endpointsHash !== endpointsHash) stopWorker(worker);
-    //   else aliveWorkers.push(worker);
-    // });
-    //
-    // const toStart = config.get('api.count') - aliveWorkers.length;
-    // aliveWorkers.length = 0;
-    // if (toStart > 0) toStart.times(startWorkerApi);
+    if (!config.get('api.enabled')) return stopApiWorkers();
+
+    const aliveWorkers = {};
+    getApiWorkers().forEach(worker => {
+      if (worker.configHash !== configApiHash || worker.endpointsHash !== endpointsHash) stopWorker(worker);
+      else aliveWorkers[worker.port] = true;
+    });
+
+    config.get('api.ports').filter(port => !aliveWorkers[port]).forEach(startWorkerApi);
   }
 
   // Workers manipulations
@@ -326,7 +325,12 @@ module.exports = function initMaster(cluster) {
       { workerProps } // send worker properties
     ));
     const { pid } = fork.process;
-    setWorker({ pid, fork, forkType, db, seq, ddocsHash, configHash, feed: false });
+    setWorker({
+      pid, fork, forkType,
+      configHash, ddocsHash,
+      db, seq,
+      feed: false
+    });
 
     fork.on('exit', onBucketWorkerExit.fill(pid, db));
     fork.on('message', message => {
@@ -356,6 +360,10 @@ module.exports = function initMaster(cluster) {
   const stopSocketWorkers = () => getSocketWorkers().forEach(stopWorker); // stop all socket workers
 
   function startWorkerSocket() {
+    if ( // don't start worker if
+      isClosing // master closing
+    ) return null;
+
     const configHash = configSocketHash;
     const forkType = WORKER_TYPE_SOCKET;
     const workerProps = JSON.stringify({ forkType });
@@ -386,13 +394,19 @@ module.exports = function initMaster(cluster) {
 
   // API workers manipulations
 
-  const getApiWorkers = () => getWorkers().filter(({ forkType }) => forkType === WORKER_TYPE_API); // return socket workers
-  const stopApiWorkers = () => getApiWorkers().forEach(stopWorker); // stop all socket workers
+  const getApiWorkers = () => getWorkers().filter(({ forkType }) => forkType === WORKER_TYPE_API); // return api workers
+  const getApiWorkersByPort = (port) => getApiWorkers().filter((worker) => worker.port === port); // return api workers by port
+  const stopApiWorkers = () => getApiWorkers().forEach(stopWorker); // stop all api workers
 
-  function startWorkerApi() {
+  function startWorkerApi(port) {
+    if ( // don't start worker if
+      isClosing // master closing
+      || (!(port && port > 0)) // no port
+    ) return null;
+
     const configHash = configApiHash;
     const forkType = WORKER_TYPE_API;
-    const workerProps = JSON.stringify({ forkType, endpoints });
+    const workerProps = JSON.stringify({ forkType, endpoints, port });
     const fork = cluster.fork(Object.assign(
       config.toEnv(), // send current config
       { workerProps } // send worker properties
@@ -401,6 +415,7 @@ module.exports = function initMaster(cluster) {
     setWorker({
       pid, fork, forkType,
       configHash, endpointsHash,
+      port,
       init: false
     });
 

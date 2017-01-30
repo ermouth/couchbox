@@ -18,6 +18,7 @@ module.exports = function initWorker(cluster, props = {}) {
 
   const api = new API({
     logger,
+    port: props.port,
 
     onInit: (data) => {
       worker.sendToMaster('init', data);

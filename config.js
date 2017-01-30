@@ -148,15 +148,15 @@ const defaultConfig = {
   },
   'api.ports': {
     env: 'API_PORTS',
-    value: '3000',
-    map: (val) =>  val && val.length
+    value: [],
+    map: (val) =>  val
       ? Object.isString(val)
         ? val.split(',').map(mapInt).filter(checkNumPlus)
         : Object.isArray(val)
           ? val.map(mapInt).filter(checkNumPlus)
-          : null
-      : null,
-    check: (val) => val && ((val.length > 0 && val.filter(checkNumPlus).unique().length === val.length) || val.length === 0)
+          : []
+      : [],
+    check: (val) => Object.isArray(val) && (val.length === 0 || (val.length > 0 && val.filter(checkNumPlus).unique().length === val.length))
   },
 
   'aws.region': {

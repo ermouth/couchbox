@@ -3,7 +3,7 @@ const lib = require('../lib');
 const Logger = require('../utils/log');
 const couchdb = require('../couchdb');
 const config = require('../config');
-
+const express = require('express');
 
 const { LOG_EVENT_API_START, LOG_EVENT_API_STOP } = require('../constants/logEvents');
 
@@ -23,14 +23,22 @@ function API(props = {}) {
 
   const API_PORT = props.port;
 
+  let server;
+  const app = express();
+
+  app.get('/now', function(req, res) {
+    res.json(Date.now());
+  });
 
   const init = () => {
     _running = true;
-    log({
-      message: 'Start api listen requests on port: '+ API_PORT,
-      event: LOG_EVENT_API_START
+    server = app.listen(API_PORT, function () {
+      log({
+        message: 'Start api listen requests on port: '+ API_PORT,
+        event: LOG_EVENT_API_START
+      });
+      _onInit();
     });
-    _onInit();
   };
 
   const close = () => {
@@ -39,9 +47,10 @@ function API(props = {}) {
       message: 'Stop api on port: '+ API_PORT,
       event: LOG_EVENT_API_STOP
     });
+    server.close();
+    _running = false;
     _onClose();
   };
-
 
   return {
     init, close,
