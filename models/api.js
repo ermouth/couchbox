@@ -5,6 +5,7 @@ const couchdb = require('../couchdb');
 const config = require('../config');
 const express = require('express');
 
+const NODE_NAME = config.get('couchbox.nodename');
 const { LOG_EVENT_API_START, LOG_EVENT_API_STOP } = require('../constants/logEvents');
 
 function API(props = {}) {
@@ -26,8 +27,11 @@ function API(props = {}) {
   let server;
   const app = express();
 
-  app.get('/now', function(req, res) {
-    res.json(Date.now());
+  app.use(function(req, res) {
+    res.json({
+      nodename: NODE_NAME,
+      path: req.path
+    });
   });
 
   const init = () => {
