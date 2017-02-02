@@ -23,6 +23,12 @@ module.exports = {
   LOG_EVENT_API_START: 'api/start',
   LOG_EVENT_API_STOP: 'api/stop',
   LOG_EVENT_API_ERROR: 'api/error',
+  LOG_EVENT_API_REQUEST_ERROR: 'api/requestError',
+  LOG_EVENT_API_REQUEST_REJECT: 'api/requestReject',
+  LOG_EVENT_API_REQUEST_BODY_ERROR: 'api/requestBodyError',
+  LOG_EVENT_API_HANDLER_LOG: 'api/handlerLog',
+  LOG_EVENT_API_HANDLER_ERROR: 'api/handlerError',
+  LOG_EVENT_API_ROUTE_ERROR: 'api/routeError',
 
   LOG_EVENT_BUCKET_FEED: 'bucket/feed',
   LOG_EVENT_BUCKET_FEED_STOP: 'bucket/feedStop',

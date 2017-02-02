@@ -2,7 +2,7 @@ require('sugar');
 const Promise = require('bluebird');
 const stow = require('stow');
 const RedisBackend = require('stow/backends/redis');
-const redisClient = require('../redis');
+const redisClient = require('../utils/redis');
 // const config = require('../config');
 
 

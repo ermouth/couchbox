@@ -1,15 +1,18 @@
 const http = require('http');
 const socketio = require('socket.io');
-const Logger = require('../utils/log');
-const redisClient = require('../redis');
-const lib = require('../lib');
+const Logger = require('../utils/logger');
+const redisClient = require('../utils/redis');
+const lib = require('../utils/lib');
 const config = require('../config');
+
+const { LOG_EVENT_SOCKET_START, LOG_EVENT_SOCKET_STOP } = require('../constants/logEvents');
+
 
 const NODE_NAME = config.get('couchbox.nodename');
 const SOCKET_PORT = config.get('socket.port');
 const SOCKET_PATH = config.get('socket.path');
 const { SOCKET_EVENT_PREFIX } = require('../constants/socket');
-const { LOG_EVENT_SOCKET_START, LOG_EVENT_SOCKET_STOP } = require('../constants/logEvents');
+
 
 function Socket(props = {}) {
   const logger = new Logger({ prefix: 'Socket', logger: props.logger });

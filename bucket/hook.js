@@ -1,12 +1,12 @@
 require('sugar');
 const Promise = require('bluebird');
 const vm = require('vm');
-const lib = require('../lib');
-const Logger = require('../utils/log');
+const lib = require('../utils/lib');
+const Logger = require('../utils/logger');
 const { lambdaAvailable } = require('../constants/lambdaGlobal');
 const config = require('../config');
 
-const sms = require('../utils/sms');
+const sms = require('../methods/sms');
 
 const { LOG_EVENT_HOOK_ERROR, LOG_EVENT_HOOK_LOG } = require('../constants/logEvents');
 
@@ -45,7 +45,7 @@ function Hook(name, params = {}, props = {}) {
   }
 
   const lambdaSrc = params.lambda;
-  const timeout = params.timeout && params.timeout > 0 ? params.timeout : (config.get('hooks.timeout') || HOOK_DEFAULT_TIMEOUT);
+  const timeout = params.timeout && params.timeout > 0 ? params.timeout : (config.get('process.timeout') || HOOK_DEFAULT_TIMEOUT);
   const validate = params.dubug !== true;
   const mode = params.mode && HOOK_MODES[params.mode] ? params.mode : HOOK_DEFAULT_MODE;
   const since = params.since && params.since > 0 ? params.since : 'now';

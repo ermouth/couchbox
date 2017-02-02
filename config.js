@@ -1,5 +1,5 @@
 require('sugar');
-const lib = require('./lib');
+const lib = require('./utils/lib');
 const { env } = process;
 
 const mapInt = (val) => +val;
@@ -26,7 +26,7 @@ const defaultConfig = {
     check: checkNumPlus
   },
 
-  'hooks.timeout': {
+  'process.timeout': {
     env: 'DB_HOOK_TIMEOUT',
     value: 5000,
     map: mapInt,
@@ -157,6 +157,12 @@ const defaultConfig = {
           : []
       : [],
     check: (val) => Object.isArray(val) && (val.length === 0 || (val.length > 0 && val.filter(checkNumPlus).unique().length === val.length))
+  },
+  'api.hostKey': {
+    env: 'API_HOST_KEY',
+    value: 'Host',
+    map: mapStr,
+    check: checkStr
   },
 
   'aws.region': {

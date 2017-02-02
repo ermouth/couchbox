@@ -1,6 +1,6 @@
 require('sugar');
 const Promise = require('bluebird');
-const redisClient = require('../redis');
+const redisClient = require('../utils/redis');
 const config = require('../config');
 
 const { SOCKET_NODE_DELIMITER, SOCKET_EVENT_PREFIX } = require('../constants/socket');

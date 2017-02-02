@@ -7,9 +7,7 @@
   },
   "dependencies": {
     "aws-sdk": "2.9.0",
-    "async": "2.1.4",
     "bluebird": "3.4.7",
-    "express": "4.14.1",
     "sugar": "1.4.1",
     "uglify-js": "2.7.5",
     "nano": "6.2.0",

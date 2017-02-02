@@ -1,7 +1,7 @@
 require('sugar');
 const Promise = require('bluebird');
 const fetch = require('node-fetch');
-const couchdb = require('../couchdb');
+const couchdb = require('../utils/couchdb');
 const config = require('../config');
 
 

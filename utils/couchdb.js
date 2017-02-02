@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const Promise = require('bluebird');
 const nano = require('nano');
 const fetch = require('node-fetch');
-const config = require('./config');
+const config = require('../config');
 
 
 const DB_CONNECTION = config.get('couchdb.connection');

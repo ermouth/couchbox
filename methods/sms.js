@@ -1,7 +1,7 @@
 const Promise = require('bluebird');
-const Logger = require('./log');
-const { SNS } = require('../aws');
-const { checkPhone } = require('../lib');
+const Logger = require('./../utils/logger');
+const { SNS } = require('../utils/aws');
+const { checkPhone } = require('../utils/lib');
 
 const logger = new Logger({ prefix: 'SMS' });
 const _log = logger.getLog();

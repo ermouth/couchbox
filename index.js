@@ -17,13 +17,13 @@ if (cluster.isMaster) {
   if (workerProps) {
     switch (workerProps.forkType) {
       case WORKER_TYPE_BUCKET:
-        require('./workerBucket')(cluster, workerProps);
+        require('./bucket/worker')(cluster, workerProps);
         break;
       case WORKER_TYPE_SOCKET:
-        require('./workerSocket')(cluster, workerProps);
+        require('./socket/worker')(cluster, workerProps);
         break;
       case WORKER_TYPE_API:
-        require('./workerApi')(cluster, workerProps);
+        require('./api/worker')(cluster, workerProps);
         break;
       default:
         process.exit();

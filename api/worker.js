@@ -1,12 +1,13 @@
-const lib = require('./lib');
-const Worker = require('./models/worker');
-const Socket = require('./models/socket');
+const lib = require('../utils/lib');
+const Worker = require('../utils/worker');
+const API = require('./api');
 
-const { LOG_EVENT_WORKER_START, LOG_EVENT_WORKER_CLOSE, LOG_EVENT_WORKER_EXIT, LOG_EVENT_SOCKET_ERROR } = require('./constants/logEvents');
-const { WORKER_EVENT_EXIT, WORKER_EVENT_UNHANDLED_ERROR } = require('./constants/worker');
+
+const { LOG_EVENT_WORKER_START, LOG_EVENT_WORKER_EXIT, LOG_EVENT_SOCKET_ERROR, LOG_EVENT_WORKER_CLOSE } = require('./../constants/logEvents');
+const { WORKER_EVENT_EXIT, WORKER_EVENT_UNHANDLED_ERROR } = require('./../constants/worker');
 
 module.exports = function initWorker(cluster, props = {}) {
-  const worker = new Worker(cluster, { name: 'Socket worker' });
+  const worker = new Worker(cluster, { name: 'API worker' });
   const { logger } = worker;
   const log = logger.getLog();
 
@@ -15,9 +16,8 @@ module.exports = function initWorker(cluster, props = {}) {
     event: LOG_EVENT_WORKER_START
   });
 
-  const socket = new Socket({
+  const api = new API(Object.assign(props.params || {}, {
     logger,
-
     onInit: (data) => {
       worker.sendToMaster('init', data);
     },
@@ -29,18 +29,18 @@ module.exports = function initWorker(cluster, props = {}) {
       worker.sendToMaster('close', data);
       worker.close();
     }
-  });
+  }));
 
   worker.emitter.on(WORKER_EVENT_UNHANDLED_ERROR, (error) => {
     log({
-      message: 'UnhandledError socket',
+      message: 'UnhandledError api',
       event: LOG_EVENT_SOCKET_ERROR,
       error
     });
   });
 
   worker.emitter.on(WORKER_EVENT_EXIT, () => {
-    if (socket.isRunning()) return socket.close();
+    if (api.isRunning()) return api.close();
     log({
       message: 'On worker exit',
       event: LOG_EVENT_WORKER_EXIT
@@ -48,5 +48,5 @@ module.exports = function initWorker(cluster, props = {}) {
     return worker.close();
   });
 
-  socket.init();
+  api.init();
 };

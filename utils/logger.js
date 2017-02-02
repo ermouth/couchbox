@@ -1,7 +1,7 @@
 require('sugar');
 const Promise = require('bluebird');
-const lib = require('../lib');
-const couchdb = require('../couchdb');
+const lib = require('./lib');
+const couchdb = require('./couchdb');
 const config = require('../config');
 
 

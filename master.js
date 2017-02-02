@@ -1,10 +1,10 @@
 require('sugar');
-const lib = require('./lib');
-const Logger = require('./utils/log');
-const couchdb = require('./couchdb');
+const lib = require('./utils/lib');
+const Logger = require('./utils/logger');
+const couchdb = require('./utils/couchdb');
 const config = require('./config');
 
-const sms = require('./utils/sms');
+const sms = require('./methods/sms');
 
 const {
   LOG_EVENT_LOG_ERROR,
@@ -80,7 +80,7 @@ module.exports = function initMaster(cluster) {
     'couchdb': (conf = {}) => {
       if (!Object.isObject(conf)) return null;
       [
-        ['hooks.timeout', 'os_process_timeout']
+        ['process.timeout', 'os_process_timeout']
       ].map(onConfigField.fill(conf));
     },
     'couch_httpd_auth':  (conf = {}) => {
@@ -319,7 +319,7 @@ module.exports = function initMaster(cluster) {
 
     const { ddocs, ddocsHash, configHash } = dbs.get(db);
     const forkType = WORKER_TYPE_BUCKET;
-    const workerProps = JSON.stringify({ forkType, db, seq, ddocs });
+    const workerProps = JSON.stringify({ forkType, params: { name:db, seq, ddocs }});
     const fork = cluster.fork(Object.assign(
       config.toEnv(), // send current config
       { workerProps } // send worker properties
@@ -366,7 +366,7 @@ module.exports = function initMaster(cluster) {
 
     const configHash = configSocketHash;
     const forkType = WORKER_TYPE_SOCKET;
-    const workerProps = JSON.stringify({ forkType });
+    const workerProps = JSON.stringify({ forkType, params: {} });
     const fork = cluster.fork(Object.assign(
       config.toEnv(), // send current config
       { workerProps } // send worker properties
@@ -406,7 +406,7 @@ module.exports = function initMaster(cluster) {
 
     const configHash = configApiHash;
     const forkType = WORKER_TYPE_API;
-    const workerProps = JSON.stringify({ forkType, endpoints, port });
+    const workerProps = JSON.stringify({ forkType, params: { endpoints, port } });
     const fork = cluster.fork(Object.assign(
       config.toEnv(), // send current config
       { workerProps } // send worker properties

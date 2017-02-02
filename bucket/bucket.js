@@ -1,7 +1,7 @@
 const Promise = require('bluebird');
-const lib = require('../lib');
-const Logger = require('../utils/log');
-const couchdb = require('../couchdb');
+const lib = require('../utils/lib');
+const Logger = require('../utils/logger');
+const couchdb = require('../utils/couchdb');
 const DDoc = require('./ddoc');
 const config = require('../config');
 
@@ -161,7 +161,7 @@ function DB(props = {}) {
 
     // Init latest worker
     return Promise.all(Object.keys(props.ddocs)
-      .map(key => initDDoc({ name: key, methods: props.ddocs[key] })))
+      .map(key => initDDoc({ name: key, methods: props.ddocs[key].split(/\s+/g).compact(true) })))
       .then(() => {
         workers.forEach((workerSeq) => {
           if (worker_seq === workerSeq) setWorkerInfo(state[workerSeq], BUCKET_WORKER_TYPE_ACTUAL);

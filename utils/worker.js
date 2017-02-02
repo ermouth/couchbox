@@ -1,7 +1,7 @@
 require('sugar');
 const EventEmitter = require('events');
-const lib = require('../lib');
-const Logger = require('../utils/log');
+const lib = require('./lib');
+const Logger = require('./logger');
 
 const { LOG_EVENT_LOG_ERROR, LOG_EVENT_WORKER_CLOSED, LOG_EVENT_WORKER_ERROR } = require('../constants/logEvents');
 const { WORKER_EVENT_EXIT, WORKER_EVENT_MESSAGE, WORKER_EVENT_ERROR, WORKER_EVENT_UNHANDLED_ERROR } = require('../constants/worker');
