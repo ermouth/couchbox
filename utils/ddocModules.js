@@ -24,7 +24,7 @@ const makeModules = (body, props = {}) => {
     ctx[key] = body[key];
   });
   if (methods && methods.length) {
-    methods.compact(true).forEach(method => {
+    methods.compact(true).unique().forEach(method => {
       if (ctx.hasOwnProperty(method)) return null;
       switch (method) {
         case 'fetch':

@@ -45,7 +45,12 @@ module.exports = function initMaster(cluster) {
 
   let isClosing = false;
 
-  const sendMessage = (pid, msg, data) => workers.has(pid) && workers.get(pid).fork.send({ msg, data });
+  const sendMessage = (pid, msg, data) => {
+    const worker = workers.get(pid);
+    if (worker && worker.fork && worker.fork.state === 'listening') {
+      worker.fork.send({ msg, data });
+    }
+  };
   function onClose() {
     if (isClosing) return null;
     log({ message: 'Close', event: LOG_EVENT_SANDBOX_CLOSE });
@@ -242,9 +247,11 @@ module.exports = function initMaster(cluster) {
   function updateApiWorkers() {
     if (!config.get('api.enabled')) return stopApiWorkers();
 
+    let stopDelay = 0;
     const aliveWorkers = {};
     getApiWorkers().forEach(worker => {
-      if (worker.configHash !== configApiHash || worker.endpointsHash !== endpointsHash) stopWorker(worker);
+      stopDelay += 500;
+      if (worker.configHash !== configApiHash || worker.endpointsHash !== endpointsHash) stopWorker.delay(stopDelay, worker);
       else aliveWorkers[worker.port] = true;
     });
 
@@ -402,6 +409,7 @@ module.exports = function initMaster(cluster) {
     if ( // don't start worker if
       isClosing // master closing
       || (!(port && port > 0)) // no port
+      || getApiWorkersByPort(port).length > 0 // exist worker with same port
     ) return null;
 
     const configHash = configApiHash;
@@ -419,7 +427,12 @@ module.exports = function initMaster(cluster) {
       init: false
     });
 
-    fork.on('exit', removeWorker.fill(pid));
+    fork.on('exit', () => {
+      removeWorker(pid);
+      if (config.get('api.ports').filter(p => p === port).length === 1) {
+        startWorkerApi(port);
+      }
+    });
     fork.on('message', message => {
       switch (message.msg) {
         case 'init':

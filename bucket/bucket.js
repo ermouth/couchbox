@@ -161,7 +161,7 @@ function DB(props = {}) {
 
     // Init latest worker
     return Promise.all(Object.keys(props.ddocs)
-      .map(key => initDDoc({ name: key, methods: props.ddocs[key].split(/\s+/g).compact(true) })))
+      .map(key => initDDoc({ name: key, methods: props.ddocs[key] })))
       .then(() => {
         workers.forEach((workerSeq) => {
           if (worker_seq === workerSeq) setWorkerInfo(state[workerSeq], BUCKET_WORKER_TYPE_ACTUAL);
@@ -174,7 +174,9 @@ function DB(props = {}) {
       });
   };
   const initDDoc = (data) => new Promise(resolve => {
-    const { name, rev, methods } = data;
+    const { name, rev } = data;
+    const methods = Object.isArray(data.methods) ? data.methods
+      : Object.isString(data.methods) ? data.methods.split(/\s+/g).compact(true).unique() : [];
     const ddoc = new DDoc(db, { name, rev, methods, logger });
     ddoc.init()
       .then(data => {

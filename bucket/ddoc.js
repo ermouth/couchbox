@@ -6,16 +6,8 @@ const { makeModules } = require('../utils/ddocModules');
 const Hook = require('./hook');
 const config = require('../config');
 
-// methods
-const cache = require('../methods/cache');
-const fetch = require('../methods/fetch');
-const socket = require('../methods/socket');
-const sms = require('../methods/sms');
-const Bucket = require('../methods/bucket');
-
 
 const { LOG_EVENT_DDOC_INIT, LOG_EVENT_DDOC_ERROR, LOG_EVENT_FILTER_ERROR } = require('../constants/logEvents');
-const { BUCKET_DDOC_CONTEXT_DENY } = require('../constants/bucket');
 
 
 function Filter(name, lambda, props) {

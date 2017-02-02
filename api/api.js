@@ -41,7 +41,7 @@ function API(props = {}) {
       const dbParams = (paramsIndex > 0 ? endpointVal.substring(0, paramsIndex) : endpointVal).split('\/');
       const db = dbParams[0];
       const ddoc = dbParams[1];
-      const methods = paramsIndex > 0 ? endpointVal.substring(paramsIndex + 1).split(/\s+/g).compact(true) : [];
+      const methods = paramsIndex > 0 ? endpointVal.substring(paramsIndex + 1).split(/\s+/g).compact(true).unique() : [];
       if (!result[db]) result[db] = {};
       const route = domain + API_URL_ROOT + endpoint;
       result[db][route] = { domain, endpoint, db, ddoc, methods };
@@ -61,7 +61,7 @@ function API(props = {}) {
         body: Date.now().toString()
       });
     }, 5000);
-    setTimeout(close, 2000);
+    process.nextTick(close);
   }));
 
   const server = http.createServer(router.onRequest);
