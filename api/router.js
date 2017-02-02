@@ -57,7 +57,6 @@ function Router(props = {}) {
     const path = queryIndex >= 0 ? url.substring(0, queryIndex) : url;
     const query = url.substring(queryIndex + 1);
 
-
     req.meta = { host, port, url, path, query };
 
     const sendError = (code, error) => {
@@ -74,7 +73,7 @@ function Router(props = {}) {
           res.write(result.body);
         } catch (error) {
           log({
-            message: 'Error on result body',
+            message: 'Error on result.body',
             event: LOG_EVENT_API_REQUEST_ERROR,
             error
           });
@@ -91,11 +90,46 @@ function Router(props = {}) {
         }
       });
     };
+    const sendJSON = (result) => {
+      const code = result.code || API_DEFAULT_CODE;
+      const headers = result.headers || API_DEFAULT_HEADERS;
+      headers['Content-Type'] = 'application/json';
+      res.writeHead(code, headers);
+      if (Object.isObject(result.json)) {
+        try {
+          res.write(JSON.stringify(result.json));
+        } catch (error) {
+          log({
+            message: 'Error on result.json',
+            event: LOG_EVENT_API_REQUEST_ERROR,
+            error
+          });
+          return sendError(500, error);
+        }
+      } else {
+        const error = new Error('Bad JSON');
+        log({
+          message: 'Error on result.json',
+          event: LOG_EVENT_API_REQUEST_ERROR,
+          error
+        });
+        return sendError(500, error);
+      }
+      res.end((error) => {
+        if (error) {
+          log({
+            message: 'Error on result',
+            event: LOG_EVENT_API_REQUEST_BODY_ERROR,
+            error
+          });
+        }
+      });
+    };
 
     const route = getRoute(req.meta);
     if (route) {
       route(req)
-        .then(sendResult)
+        .then(result => result.json ? sendJSON(result) : sendResult(result))
         .catch(error => {
           let errorCode = 500;
           if (!(error instanceof Error)) {

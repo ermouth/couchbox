@@ -54,31 +54,33 @@ function Socket(props = {}) {
     clients.set(id, socket);
     clientCount++;
 
-    socket.on('disconnect', onSocketDisconnect.fill(socket));
+    socket.on('disconnect', () => {
+      if (clients.has(id)) {
+        clients.delete(id);
+        clientCount--;
+      }
+    });
   });
 
-  const onSocketDisconnect = (socket) => {
-    const { id } = socket;
-    if (clients.has(id)) {
-      clients.delete(id);
+  const destroyConnection = (socket, force) => {
+    if (force || _closing) {
+      socket.destroy();
+      clients.delete(socket.id);
       clientCount--;
-    }
-    if (_closing) {
-      if (clientCount === 0) close();
     }
   };
 
   const close = () => {
-    if (_closing) {
-      if (!clientCount) _onClose();
-    } else {
-      _closing = true;
+    _closing = true;
+    io.close(() => {
+      _running = false;
       log({
         message: 'Stop listen sockets on port: '+ SOCKET_PORT,
         event: LOG_EVENT_SOCKET_STOP
       });
-      io.close();
-    }
+      _onClose();
+    });
+    if (clientCount) Array.from(clients.values()).forEach(key => destroyConnection(connections[key]));
   };
 
   const isRunning = () => _running === true || _closing === true;

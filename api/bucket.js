@@ -1,12 +1,11 @@
 const Promise = require('bluebird');
-const lib = require('../utils/lib');
 const Logger = require('../utils/logger');
 const couchdb = require('../utils/couchdb');
 const DDoc = require('./ddoc');
 const config = require('../config');
 
-const {} = require('../constants/logEvents');
-const {} = require('../constants/bucket');
+const { LOG_EVENT_BUCKET_ERROR, LOG_EVENT_DDOC_ERROR } = require('../constants/logEvents');
+const { API_DEFAULT_TIMEOUT } = require('../constants/api');
 
 function Bucket(props = {}) {
   const { name } = props;
@@ -16,27 +15,57 @@ function Bucket(props = {}) {
   const bucket = couchdb.connectBucket(name);
 
   const ddocs = {};
+  let timeout = 0;
 
-  const handlers = {};
-
-  const init = (endpoints) => {
+  const init = (endpoints) => new Promise((resolve, reject) => {
     let keys;
-    if (!(endpoints && Object.isObject(endpoints) && (keys = Object.keys(endpoints)) && keys.length)) return Promise.reject(new Error('Bad endpoints'));
-    return Promise.all(keys.map(key => {
+    const handlers = [];
+    if (!(endpoints && Object.isObject(endpoints) && (keys = Object.keys(endpoints)) && keys.length)) return reject(new Error('Bad endpoints'));
+    Promise.all(keys.map(key => {
       const { ddoc, endpoint, domain, methods } = endpoints[key];
-      return DDoc({ logger, bucket, name: ddoc, domain, endpoint, methods }).then(info => {
-        ddocs[key] = info;
-        return info;
+      return DDoc({ logger, bucket, name: ddoc, domain, endpoint, methods })
+        .catch(error => {
+          log({
+            message: 'Error init DDoc: '+ ddoc,
+            event: LOG_EVENT_DDOC_ERROR,
+            error
+          });
+        })
+        .then(info => {
+          if (timeout < info.timeout) timeout = info.timeout;
+          ddocs[info.id] = info;
+          return info;
+        });
+    })).catch(error => {
+      log({
+        message: 'Error init Bucket: '+ name,
+        event: LOG_EVENT_BUCKET_ERROR,
+        error
       });
-    })).then((results) => {
-      const result = [];
+    }).then((results) => {
       results.forEach(({ domain, endpoint, api }) => {
         api.forEach(apiItem => {
-          result.push(Object.assign({ domain, endpoint }, apiItem));
+          handlers.push(Object.assign({ domain, endpoint }, apiItem));
         });
       });
-      return result;
+    }).finally(() => {
+      if (!timeout) timeout = API_DEFAULT_TIMEOUT;
+      return resolve({ timeout, handlers });
     });
+  });
+
+  let feed;
+  const onUpdate = (callback) => {
+    if (!callback) return null;
+    if (feed) return null;
+    feed = bucket.follow({ since: 'now' });
+    feed.on('change', function (change) {
+      if (change && change.id && ddocs[change.id]) {
+        feed.stop();
+        callback(true);
+      }
+    });
+    feed.follow();
   };
 
 
@@ -46,6 +75,7 @@ function Bucket(props = {}) {
 
   return {
     name,
+    onUpdate,
     init, close
   };
 }

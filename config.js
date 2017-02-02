@@ -164,6 +164,12 @@ const defaultConfig = {
     map: mapStr,
     check: checkStr
   },
+  'api.restartDelta': {
+    env: 'API_RESTART_DELTA',
+    value: 5000,
+    map: mapInt,
+    check: checkNumPlus
+  },
 
   'aws.region': {
     env: 'AWS_REGION',

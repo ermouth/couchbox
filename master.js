@@ -14,10 +14,10 @@ const {
   LOG_EVENT_SANDBOX_CONFIG_SOCKET
 } = require('./constants/logEvents');
 
-const { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET, WORKER_TYPE_API } = require('./constants/worker');
-
+const { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET, WORKER_TYPE_API, WORKER_WAIT_TIMEOUT } = require('./constants/worker');
 const { BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD } = require('./constants/bucket');
-const WORKER_WAIT_TIMEOUT = 500;
+const { API_DEFAULT_TIMEOUT } = require('./constants/api');
+
 
 // Master worker
 module.exports = function initMaster(cluster) {
@@ -42,14 +42,25 @@ module.exports = function initMaster(cluster) {
       setWorker(worker);
     }
   }; // update prop in worker state
+  const setWorkerProps = (pid, data = {}) => {
+    if (workers.has(pid)) {
+      const worker = workers.get(pid);
+      Object.keys(data).forEach(prop => {
+        worker[prop] = data[prop];
+      });
+      setWorker(worker);
+    }
+  }; // update props in worker state
 
   let isClosing = false;
 
+  const sendMessageAvailableStates = {
+    'online': 1,
+    'listening': 1
+  };
   const sendMessage = (pid, msg, data) => {
     const worker = workers.get(pid);
-    if (worker && worker.fork && worker.fork.state === 'listening') {
-      worker.fork.send({ msg, data });
-    }
+    if (worker && worker.fork && sendMessageAvailableStates[worker.fork.state]) worker.fork.send({ msg, data });
   };
   function onClose() {
     if (isClosing) return null;
@@ -79,7 +90,8 @@ module.exports = function initMaster(cluster) {
         ['socket.port', 'socket_port'],
         ['socket.path', 'socket_path'],
         ['api.enabled', 'api'],
-        ['api.ports', 'api_ports']
+        ['api.ports', 'api_ports'],
+        ['api.restartDelta', 'api_restart_delta']
       ].map(onConfigField.fill(conf));
     },
     'couchdb': (conf = {}) => {
@@ -247,15 +259,22 @@ module.exports = function initMaster(cluster) {
   function updateApiWorkers() {
     if (!config.get('api.enabled')) return stopApiWorkers();
 
-    let stopDelay = 0;
     const aliveWorkers = {};
     getApiWorkers().forEach(worker => {
-      stopDelay += 500;
-      if (worker.configHash !== configApiHash || worker.endpointsHash !== endpointsHash) stopWorker.delay(stopDelay, worker);
+      if (worker.configHash !== configApiHash || worker.endpointsHash !== endpointsHash) {
+        worker.fork.destroy();
+        stopWorker(worker);
+        setTimeout(() => {
+          if (workers.has(worker.pid)) {
+            log('Kill api worker by timeout: '+ worker.pid);
+            worker.fork.destroy();
+          }
+        }, (worker.timeout || API_DEFAULT_TIMEOUT) + config.get('api.restartDelta'));
+      }
       else aliveWorkers[worker.port] = true;
     });
 
-    config.get('api.ports').filter(port => !aliveWorkers[port]).forEach(startWorkerApi);
+    config.get('api.ports').forEach((port) => !aliveWorkers[port] && startWorkerApi(port));
   }
 
   // Workers manipulations
@@ -280,15 +299,20 @@ module.exports = function initMaster(cluster) {
 
   const onBucketWorkerInit = (pid, dbName, data = {}) => {
     const { seq, type } = data;
-    setWorkerProp(pid, 'type', type);
-    if (seq >= 0) setWorkerProp(pid, 'seq', +seq);
+    if (seq >= 0) {
+      setWorkerProps(pid, { type, seq: +seq });
+    } else {
+      setWorkerProp(pid, 'type', type);
+    }
   }; // when bucket worker started - update worker seq
   const onBucketWorkerStartFeed = (pid, dbName) => {
     setWorkerProp(pid, 'feed', true);
   }; // when bucket worker subscribed on feed - update worker's meta
   const onBucketWorkerStopFeed = (pid, dbName) => {
-    setWorkerProp(pid, 'feed', false);
-    setWorkerProp(pid, 'type', BUCKET_WORKER_TYPE_OLD);
+    setWorkerProps(pid, {
+      feed: false,
+      type: BUCKET_WORKER_TYPE_OLD
+    });
     startWorkerBucket(dbName);
   }; // when bucket worker unsubscribed from feed - update worker's meta and try to start new
   const onBucketWorkerOld = (dbName, data = {}) => {
@@ -429,14 +453,15 @@ module.exports = function initMaster(cluster) {
 
     fork.on('exit', () => {
       removeWorker(pid);
-      if (config.get('api.ports').filter(p => p === port).length === 1) {
-        startWorkerApi(port);
-      }
+      config.get('api.ports').forEach((p) => port === p && startWorkerApi(port));
     });
-    fork.on('message', message => {
-      switch (message.msg) {
+    fork.on('message', ({ msg, data }) => {
+      switch (msg) {
         case 'init':
-          setWorkerProp(pid, 'init', true);
+          setWorkerProps(pid, {
+            init: true,
+            timeout: data && data.timeout ? data.timeout : API_DEFAULT_TIMEOUT
+          });
           break;
         default:
           break;

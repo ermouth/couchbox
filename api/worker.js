@@ -39,8 +39,8 @@ module.exports = function initWorker(cluster, props = {}) {
     });
   });
 
-  worker.emitter.on(WORKER_EVENT_EXIT, () => {
-    if (api.isRunning()) return api.close();
+  worker.emitter.on(WORKER_EVENT_EXIT, (forced) => {
+    if (api.isRunning()) return api.close(forced);
     log({
       message: 'On worker exit',
       event: LOG_EVENT_WORKER_EXIT

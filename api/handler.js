@@ -9,8 +9,7 @@ const config = require('../config');
 const sms = require('../methods/sms');
 
 const { LOG_EVENT_API_HANDLER_LOG, LOG_EVENT_API_HANDLER_ERROR } = require('../constants/logEvents');
-
-const API_DEFAULT_TIMEOUT = 10e3;
+const { API_DEFAULT_TIMEOUT } = require('../constants/api');
 
 function Handler(path, params = {}, props = {}) {
   const { _require, ctx = {}, context } = props;
@@ -72,11 +71,11 @@ function Handler(path, params = {}, props = {}) {
       });
       result = undefined;
     }
-    return result ? result.timeout(timeout) : Promise.reject();
+    return result ? result.timeout(timeout) : Promise.reject(new Error('Bad handler'));
   };
 
   return {
-    path,
+    path, timeout,
     run: _lambda,
     isGood: true
   };

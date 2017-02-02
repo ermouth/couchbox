@@ -5,15 +5,11 @@ const lib = require('../utils/lib');
 const Logger = require('../utils/logger');
 const Bucket = require('./bucket');
 const Router = require('./router');
-// const couchdb = require('../utils/couchdb');
 const config = require('../config');
 
-const NODE_NAME = config.get('couchbox.nodename');
 const { LOG_EVENT_API_START, LOG_EVENT_API_STOP, LOG_EVENT_API_ROUTE_ERROR } = require('../constants/logEvents');
 
-const {
-  API_URL_ROOT,
-} = require('../constants/api');
+const { API_URL_ROOT } = require('../constants/api');
 
 function API(props = {}) {
   const logger = new Logger({ prefix: 'API', logger: props.logger });
@@ -28,6 +24,7 @@ function API(props = {}) {
   const isRunning = () => _running === true || _closing === true;
 
   const API_PORT = props.port;
+  const API_CLOSE_DELAY = config.get('api.ports').indexOf(API_PORT) * config.get('api.restartDelta');
 
   const parseEndpointsParam = (endpoints) => {
     const result = {};
@@ -49,19 +46,15 @@ function API(props = {}) {
     return result;
   };
 
-  const dbs = {};
-
+  let timeout = 0;
   const router = new Router({ logger });
 
   router.addRoute('*', '_', 'now', (req) => new Promise((resolve, reject) => {
-    setTimeout(() => {
-      resolve({
-        code: 200,
-        headers: { 'Content-Type': 'text/plain' },
-        body: Date.now().toString()
-      });
-    }, 5000);
-    process.nextTick(close);
+    resolve({
+      code: 200,
+      headers: { 'Content-Type': 'text/plain' },
+      body: Date.now().toString()
+    });
   }));
 
   const server = http.createServer(router.onRequest);
@@ -74,8 +67,7 @@ function API(props = {}) {
       delete connections[socket._connectionId];
     }
   };
-
-  server.on('connection', function(socket) {
+  const onConnection = (socket) => {
     const id = connectionCounter++;
     socket._isIdle = true;
     socket._connectionId = id;
@@ -83,59 +75,53 @@ function API(props = {}) {
     socket.on('close', function() {
       delete connections[id];
     });
-  });
-
-  server.on('request', function(req, res) {
-    console.log('new request');
+  };
+  const onRequest = (req, res) => {
     req.socket._isIdle = false;
     res.on('finish', function() {
-      console.log('finish');
       req.socket._isIdle = true;
       destroyConnection(req.socket);
     });
-  });
-
-  const onHandler = (domain, endpoint, path, handler) => {
-    console.log();
-    console.log('onHandler', domain, endpoint, path, handler);
-    console.log();
   };
+
+  server.on('connection', onConnection);
+  server.on('request', onRequest);
 
   const init = () => {
     _running = true;
 
     const tmp = parseEndpointsParam(props.endpoints);
-    // Promise.all(Object.keys(tmp).map(name => {
-    //   console.log();
-    //   console.log('name', name, tmp[name]);
-    //   console.log();
-    //   const endpoints = tmp[name];
-    //   const bucket = dbs[name] = new Bucket({ logger, name });
-    //   return bucket.init(endpoints);
-    // })).then(results => {
-    //   results.flatten().forEach(({ domain, endpoint, path, handler }) => {
-    //     try {
-    //       router.addRoute(domain, endpoint, path, handler);
-    //     } catch (error) {
-    //       log({
-    //         message: 'Error on route creation: "'+ [domain, '/', endpoint, path].join('') + '"',
-    //         event: LOG_EVENT_API_ROUTE_ERROR,
-    //         error
-    //       });
-    //     }
-    //   });
+     Promise.all(Object.keys(tmp).map(name => {
+       const endpoints = tmp[name];
+       const bucket = new Bucket({ logger, name });
+       return bucket.init(endpoints).then(res => {
+         if (timeout < res.timeout) timeout = res.timeout;
+         bucket.onUpdate((needStop) => needStop && close());
+         return res.handlers;
+       });
+     })).then(results => {
+       results.flatten().forEach(({ domain, endpoint, path, handler }) => {
+         try {
+           router.addRoute(domain, endpoint, path, handler);
+         } catch (error) {
+           log({
+             message: 'Error on route creation: "'+ [domain, '/', endpoint, path].join('') + '"',
+             event: LOG_EVENT_API_ROUTE_ERROR,
+             error
+           });
+         }
+       });
        server.listen(API_PORT, function () {
          log({
            message: 'Start api listen requests on port: '+ API_PORT,
            event: LOG_EVENT_API_START
          });
-         _onInit();
+         _onInit({ timeout });
        });
-    // });
+     });
   };
 
-  const close = () => {
-    _closing = true;
+  const end = () => {
     log({
       message: 'Stop api on port: '+ API_PORT,
       event: LOG_EVENT_API_STOP
@@ -144,10 +130,14 @@ function API(props = {}) {
       if (_running) {
         _running = false;
         _onClose();
-        console.log('ONCLOSE 0');
       }
     });
     Object.keys(connections).forEach(key => destroyConnection(connections[key]));
+  };
+  const close = (forced) => {
+    if (_closing) return null;
+    _closing = true;
+    forced ? end() : setTimeout(end, API_CLOSE_DELAY);
   };
 
   return {

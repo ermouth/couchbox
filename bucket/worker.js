@@ -53,8 +53,8 @@ module.exports = function initWorker(cluster, props = {}) {
     });
   });
 
-  worker.emitter.on(WORKER_EVENT_EXIT, () => {
-    if (bucket.isRunning()) return bucket.close();
+  worker.emitter.on(WORKER_EVENT_EXIT, (forced) => {
+    if (bucket.isRunning()) return bucket.close(forced);
     log({
       message: 'On worker exit',
       event: LOG_EVENT_WORKER_EXIT

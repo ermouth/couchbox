@@ -1,22 +1,12 @@
 const Promise = require('bluebird');
 const vm = require('vm');
-const lib = require('../utils/lib');
 const Logger = require('../utils/logger');
 const { makeModules } = require('../utils/ddocModules');
 const Handler = require('./handler');
 const config = require('../config');
 
-// methods
-const cache = require('../methods/cache');
-const fetch = require('../methods/fetch');
-const socket = require('../methods/socket');
-const sms = require('../methods/sms');
-const Bucket = require('../methods/bucket');
-
-
-const { LOG_EVENT_DDOC_INIT, LOG_EVENT_DDOC_ERROR } = require('../constants/logEvents');
-const { BUCKET_DDOC_CONTEXT_DENY } = require('../constants/bucket');
-
+const { LOG_EVENT_DDOC_INIT } = require('../constants/logEvents');
+const { API_DEFAULT_TIMEOUT } = require('../constants/api');
 
 function DDoc(props = {}) {
   const { bucket, name, domain, endpoint, methods } = props;
@@ -30,10 +20,15 @@ function DDoc(props = {}) {
   let rev;
   let vmContext = {};
   let _api = {};
+  let timeout = 0;
 
 
-  const getInfo = () => ({ name, id, rev, domain, endpoint, methods });
-  const getApi = () => Object.keys(_api).map(path => ({ path, handler: _api[path].run }));
+  const getInfo = () => ({ name, id, rev, domain, endpoint, methods, timeout: timeout||API_DEFAULT_TIMEOUT });
+  const getApi = () => Object.keys(_api).map(path => {
+    const api = _api[path];
+    if (timeout < api.timeout) timeout = api.timeout;
+    return { path, handler: api.run};
+  });
 
   const makeApi = (api) => {
     if (!(api && Object.isObject(api))) return null;
@@ -51,7 +46,7 @@ function DDoc(props = {}) {
       rev = body._rev;
 
       log({
-        message: 'Started ddoc: "'+ name + '" with methods: "'+ methods.join(',') +'"',
+        message: 'Started ddoc: "'+ name + '" with methods: "'+ methods.join(',') +'" and req path: "' + domain +'/'+ endpoint + '"',
         event: LOG_EVENT_DDOC_INIT,
         error
       });

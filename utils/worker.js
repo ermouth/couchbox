@@ -51,11 +51,11 @@ function Worker(cluster, props = {}) {
   }
   function _onSIGINT() {
     // log('SIGINT');
-    _onClose();
+    _onClose(true);
   }
 
-  function _onClose() {
-    if (emitter.listenerCount(WORKER_EVENT_EXIT) > 0) emitter.emit(WORKER_EVENT_EXIT);
+  function _onClose(forced) {
+    if (emitter.listenerCount(WORKER_EVENT_EXIT) > 0) emitter.emit(WORKER_EVENT_EXIT, forced);
     else close();
   }
 
