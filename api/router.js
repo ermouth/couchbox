@@ -95,19 +95,9 @@ function Router(props = {}) {
       const headers = result.headers || API_DEFAULT_HEADERS;
       headers['Content-Type'] = 'application/json';
       res.writeHead(code, headers);
-      if (Object.isObject(result.json)) {
-        try {
-          res.write(JSON.stringify(result.json));
-        } catch (error) {
-          log({
-            message: 'Error on result.json',
-            event: LOG_EVENT_API_REQUEST_ERROR,
-            error
-          });
-          return sendError(500, error);
-        }
-      } else {
-        const error = new Error('Bad JSON');
+      try {
+        res.write(JSON.stringify(result.json));
+      } catch (error) {
         log({
           message: 'Error on result.json',
           event: LOG_EVENT_API_REQUEST_ERROR,
