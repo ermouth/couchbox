@@ -17,12 +17,13 @@ function Bucket(props = {}) {
   const ddocs = {};
   let timeout = 0;
 
-  const init = (endpoints) => new Promise((resolve, reject) => {
+  const init = (endpoints = {}) => new Promise((resolve, reject) => {
     let keys;
     const handlers = [];
     if (!(endpoints && Object.isObject(endpoints) && (keys = Object.keys(endpoints)) && keys.length)) return reject(new Error('Bad endpoints'));
     Promise.all(keys.map(key => {
       const { ddoc, endpoint, domain, methods } = endpoints[key];
+      ddoc['_design/' + ddoc] = null;
       return DDoc({ logger, bucket, name: ddoc, domain, endpoint, methods })
         .catch(error => {
           log({
@@ -32,8 +33,10 @@ function Bucket(props = {}) {
           });
         })
         .then(info => {
-          if (timeout < info.timeout) timeout = info.timeout;
-          ddocs[info.id] = info;
+          if (info) {
+            if (timeout < info.timeout) timeout = info.timeout;
+            ddocs[info.id] = info;
+          }
           return info;
         });
     })).catch(error => {
@@ -43,8 +46,10 @@ function Bucket(props = {}) {
         error
       });
     }).then((results) => {
-      results.forEach(({ domain, endpoint, api }) => {
-        api.forEach(apiItem => {
+      results.forEach(info => {
+        if ((!info && info.domain && info.endpoint && info.api )) return null;
+        const { domain, endpoint } = info;
+        info.api.forEach(apiItem => {
           handlers.push(Object.assign({ domain, endpoint }, apiItem));
         });
       });
@@ -60,7 +65,7 @@ function Bucket(props = {}) {
     if (feed) return null;
     feed = bucket.follow({ since: 'now' });
     feed.on('change', function (change) {
-      if (change && change.id && ddocs[change.id]) {
+      if (change && change.id && ddocs.hasOwnProperty(change.id)) {
         feed.stop();
         callback(true);
       }
@@ -70,6 +75,7 @@ function Bucket(props = {}) {
 
 
   const close = () => new Promise((resolve, reject) => {
+    if (feed) feed.stop();
     resolve();
   });
 
