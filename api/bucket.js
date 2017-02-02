@@ -47,7 +47,7 @@ function Bucket(props = {}) {
       });
     }).then((results) => {
       results.forEach(info => {
-        if ((!info && info.domain && info.endpoint && info.api )) return null;
+        if (!(info && info.domain && info.endpoint && info.api )) return null;
         const { domain, endpoint } = info;
         info.api.forEach(apiItem => {
           handlers.push(Object.assign({ domain, endpoint }, apiItem));
