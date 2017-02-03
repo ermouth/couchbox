@@ -5,11 +5,24 @@ const { env } = process;
 const mapInt = (val) => +val;
 const mapStr = (val) => val;
 const mapBool = (val) => val === true || val === 'true';
+const mapsStrArr = (splitter) => (val) =>  val
+  ? Object.isString(val)
+    ? val.split(splitter).map(mapStr).filter(checkStr)
+    : Object.isArray(val) ? val.map(mapStr).filter(checkStr) : []
+  : [];
+const mapsIntArr = (splitter) => (val) =>  val
+  ? Object.isString(val)
+    ? val.split(splitter).map(mapInt).filter(checkNumPlus)
+    : Object.isArray(val) ? val.map(mapInt).filter(checkNumPlus) : []
+  : [];
+
 const checkBool = (val) => val === true || val === false;
 const checkNumPlus = (val) => val > 0;
 const checkStr = (val) => val && val.length > 0;
 const checkIn = (en, val) => val && en.hasOwnProperty(val);
 const checkEnum = (items) => { const en = {}; items.forEach(i => (en[i] = true)); return checkIn.fill(en); };
+const checkNumPlusArr = (val) => Object.isArray(val) && (val.length === 0 || (val.length > 0 && val.filter(checkNumPlus).unique().length === val.length));
+const checkStrArr = (val) => Object.isArray(val) && (val.length === 0 || (val.length > 0 && val.filter(checkStr).unique().length === val.length));
 
 const defaultConfig = {
   'couchbox.nodename': {
@@ -149,14 +162,8 @@ const defaultConfig = {
   'api.ports': {
     env: 'API_PORTS',
     value: [],
-    map: (val) =>  val
-      ? Object.isString(val)
-        ? val.split(',').map(mapInt).filter(checkNumPlus)
-        : Object.isArray(val)
-          ? val.map(mapInt).filter(checkNumPlus)
-          : []
-      : [],
-    check: (val) => Object.isArray(val) && (val.length === 0 || (val.length > 0 && val.filter(checkNumPlus).unique().length === val.length))
+    map: mapsIntArr(','),
+    check: checkNumPlusArr
   },
   'api.hostKey': {
     env: 'API_HOST_KEY',
@@ -169,6 +176,37 @@ const defaultConfig = {
     value: 5000,
     map: mapInt,
     check: checkNumPlus
+  },
+
+  'cors.enabled': {
+    env: 'CORS',
+    value: false,
+    map: mapBool,
+    check: checkBool
+  },
+  'cors.credentials': {
+    env: 'CORS_CREDENTIALS',
+    value: false,
+    map: mapBool,
+    check: checkBool
+  },
+  'cors.headers': {
+    env: 'CORS_HEADERS',
+    value: [],
+    map: mapsStrArr(/,\s*/),
+    check: checkStrArr
+  },
+  'cors.methods': {
+    env: 'CORS_METHODS',
+    value: [],
+    map: mapsStrArr(/,\s*/),
+    check: checkStrArr
+  },
+  'cors.origins': {
+    env: 'CORS_ORIGINS',
+    value: [],
+    map: mapsStrArr(/,\s*/),
+    check: checkStrArr
   },
 
   'aws.region': {

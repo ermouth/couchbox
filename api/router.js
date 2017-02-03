@@ -17,13 +17,34 @@ const {
   API_DEFAULT_HEADERS
 } = require('../constants/api');
 
+const CORS = config.get('cors.enabled') === true;
+const CORS_CREDENTIALS = config.get('cors.credentials') === true;
+const CORS_ORIGINS = {};
+config.get('cors.origins').forEach(host => {
+  if (host) CORS_ORIGINS[host] = true;
+});
+const CORS_METHODS = config.get('cors.methods').join(', ');
+const CORS_HEADES = config.get('cors.headers').join(', ');
 
-const corsUpdate = (result = {}) => {
+
+const corsUpdate = (request, result) => {
+  if (!request || !result || !CORS) return result;
   if (!result.headers) result.headers = API_DEFAULT_HEADERS;
-  if (!result.headers['Access-Control-Allow-Origin']) result.headers['Access-Control-Allow-Origin'] = '*';
-  if (!result.headers['Access-Control-Allow-Methods']) result.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, PUT, PATCH, DELETE';
-  if (!result.headers['Access-Control-Allow-Headers']) result.headers['Access-Control-Allow-Headers'] = 'X-CSRFToken,X-Requested-With,content-type';
-  if (!result.headers['Access-Control-Allow-Credentials']) result.headers['Access-Control-Allow-Credentials'] = true;
+  const rule = CORS_ORIGINS['*'] ? '*'
+    : request.headers && request.headers.origin && CORS_ORIGINS[request.headers.origin] ? request.headers.origin : null;
+  if (!rule) return result;
+  if (!result.headers['Access-Control-Allow-Origin']) {
+    result.headers['Access-Control-Allow-Origin'] = rule;
+  }
+  if (!result.headers['Access-Control-Allow-Methods']) {
+    result.headers['Access-Control-Allow-Methods'] = CORS_METHODS || '';
+  }
+  if (!result.headers['Access-Control-Allow-Headers']) {
+    result.headers['Access-Control-Allow-Headers'] = CORS_HEADES || '';
+  }
+  if (!result.headers['Access-Control-Allow-Credentials']) {
+    result.headers['Access-Control-Allow-Credentials'] = CORS_CREDENTIALS;
+  }
   return result;
 };
 
@@ -53,6 +74,8 @@ const makeRoute = (req) => {
   const host = hostFull[0];
   const port = hostFull[1] || 80;
 
+  const peer = headers['x-forwarded-for'] || headers.referer;
+
   const queryIndex = url.indexOf('?');
   const raw_path = queryIndex >= 0 ? url.substring(0, queryIndex) : url;
   const query = queryIndex >= 0 ? queryString.parse(url.substring(queryIndex + 1)) : {};
@@ -60,11 +83,11 @@ const makeRoute = (req) => {
 
   const routePath = '/' + path.slice(0,2).join('/');
 
-  return { host, port, method, raw_path, query, path, routePath, headers };
+  return { host, port, method, raw_path, query, path, routePath, headers, peer };
 };
 
 const makeRequest = (req, request, callback) => {
-  request.cookie = cookieParser.parse(request.headers.cookie);
+  request.cookie = cookieParser.parse(request.headers.cookie || '');
   request.requested_path = request.path;
   request.info = { update_seq: undefined };
   request.update_seq = undefined;
@@ -163,7 +186,6 @@ function Router(props = {}) {
     };
 
     const request = makeRoute(req);
-
     const route = getRoute(request.host, request.routePath);
     if (!route) return sendError(404, new Error('404 Not found'));
 
@@ -186,7 +208,7 @@ function Router(props = {}) {
         sendError(errorCode, error);
       };
       route(request)
-        .then(corsUpdate)
+        .then(result => corsUpdate(request, result))
         .then(result => result.json ? sendJSON(result) : sendResult(result))
         .catch(onError);
     });

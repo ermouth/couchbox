@@ -84,7 +84,7 @@ module.exports = function initMaster(cluster) {
   const configMap = {
     'couchbox': (conf = {}) => {
       if (!Object.isObject(conf)) return null;
-      [
+      onConfigFields(conf, [
         ['couchbox.nodename', 'nodename'],
         ['socket.enabled', 'socket'],
         ['socket.port', 'socket_port'],
@@ -92,19 +92,34 @@ module.exports = function initMaster(cluster) {
         ['api.enabled', 'api'],
         ['api.ports', 'api_ports'],
         ['api.restartDelta', 'api_restart_delta']
-      ].map(onConfigField.fill(conf));
+      ]);
+    },
+    'cors': (conf = {}) => {
+      if (!Object.isObject(conf)) return null;
+      onConfigFields(conf, [
+        ['cors.credentials', 'credentials'],
+        ['cors.headers', 'headers'],
+        ['cors.methods', 'methods'],
+        ['cors.origins', 'origins'],
+      ]);
+    },
+    'httpd': (conf = {}) => {
+      if (!Object.isObject(conf)) return null;
+      onConfigFields(conf, [
+        ['cors.enabled', 'enable_cors'],
+      ]);
     },
     'couchdb': (conf = {}) => {
       if (!Object.isObject(conf)) return null;
-      [
+      onConfigFields(conf, [
         ['process.timeout', 'os_process_timeout']
-      ].map(onConfigField.fill(conf));
+      ]);
     },
     'couch_httpd_auth':  (conf = {}) => {
       if (!Object.isObject(conf)) return null;
-      [
+      onConfigFields(conf, [
         ['couchdb.secret', 'secret']
-      ].map(onConfigField.fill(conf));
+      ]);
     },
     'hooks': (conf = {}) => {
       if (!Object.isObject(conf)) return null;
@@ -115,10 +130,13 @@ module.exports = function initMaster(cluster) {
       endpoints = conf;
     }
   }; // map for couchdb config
+
+  const onConfigFields = (conf, params) => params.forEach(onConfigField.fill(conf))
   const onConfigField = (conf, param) => {
     const field = param[0];
     const fieldNode = param[1];
     const value = config.parse(field, conf[fieldNode]);
+    // console.log(field, value);
     if (config.check(field, value) && config.get(field) !== value) {
       config.set(field, value);
     }
@@ -178,7 +196,7 @@ module.exports = function initMaster(cluster) {
 
     // Check api worker and endpoints config
     let updateApi = false;
-    const newConfigApiHash = lib.hashMD5(['couchbox', 'couchdb', 'redis', 'api'].map(config.get)); // update configBucketHash by critical fields
+    const newConfigApiHash = lib.hashMD5(['couchbox', 'couchdb', 'redis', 'cors', 'api'].map(config.get)); // update configBucketHash by critical fields
     if (configApiHash !== newConfigApiHash) {
       configApiHash = newConfigApiHash;
       updateApi = true;
