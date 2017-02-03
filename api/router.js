@@ -46,45 +46,34 @@ const parseBody = (req, callback) => {
   }
 };
 
-const makeRequest = (req, callback) => {
+const makeRoute = (req) => {
   const { method, url } = req;
-  const hostFull = (req.headers[config.get('api.hostKey')] || req.headers.host).split(':');
+  const headers = Object.isObject(req.headers) ? req.headers : {};
+  const hostFull = (headers[config.get('api.hostKey')] || headers.host).split(':', 2);
   const host = hostFull[0];
   const port = hostFull[1] || 80;
-
-  const headers = Object.isObject(req.headers) ? req.headers : {};
-  if (!headers.cookie) headers.cookie = '';
-  const cookie = cookieParser.parse(headers.cookie);
 
   const queryIndex = url.indexOf('?');
   const raw_path = queryIndex >= 0 ? url.substring(0, queryIndex) : url;
   const query = queryIndex >= 0 ? queryString.parse(url.substring(queryIndex + 1)) : {};
   const path = raw_path.substring(1).split('/');
 
-  const requested_path = path;
-  let update_seq;
-  let secObj;
-  let userCtx;
-  const info = { update_seq };
+  const routePath = '/' + path.slice(0,2).join('/');
 
-  parseBody(req, (body) => callback({
-    body,
-    cookie,
-    // form: undefined,
-    headers,
-    // id: undefined,
-    info,
-    method,
-    path,
-    query,
-    requested_path,
-    raw_path,
-    secObj,
-    userCtx,
-    // uuid: undefined,
-    host,
-    port
-  }));
+  return { host, port, method, raw_path, query, path, routePath, headers };
+};
+
+const makeRequest = (req, request, callback) => {
+  request.cookie = cookieParser.parse(request.headers.cookie);
+  request.requested_path = request.path;
+  request.info = { update_seq: undefined };
+  request.update_seq = undefined;
+  request.secObj = undefined;
+  request.userCtx = undefined;
+  return parseBody(req, (body) => {
+    request.body = body;
+    callback(request);
+  });
 };
 
 function Router(props = {}) {
@@ -173,11 +162,12 @@ function Router(props = {}) {
       sendJSON({ code, json });
     };
 
-    makeRequest(req, (request) => {
-      const routePath = '/' + request.path.slice(0,2).join('/');
-      const route = getRoute(request.host, routePath);
-      if (!route) return sendError(404, new Error('404 Not found'));
+    const request = makeRoute(req);
 
+    const route = getRoute(request.host, request.routePath);
+    if (!route) return sendError(404, new Error('404 Not found'));
+
+    makeRequest(req, request, (request) => {
       const onError = (error) => {
         let errorCode = 500;
         if (!(error instanceof Error)) {
@@ -195,7 +185,6 @@ function Router(props = {}) {
         });
         sendError(errorCode, error);
       };
-
       route(request)
         .then(corsUpdate)
         .then(result => result.json ? sendJSON(result) : sendResult(result))
