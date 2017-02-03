@@ -10,6 +10,8 @@
     "bluebird": "3.4.7",
     "sugar": "1.4.1",
     "uglify-js": "2.7.5",
+    "cookie": "0.3.1",
+    "query-string": "4.3.1",
     "nano": "6.2.0",
     "redis": "2.6.5",
     "stow": "1.0.1",

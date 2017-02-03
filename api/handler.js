@@ -19,23 +19,8 @@ function Handler(path, params = {}, props = {}) {
   });
   const log = logger.getLog();
 
-  if (!context) {
-    log({
-      message: 'Error no api handler context: '+ path,
-      error: new Error('No context'),
-      event: LOG_EVENT_API_HANDLER_ERROR
-    });
-    return { path, isGood: false };
-  }
-
-  if (!params.lambda) {
-    log({
-      message: 'Error run api handler lambda: '+ path,
-      error: new Error('No lambda'),
-      event: LOG_EVENT_API_HANDLER_ERROR
-    });
-    return { path, isGood: false };
-  }
+  if (!context) throw new Error('No context');
+  if (!params.lambda) throw new Error('No lambda');
 
   const lambdaSrc = params.lambda;
   const timeout = params.timeout && params.timeout > 0 ? params.timeout : (config.get('process.timeout') || API_DEFAULT_TIMEOUT);
@@ -44,18 +29,13 @@ function Handler(path, params = {}, props = {}) {
   if (validate) {
     const validationResult = lib.validateGlobals(lambdaSrc, { available: lambdaAvailable });
     if (validationResult && validationResult.length) {
-      log({
-        message: 'Error run api handler lambda: '+ path,
-        error: new Error('Bad function validation: '+ JSON.stringify(validationResult)),
-        event: LOG_EVENT_API_HANDLER_ERROR,
-      });
-      return { path, isGood: false };
+      throw new Error('Bad lambda validation: '+ JSON.stringify(validationResult));
     }
   }
 
   const _script = new vm.Script('(function(require, log, req) { return new Promise((resolve, reject) => (' + lambdaSrc + ').call(this, req) ); })');
 
-  const _lambda = (req) => {
+  const handler = (req) => {
     let result;
     // TODO: log ref - full url
     const _log = (message, now) => log(Object.assign({ event: LOG_EVENT_API_HANDLER_LOG }, Object.isObject(message) ? message : { message }), now);
@@ -74,11 +54,7 @@ function Handler(path, params = {}, props = {}) {
     return result ? result.timeout(timeout) : Promise.reject(new Error('Bad handler'));
   };
 
-  return {
-    path, timeout,
-    run: _lambda,
-    isGood: true
-  };
+  return { path, timeout, handler };
 }
 
 module.exports = Handler;
