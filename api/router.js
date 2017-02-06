@@ -113,11 +113,8 @@ function Router(props = {}) {
     if (!handler) throw new Error('Empty handler');
 
     const route =
-      (endpoint && endpoint.length >= 1 && path && path.length >= 1) && (
-        (endpoint === API_URL_PREFIX && path[0] !== '/') ||
-        (endpoint.length > 1 && endpoint[0] === API_URL_PREFIX && path[0] === '/')
-      )
-      ? API_URL_ROOT + endpoint + path
+      (endpoint && endpoint.length >= 1 && path && path.length >= 1 && path[0] !== '/')
+      ? API_URL_ROOT + endpoint + (endpoint === API_URL_PREFIX ? '' : '/')+ path
       : null;
     if (!route) throw new Error('Empty route');
 

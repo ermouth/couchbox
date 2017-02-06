@@ -134,6 +134,7 @@ function API(props = {}) {
     });
     Object.keys(connections).forEach(key => destroyConnection(connections[key]));
   };
+
   const close = (forced) => {
     if (_closing) return null;
     _closing = true;
