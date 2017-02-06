@@ -209,20 +209,8 @@ const defaultConfig = {
     check: checkStrArr
   },
 
-  'aws.region': {
-    env: 'AWS_REGION',
-    value: 'eu-west-1',
-    map: mapStr,
-    check: checkStr
-  },
-  'aws.accessKey': {
-    env: 'AWS_KEY_ACCESS',
-    value: null,
-    map: mapStr,
-    check: checkStr
-  },
-  'aws.secretKey': {
-    env: 'AWS_KEY_SECRET',
+  'sms.key': {
+    env: 'SMS_KEY',
     value: null,
     map: mapStr,
     check: checkStr

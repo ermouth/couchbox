@@ -19,10 +19,7 @@ const {
 
 const CORS = config.get('cors.enabled') === true;
 const CORS_CREDENTIALS = config.get('cors.credentials') === true;
-const CORS_ORIGINS = {};
-config.get('cors.origins').forEach(host => {
-  if (host) CORS_ORIGINS[host] = true;
-});
+const CORS_ORIGINS = {}; config.get('cors.origins').forEach(host => host && (CORS_ORIGINS[host] = true));
 const CORS_METHODS = config.get('cors.methods').join(', ');
 const CORS_HEADES = config.get('cors.headers').join(', ');
 
@@ -30,7 +27,8 @@ const CORS_HEADES = config.get('cors.headers').join(', ');
 const corsUpdate = (request, result) => {
   if (!request || !result || !CORS) return result;
   if (!result.headers) result.headers = API_DEFAULT_HEADERS;
-  const rule = CORS_ORIGINS['*'] ? '*'
+  const rule = CORS_ORIGINS['*']
+    ? '*'
     : request.headers && request.headers.origin && CORS_ORIGINS[request.headers.origin] ? request.headers.origin : null;
   if (!rule) return result;
   if (!result.headers['Access-Control-Allow-Origin']) {
@@ -211,10 +209,7 @@ function Router(props = {}) {
     });
   }
 
-  return {
-    addRoute,
-    onRequest
-  };
+  return { addRoute, onRequest };
 }
 
 module.exports = Router;
