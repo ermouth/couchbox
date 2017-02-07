@@ -44,26 +44,47 @@ const auth = () => new Promise((resolve, reject) => {
 const getConfig = (cookie) => new Promise((resolve, reject) => {
   if (!cookie) cookie = config.get('couchdb.cookie');
   return fetch(DB_URL +'/_config', {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json; charset=utf-8',
-        cookie
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json; charset=utf-8',
+      cookie
+    }
+  }).then(res => res.json()).then(json => {
+    if (!json || json.error) {
+      if (json && json.error === 'unauthorized') {
+        config.clean('couchdb.cookie');
+        return loadConfig();
       }
-    })
-    .then(res => res.json())
-    .then(json => {
-      if (!json || json.error) {
-        if (json && json.error === 'unauthorized') {
-          config.clean('couchdb.cookie');
-          return loadConfig();
-        }
-        return reject(new Error('Bad config'));
-      }
-      return json;
-    })
-    .then(resolve)
+      return reject(new Error('Bad config'));
+    }
+    return json;
+  })
+  .then(resolve)
 }); // load couchdb _config, auth by cookie in param or in config
+
+const getBasicSession = (Authorization) => new Promise(resolve => {
+  fetch(DB_URL +'/_session', {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json; charset=utf-8',
+      Authorization
+    }
+  }).then(res => res.json()).then(json => json && json.ok ? json.userCtx : undefined).then(resolve)
+    .catch(error => { resolve(undefined) });
+});
+const getCookieSession = (cookie) => new Promise(resolve => {
+  return fetch(DB_URL +'/_session', {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json; charset=utf-8',
+      cookie
+    }
+  }).then(res => res.json()).then(json => json && json.ok ? json.userCtx : undefined).then(resolve)
+    .catch(error => { resolve(undefined) });
+});
 
 const loadConfig = () => config.get('couchdb.cookie') ? getConfig() : auth().then(getConfig); // start load coundb _config, if no auth cookie - previously authenticate in couchdb
 
@@ -84,5 +105,6 @@ module.exports = {
   loadConfig,
   connect,
   connectBucket,
-  makeAuthHeaders
+  makeAuthHeaders,
+  getBasicSession, getCookieSession
 };

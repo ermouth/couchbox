@@ -1,13 +1,16 @@
 require('sugar');
+const Promise = require('bluebird');
 const cookieParser = require('cookie');
 const queryString = require('query-string');
+const lib = require('../utils/lib');
 const Logger = require('../utils/logger');
 const config = require('../config');
 
 const {
   LOG_EVENT_API_REQUEST_ERROR,
   LOG_EVENT_API_REQUEST_REJECT,
-  LOG_EVENT_API_REQUEST_BODY_ERROR
+  LOG_EVENT_API_REQUEST_BODY_ERROR,
+  LOG_EVENT_API_SESSION_ERROR
 } = require('../constants/logEvents');
 
 const {
@@ -23,44 +26,37 @@ const CORS_ORIGINS = {}; config.get('cors.origins').forEach(host => host && (COR
 const CORS_METHODS = config.get('cors.methods').join(', ');
 const CORS_HEADES = config.get('cors.headers').join(', ');
 
+const H_CORS_ORIGIN = 'Access-Control-Allow-Origin';
+const H_CORS_HEADERS = 'Access-Control-Allow-Headers';
+const H_CORS_METHODS = 'Access-Control-Allow-Methods';
+const H_CORS_CRED = 'Access-Control-Allow-Credentials';
 
-const corsUpdate = (request, result) => {
-  if (!request || !result || !CORS) return result;
+const corsHeads = (request, result) => {
+  if (!(request && request.headers && request.headers.origin && result && CORS)) return result;
   if (!result.headers) result.headers = API_DEFAULT_HEADERS;
-  const rule = CORS_ORIGINS['*']
-    ? '*'
-    : request.headers && request.headers.origin && CORS_ORIGINS[request.headers.origin] ? request.headers.origin : null;
-  if (!rule) return result;
-  if (!result.headers['Access-Control-Allow-Origin']) {
-    result.headers['Access-Control-Allow-Origin'] = rule;
-  }
-  if (!result.headers['Access-Control-Allow-Methods']) {
-    result.headers['Access-Control-Allow-Methods'] = CORS_METHODS || '';
-  }
-  if (!result.headers['Access-Control-Allow-Headers']) {
-    result.headers['Access-Control-Allow-Headers'] = CORS_HEADES || '';
-  }
-  if (!result.headers['Access-Control-Allow-Credentials']) {
-    result.headers['Access-Control-Allow-Credentials'] = CORS_CREDENTIALS;
+  const { origin } = request.headers;
+  const rule = CORS_ORIGINS['*'] ? '*' : CORS_ORIGINS[origin] ? origin : null;
+  if (rule) {
+    if (!result.headers[H_CORS_ORIGIN]) result.headers[H_CORS_ORIGIN] = rule;
+    if (!result.headers[H_CORS_HEADERS]) result.headers[H_CORS_HEADERS] = CORS_HEADES || '';
+    if (!result.headers[H_CORS_METHODS]) result.headers[H_CORS_METHODS] = CORS_METHODS || '';
+    if (!result.headers[H_CORS_CRED]) result.headers[H_CORS_CRED] = CORS_CREDENTIALS;
   }
   return result;
 };
 
-const parseBody = (req, callback) => {
+const parseBody = (req) => {
   switch (req.method) {
     case 'DELETE':
     case 'HEAD':
-      callback('');
-      break;
+      return Promise.resolve('');
     case 'GET':
-      callback(undefined);
+      return Promise.resolve(undefined);
       break;
     default:
-      const body = [];
-      req.on('data', function(chunk) {
-        body.push(chunk);
-      }).on('end', function() {
-        callback(Buffer.concat(body).toString());
+      return new Promise(resolve => {
+        const body = [];
+        req.on('data', chunk => body.push(chunk)).on('end', () => resolve(Buffer.concat(body).toString()));
       });
   }
 };
@@ -84,43 +80,53 @@ const makeRoute = (req) => {
   return { host, port, method, raw_path, query, path, routePath, headers, peer };
 };
 
-const makeRequest = (req, request, callback) => {
-  request.cookie = cookieParser.parse(request.headers.cookie || '');
-  request.requested_path = request.path;
-  request.info = { update_seq: undefined };
-  request.update_seq = undefined;
-  request.secObj = undefined;
-  request.userCtx = undefined;
-  return parseBody(req, (body) => {
-    request.body = body;
-    callback(request);
-  });
-};
-
 function Router(props = {}) {
+  const { sessions } = props;
   const logger = new Logger({ prefix: 'Router', logger: props.logger });
   const log = logger.getLog();
 
   const routes = new Map();
 
-  function addRoute(domain, endpoint, path, handler) {
+  function addRoute(domain, endpoint, path, handler, bucket) {
     if (!domain) throw new Error('Empty domain');
     if (!endpoint) throw new Error('Empty endpoint');
     if (endpoint[0] !== API_URL_PREFIX) throw new Error('Bad endpoint: ' + endpoint);
     if (!path) throw new Error('Empty path');
     if (!handler) throw new Error('Empty handler');
+    if (!(endpoint && endpoint.length >= 1 && path && path.length >= 1 && path[0] !== '/')) throw new Error('Bad route');
 
-    const route =
-      (endpoint && endpoint.length >= 1 && path && path.length >= 1 && path[0] !== '/')
-      ? API_URL_ROOT + endpoint + (endpoint === API_URL_PREFIX ? '' : '/')+ path
-      : null;
-    if (!route) throw new Error('Empty route');
-
-    const routeKey = domain + route;
-    routes.set(routeKey, handler);
+    const routeKey = domain + API_URL_ROOT + endpoint + (endpoint === API_URL_PREFIX ? '' : '/')+ path;
+    routes.set(routeKey, { handler, bucket });
   }
 
   const getRoute = (host, routePath) => routes.get(host + routePath) || routes.get('*' + routePath);
+
+  const makeRequest = (req, request, route, callback) => {
+    request.cookie = cookieParser.parse(request.headers.cookie || '');
+    if (route.bucket) request.info = { update_seq: route.bucket.getSeq() };
+    let i = 2;
+    const done = () => (!--i) && callback(request);
+    sessions.loadSession(request)
+      .then(userCtx => { request.userCtx = userCtx; })
+      .catch(error => {
+        log({
+          message: 'Error on load session',
+          event: LOG_EVENT_API_SESSION_ERROR,
+          error
+        });
+      })
+      .finally(done);
+    parseBody(req)
+      .then(body => { request.body = body; })
+      .catch(error => {
+        log({
+          message: 'Error on parse body',
+          event: LOG_EVENT_API_REQUEST_ERROR,
+          error
+        });
+      })
+      .finally(done);
+  };
 
   function onRequest(req, res) {
     const sendResult = (result) => {
@@ -142,7 +148,7 @@ function Router(props = {}) {
       res.end((error) => {
         if (error) {
           log({
-            message: 'Error on result',
+            message: 'Error on send result',
             event: LOG_EVENT_API_REQUEST_BODY_ERROR,
             error
           });
@@ -175,6 +181,20 @@ function Router(props = {}) {
       });
     };
     const sendError = (code, error) => {
+      if (code === 404) {
+        res.writeHead(code, API_DEFAULT_HEADERS);
+        res.write(error.toString());
+        res.end((sendError) => {
+          if (sendError) {
+            log({
+              message: 'Error on send error',
+              event: LOG_EVENT_API_REQUEST_ERROR,
+              error: sendError
+            });
+          }
+        });
+        return null;
+      }
       const json = error ? error : new Error('Empty error');
       if (!json.type) json.type = 'Error';
       sendJSON({ code, json });
@@ -184,28 +204,27 @@ function Router(props = {}) {
     const route = getRoute(request.host, request.routePath);
     if (!route) return sendError(404, new Error('404 Not found'));
 
-    makeRequest(req, request, (request) => {
-      const onError = (error) => {
-        let errorCode = 500;
-        if (!(error instanceof Error)) {
-          if (Object.isObject(error)) {
-            if (error.code > 0) errorCode = error.code;
-            error = new Error(error.message || error.error);
-          } else {
-            error = new Error(error);
-          }
-        }
-        log({
-          message: 'Route rejection',
-          event: LOG_EVENT_API_REQUEST_REJECT,
-          error
-        });
-        sendError(errorCode, error);
-      };
-      route(request)
-        .then(result => corsUpdate(request, result))
+    makeRequest(req, request, route, (request) => {
+      route.handler(request)
+        .then(result => corsHeads(request, result))
         .then(result => result.json ? sendJSON(result) : sendResult(result))
-        .catch(onError);
+        .catch((error) => {
+          let errorCode = 500;
+          if (!(error instanceof Error)) {
+            if (Object.isObject(error)) {
+              if (error.code > 0) errorCode = error.code;
+              error = new Error(error.message || error.error);
+            } else {
+              error = new Error(error);
+            }
+          }
+          log({
+            message: 'Route rejection',
+            event: LOG_EVENT_API_REQUEST_REJECT,
+            error
+          });
+          sendError(errorCode, error);
+        });
     });
   }
 

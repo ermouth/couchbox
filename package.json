@@ -6,7 +6,6 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "aws-sdk": "2.9.0",
     "bluebird": "3.4.7",
     "sugar": "1.4.1",
     "uglify-js": "2.7.5",

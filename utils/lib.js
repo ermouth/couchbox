@@ -91,3 +91,7 @@ const checkPhone = module.exports.checkPhone = function checkPhone(phone) {
   } catch (e) { }
   return null;
 };
+
+const toBase64 = module.exports.toBase64 = function toBase64(str) {
+  return new Buffer(str).toString('base64');
+};

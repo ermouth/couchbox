@@ -16,6 +16,9 @@ function Bucket(props = {}) {
 
   const ddocs = {};
   let timeout = 0;
+  let seq = 0;
+
+  const getSeq = () => seq;
 
   const init = (endpoints = {}) => new Promise((resolve, reject) => {
     let keys;
@@ -46,16 +49,29 @@ function Bucket(props = {}) {
         error
       });
     }).then((results) => {
+      const bucket = { getSeq };
       results.forEach(info => {
         if (!(info && info.domain && info.endpoint && info.api )) return null;
         const { domain, endpoint } = info;
         info.api.forEach(apiItem => {
-          handlers.push(Object.assign({ domain, endpoint }, apiItem));
+          handlers.push(Object.assign({ domain, endpoint, bucket }, apiItem));
         });
       });
     }).finally(() => {
-      if (!timeout) timeout = API_DEFAULT_TIMEOUT;
-      return resolve({ timeout, handlers });
+      bucket.info((error, info) => {
+        if (error || !info) {
+          if (!error) error = new Error('No bucket info');
+          log({
+            message: 'Error init Bucket: '+ name,
+            event: LOG_EVENT_BUCKET_ERROR,
+            error
+          });
+          reject(error);
+        }
+        seq = info.update_seq;
+        if (!timeout) timeout = API_DEFAULT_TIMEOUT;
+        return resolve({ timeout, handlers });
+      });
     });
   });
 
@@ -65,6 +81,7 @@ function Bucket(props = {}) {
     if (feed) return null;
     feed = bucket.follow({ since: 'now' });
     feed.on('change', function (change) {
+      if (seq < change.seq) seq = change.seq;
       if (change && change.id && ddocs.hasOwnProperty(change.id)) {
         feed.stop();
         callback(true);

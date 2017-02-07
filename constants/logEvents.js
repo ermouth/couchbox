@@ -23,6 +23,7 @@ module.exports = {
   LOG_EVENT_API_START: 'api/start',
   LOG_EVENT_API_STOP: 'api/stop',
   LOG_EVENT_API_ERROR: 'api/error',
+  LOG_EVENT_API_SESSION_ERROR: 'api/sessionError',
   LOG_EVENT_API_REQUEST_ERROR: 'api/requestError',
   LOG_EVENT_API_REQUEST_REJECT: 'api/requestReject',
   LOG_EVENT_API_REQUEST_BODY_ERROR: 'api/requestBodyError',

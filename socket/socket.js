@@ -70,12 +70,12 @@ function Socket(props = {}) {
     }
   };
 
-  const close = () => {
+  const close = (forced) => {
     _closing = true;
     io.close(() => {
       _running = false;
       log({
-        message: 'Stop listen sockets on port: '+ SOCKET_PORT,
+        message: 'Stop listen sockets on port: '+ SOCKET_PORT + ', forced: ' + (forced === true ? 'true' : 'false'),
         event: LOG_EVENT_SOCKET_STOP
       });
       _onClose();

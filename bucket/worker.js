@@ -3,7 +3,7 @@ const Worker = require('../utils/worker');
 const Bucket = require('./bucket');
 
 const {
-  LOG_EVENT_WORKER_START, LOG_EVENT_WORKER_EXIT, LOG_EVENT_WORKER_CLOSE, LOG_EVENT_WORKER_ERROR,
+  LOG_EVENT_WORKER_START, LOG_EVENT_WORKER_EXIT, LOG_EVENT_WORKER_CLOSE,
   LOG_EVENT_BUCKET_ERROR
 } = require('../constants/logEvents');
 
@@ -56,7 +56,7 @@ module.exports = function initWorker(cluster, props = {}) {
   worker.emitter.on(WORKER_EVENT_EXIT, (forced) => {
     if (bucket.isRunning()) return bucket.close(forced);
     log({
-      message: 'On worker exit',
+      message: 'On worker exit, forced: '+ (forced === true ? 'true' : 'false'),
       event: LOG_EVENT_WORKER_EXIT
     });
     return worker.close();

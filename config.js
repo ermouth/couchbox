@@ -104,7 +104,7 @@ const defaultConfig = {
   },
   'couchdb.pass': {
     env: 'DB_PASS',
-    value: 'momomo',
+    value: '',
     map: mapStr,
     check: checkStr
   },
@@ -119,6 +119,13 @@ const defaultConfig = {
     value: undefined,
     map: mapStr,
     check: checkStr
+  },
+
+  'user.session': {
+    env: 'USER_SESSION',
+    value: 60 * 60, // in seconds (default 1 hour)
+    map: mapInt,
+    check: checkNumPlus
   },
 
   'redis.ip': {

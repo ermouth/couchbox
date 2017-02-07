@@ -5,6 +5,7 @@ const lib = require('../utils/lib');
 const Logger = require('../utils/logger');
 const Bucket = require('./bucket');
 const Router = require('./router');
+const Sessions = require('./sessions');
 const config = require('../config');
 
 const { LOG_EVENT_API_START, LOG_EVENT_API_STOP, LOG_EVENT_API_ROUTE_ERROR } = require('../constants/logEvents');
@@ -47,16 +48,19 @@ function API(props = {}) {
   };
 
   let timeout = 0;
-  const router = new Router({ logger });
+  const sessions = new Sessions({ logger });
+  const router = new Router({ logger, sessions });
 
-  router.addRoute('*', '_', 'now', (req) => new Promise((resolve, reject) => {
-    resolve({
-      code: 200,
-      headers: { 'Content-Type': 'text/plain' },
-      body: Date.now().toString()
-    });
+
+  // Default routes
+  router.addRoute('*', '_', 'now', (req) => Promise.resolve({
+    code: 200,
+    headers: { 'Content-Type': 'text/plain' },
+    body: Date.now().toString()
   }));
 
+
+  // Server
   const server = http.createServer(router.onRequest);
   const connections = {};
   let connectionCounter = 0;
@@ -100,9 +104,9 @@ function API(props = {}) {
          return res.handlers;
        });
      })).then(results => {
-       results.flatten().forEach(({ domain, endpoint, path, handler }) => {
+       results.flatten().forEach(({ domain, endpoint, path, handler, bucket }) => {
          try {
-           router.addRoute(domain, endpoint, path, handler);
+           router.addRoute(domain, endpoint, path, handler, bucket);
          } catch (error) {
            log({
              message: 'Error on route creation: "'+ [domain, '/', endpoint, path].join('') + '"',
@@ -121,9 +125,9 @@ function API(props = {}) {
      });
   };
 
-  const end = () => {
+  const end = (forced) => {
     log({
-      message: 'Stop api on port: '+ API_PORT,
+      message: 'Stop api on port: '+ API_PORT + ', forced: '+ (forced === true ? 'true' : 'false'),
       event: LOG_EVENT_API_STOP
     });
     server.close(() => {
@@ -132,13 +136,14 @@ function API(props = {}) {
         _onClose();
       }
     });
+    sessions.close();
     Object.keys(connections).forEach(key => destroyConnection(connections[key]));
   };
 
   const close = (forced) => {
     if (_closing) return null;
     _closing = true;
-    forced ? end() : setTimeout(end, API_CLOSE_DELAY);
+    forced ? end(forced) : setTimeout(end, API_CLOSE_DELAY);
   };
 
   return {

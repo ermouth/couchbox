@@ -118,7 +118,8 @@ module.exports = function initMaster(cluster) {
     'couch_httpd_auth':  (conf = {}) => {
       if (!Object.isObject(conf)) return null;
       onConfigFields(conf, [
-        ['couchdb.secret', 'secret']
+        ['couchdb.secret', 'secret'],
+        ['user.session', 'timeout']
       ]);
     },
     'hooks': (conf = {}) => {
@@ -280,7 +281,6 @@ module.exports = function initMaster(cluster) {
     const aliveWorkers = {};
     getApiWorkers().forEach(worker => {
       if (worker.configHash !== configApiHash || worker.endpointsHash !== endpointsHash) {
-        worker.fork.destroy();
         stopWorker(worker);
         setTimeout(() => {
           if (workers.has(worker.pid)) {
