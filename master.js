@@ -52,13 +52,18 @@ module.exports = function initMaster(cluster) {
 
   let isClosing = false;
 
-  const sendMessageAvailableStates = {
-    'online': 1,
-    'listening': 1
-  };
   const sendMessage = (pid, msg, data) => {
     const worker = workers.get(pid);
-    if (worker && worker.fork && sendMessageAvailableStates[worker.fork.state]) worker.fork.send({ msg, data });
+    if (worker && worker.fork) {
+      switch (worker.fork.state) {
+        case 'online':
+        case 'listening':
+          worker.fork.send({ msg, data });
+          break;
+        default:
+          break;
+      }
+    }
   };
   function onClose() {
     if (isClosing) return null;
@@ -342,6 +347,9 @@ module.exports = function initMaster(cluster) {
   const onBucketWorkerExit = (pid, dbName, message, code) => {
     // detect if worker killed - start new worker
     if (!message && code === 'SIGKILL' && workers.has(pid)) { // if worker crashed
+      console.log();
+      console.log(code, message);
+      console.log();
       const { seq } = workers.get(pid);
       removeWorker(pid);
       if (seq > 0) startWorkerBucket(dbName, seq); // try restart worker
