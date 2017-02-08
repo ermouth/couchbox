@@ -140,7 +140,6 @@ module.exports = function initMaster(cluster) {
     const field = param[0];
     const fieldNode = param[1];
     const value = config.parse(field, conf[fieldNode]);
-    // console.log(field, value);
     if (config.check(field, value) && config.get(field) !== value) {
       config.set(field, value);
     }
@@ -356,7 +355,6 @@ module.exports = function initMaster(cluster) {
   }; // when bucket worker closed
 
   function startWorkerBucket(db, seq) {
-    console.log('startWorkerBucket', db, seq);
     if ( // don't start worker if
       isClosing // master closing
       || !dbs.has(db) // in dbs no worker db
@@ -364,19 +362,11 @@ module.exports = function initMaster(cluster) {
           ? getBucketWorkerByDbSeq(db, seq).length > 0 // seq and worker already exist
           : getBucketWorkersByDbFeed(db).length > 0 // no seq && exist one or more workers with feed by db
       )
-    ) {
-      console.log('startWorkerBucket', false);
-      return null;
-    }
-    console.log('startWorkerBucket', true);
+    ) return null;
 
     if (!seq && getBucketStartingWorkerByDb(db).length > 0) {
       // if we have not initialised workers who can has feed and current worker can has feed - wait not initialised workers
-      return setTimeout(() => {
-        console.log('on timeout', db, seq);
-        console.log('on timeout', db, seq);
-        startWorkerBucket(db, seq);
-      }, WORKER_WAIT_TIMEOUT);
+      return setTimeout(startWorkerBucket.fill(db, seq), WORKER_WAIT_TIMEOUT);
     }
 
     const { ddocs, ddocsHash, configHash } = dbs.get(db);
