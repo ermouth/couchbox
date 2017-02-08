@@ -75,7 +75,7 @@ module.exports = function initMaster(cluster) {
       });
   } // on close master
   process.on('SIGINT', onClose); // on close command
-  process.on('SIGTERM', onClose); // on terminate server command
+  process.on('SIGTERM', onClose);
   process.on('exit', () => { log({ message: 'Closed', event: LOG_EVENT_SANDBOX_CLOSED }); }); // on master closed
 
 
@@ -314,6 +314,42 @@ module.exports = function initMaster(cluster) {
   const getBucketStartingWorkerByDb = (dbName) => getBucketWorkersByDb(dbName).filter(bucketWorkerNotReady); // return bucket workers by bucket and seq
   const stopBucketWorkersByDb = (dbName) => getBucketWorkersByDb(dbName).forEach(stopWorker); // stop bucket workers by bucket
 
+  const onBucketWorkerInit = (pid, dbName, data = {}) => {
+    const { seq, type } = data;
+    if (seq >= 0) {
+      setWorkerProps(pid, { type, seq: +seq });
+    } else {
+      setWorkerProp(pid, 'type', type);
+    }
+  }; // when bucket worker started - update worker seq
+  const onBucketWorkerStartFeed = (pid) => {
+    setWorkerProp(pid, 'feed', true);
+  }; // when bucket worker subscribed on feed - update worker's meta
+  const onBucketWorkerStopFeed = (pid, dbName) => {
+    setWorkerProps(pid, {
+      feed: false,
+      type: BUCKET_WORKER_TYPE_OLD
+    });
+    startWorkerBucket(dbName);
+  }; // when bucket worker unsubscribed from feed - update worker's meta and try to start new
+  const onBucketWorkerOld = (dbName, data = {}) => {
+    const seq = +data.seq;
+    if (seq > 0) { // if worker has seq
+      if (getBucketWorkerByDbSeq(dbName, seq).length) { /** log('Worker '+ seq +' already started'); */ }
+      else startWorkerBucket(dbName, seq); // if master has no worker with seq - try to start old worker
+    }
+  }; // when detected old bucket worker
+  const onBucketWorkerExit = (pid, dbName, message, code) => {
+    // detect if worker killed - start new worker
+    if (!message && code === 'SIGKILL' && workers.has(pid)) { // if worker crashed
+      const { seq } = workers.get(pid);
+      removeWorker(pid);
+      if (seq > 0) startWorkerBucket(dbName, seq); // try restart worker
+    } else { // if worker closed gracefully
+      removeWorker(pid);
+    }
+  }; // when bucket worker closed
+
   function startWorkerBucket(db, seq) {
     if ( // don't start worker if
       isClosing // master closing
@@ -344,44 +380,20 @@ module.exports = function initMaster(cluster) {
       feed: false
     });
 
-    fork.on('exit', (message, code) => {
-      // detect if worker killed - start new worker
-      if (!message && code === 'SIGKILL' && workers.has(pid)) { // if worker crashed
-        const { seq } = workers.get(pid);
-        removeWorker(pid);
-        if (seq > 0) startWorkerBucket(db, seq); // try restart worker
-      } else { // if worker closed gracefully
-        removeWorker(pid);
-      }
-    }); // when bucket worker closed
+    fork.on('exit', onBucketWorkerExit.fill(pid, db));
     fork.on('message', message => {
       switch (message.msg) {
-        case 'init': // when bucket worker started - update worker seq
-          {
-            const {seq, type} = message.data;
-            if (seq >= 0) {
-              setWorkerProps(pid, {type, seq: +seq});
-            } else {
-              setWorkerProp(pid, 'type', type);
-            }
-          }
+        case 'init':
+          onBucketWorkerInit(pid, db, message.data);
           break;
-        case 'startFeed': // when bucket worker subscribed on feed - update worker's meta
-          {
-            setWorkerProp(pid, 'feed', true);
-          }
+        case 'startFeed':
+          onBucketWorkerStartFeed(pid);
           break;
-        case 'stopFeed': // when bucket worker unsubscribed from feed - update worker's meta and try to start new
-          {
-            setWorkerProps(pid, { feed: false, type: BUCKET_WORKER_TYPE_OLD });
-            startWorkerBucket(db);
-          }
+        case 'stopFeed':
+          onBucketWorkerStopFeed(pid, db);
           break;
-        case 'oldWorker': // when detected old bucket worker
-          {
-            const seq = +message.data.seq;
-            if (seq > 0 && getBucketWorkerByDbSeq(db, seq).length === 0) startWorkerBucket(db, seq); // if worker has seq and master has no worker with seq - try to start old worker
-          }
+        case 'oldWorker':
+          onBucketWorkerOld(db, message.data);
           break;
         default:
           break;
