@@ -10,7 +10,6 @@ const config = require('../config');
 const {
   LOG_EVENT_API_REQUEST_ERROR,
   LOG_EVENT_API_REQUEST_REJECT,
-  LOG_EVENT_API_REQUEST_BODY_ERROR,
   LOG_EVENT_API_SAVE,
 } = require('../constants/logEvents');
 
@@ -33,16 +32,16 @@ const H_CORS_METHODS = 'Access-Control-Allow-Methods';
 const H_CORS_CRED = 'Access-Control-Allow-Credentials';
 
 const corsHeads = (request) => {
-  const heads = API_DEFAULT_HEADERS;
-  if (!(request && request.headers && request.headers.origin)) return Promise.resolve(heads);
+  const headers = API_DEFAULT_HEADERS;
+  if (!(request && request.headers && request.headers.origin)) return Promise.resolve(headers);
   if (!CORS) return Promise.reject(new Error('Referrer not valid'));
   const rule = CORS_ORIGINS['*'] ? '*' : CORS_ORIGINS[request.headers.origin] ? request.headers.origin : null;
   if (!rule) return Promise.reject(new Error('Referrer not valid'));
-  heads[H_CORS_ORIGIN] = rule;
-  heads[H_CORS_HEADERS] = CORS_HEADES || '';
-  heads[H_CORS_METHODS] = CORS_METHODS || '';
-  heads[H_CORS_CRED] = CORS_CREDENTIALS;
-  return Promise.resolve(heads);
+  headers[H_CORS_ORIGIN] = rule;
+  headers[H_CORS_HEADERS] = CORS_HEADES || '';
+  headers[H_CORS_METHODS] = CORS_METHODS || '';
+  headers[H_CORS_CRED] = CORS_CREDENTIALS;
+  return Promise.resolve(headers);
 };
 
 const parseBody = (req) => {
@@ -101,26 +100,33 @@ function Router(props = {}) {
     routes.set(routeKey, { handler, bucket });
   }
 
-  const makeRequest = (req, request, route, callback) => new Promise((resolve, reject) => {
+  const makeRequest = (req, request, route) => {
     request.cookie = cookieParser.parse(request.headers.cookie || '');
     if (route.bucket) request.info = { update_seq: route.bucket.getSeq() };
-    corsHeads(request).then(heads => Promise.all([
-        sessions.loadSession(request).then(userCtx => { request.userCtx = userCtx; }),
-        parseBody(req).then(body => { request.body = body; })
-          .catch(error => {
-            log({
-              message: 'Error on parse body',
-              event: LOG_EVENT_API_REQUEST_ERROR,
-              error
-            });
-          })
-      ]).then(() => resolve({ request, heads }))
-    ).catch(reject)
-  });
+    return Promise.all([
+      sessions.loadSession(request).then(userCtx => { request.userCtx = userCtx; }),
+      parseBody(req).then(body => { request.body = body; }).catch(error => {
+        log({
+          message: 'Error on parse body',
+          event: LOG_EVENT_API_REQUEST_ERROR,
+          error
+        });
+      })
+    ])
+    .then(() => request);
+  };
 
   function onRequest(req, res) {
-    const sendResponse = (result) => result.json ? sendJSON(result) : sendResult(result);
-    const sendResult = (result) => {
+    const end = () => res.end((error) => {
+      if (error) {
+        log({
+          message: 'Error on send response',
+          event: LOG_EVENT_API_REQUEST_ERROR,
+          error
+        });
+      }
+    });
+    const sendResult = (result = {}) => {
       const code = result.code || API_DEFAULT_CODE;
       const headers = result.headers || API_DEFAULT_HEADERS;
       res.writeHead(code, headers);
@@ -136,17 +142,9 @@ function Router(props = {}) {
           return sendError(500, error);
         }
       }
-      res.end((error) => {
-        if (error) {
-          log({
-            message: 'Error on send result',
-            event: LOG_EVENT_API_REQUEST_BODY_ERROR,
-            error
-          });
-        }
-      });
+      end();
     };
-    const sendJSON = (result) => {
+    const sendJSON = (result = {}) => {
       const code = result.code || API_DEFAULT_CODE;
       const headers = result.headers || API_DEFAULT_HEADERS;
       headers['Content-Type'] = 'application/json';
@@ -161,30 +159,13 @@ function Router(props = {}) {
         });
         return sendError(500, error);
       }
-      res.end((error) => {
-        if (error) {
-          log({
-            message: 'Error on result',
-            event: LOG_EVENT_API_REQUEST_BODY_ERROR,
-            error
-          });
-        }
-      });
+      end();
     };
     const sendError = (code, error) => {
       if (code === 404) {
         res.writeHead(code, API_DEFAULT_HEADERS);
         res.write(error.toString());
-        res.end((sendError) => {
-          if (sendError) {
-            log({
-              message: 'Error on send error',
-              event: LOG_EVENT_API_REQUEST_ERROR,
-              error: sendError
-            });
-          }
-        });
-        return null;
+        return end();
       }
       const json = error ? error : new Error('Empty error');
       if (!json.type) json.type = 'Error';
@@ -195,14 +176,14 @@ function Router(props = {}) {
     const route = getRoute(request.host, request.routePath);
     if (!route) return sendError(404, new Error('404 Not found'));
 
-    makeRequest(req, request, route).then(({ request, heads }) =>
-      route.handler(request)
-        .then(result => {
-          result.headers = Object.assign(heads, result.headers || {});
+    (request.method === 'OPTIONS'
+      ? corsHeads(request).then(headers => ({ headers }))
+      : makeRequest(req, request, route).then(request =>
+        route.handler(request).then(result => {
           if (route.bucket && result.docs && result.docs.length) {
             return saveResults(route.bucket.getBucket(), result.docs).then(() => {
               log({
-                message: 'Saved api results: "'+ request.raw_path +'"',
+                message: 'Saved api results: "' + request.raw_path + '"',
                 ref: request.raw_path,
                 event: LOG_EVENT_API_SAVE
               });
@@ -211,8 +192,13 @@ function Router(props = {}) {
           }
           return result;
         })
-        .then(sendResponse)
-    ).catch((error) => {
+      )
+    ).then(result => {
+      // on result
+      if (result.json) sendJSON(result);
+      else sendResult(result);
+    }).catch(error => {
+      // on error
       let errorCode = 500;
       if (!(error instanceof Error)) {
         if (Object.isObject(error)) {

@@ -27,7 +27,6 @@ module.exports = {
   LOG_EVENT_API_SESSION_ERROR: 'api/sessionError',
   LOG_EVENT_API_REQUEST_ERROR: 'api/requestError',
   LOG_EVENT_API_REQUEST_REJECT: 'api/requestReject',
-  LOG_EVENT_API_REQUEST_BODY_ERROR: 'api/requestBodyError',
   LOG_EVENT_API_HANDLER_LOG: 'api/handlerLog',
   LOG_EVENT_API_HANDLER_ERROR: 'api/handlerError',
   LOG_EVENT_API_ROUTE_ERROR: 'api/routeError',
