@@ -70,14 +70,13 @@ module.exports = function initMaster(cluster) {
     log({ message: 'Close', event: LOG_EVENT_SANDBOX_CLOSE });
     clearTimeout(configUpdateTimeout); // stop config update
 
-    for (let pid of workers.keys()) sendMessage(pid, 'close'); // send close for all workers
+    for (let pid of workers.keys()) sendMessage(pid, 'exit'); // send close for all workers
 
     logger.saveForced() // start save log forced
       .catch(error => log({ message: 'Close', event: LOG_EVENT_LOG_ERROR, error }))
-      .finally(() => {
-        logger.goOffline();
-      });
+      .finally(() => { logger.goOffline(); });
   } // on close master
+
   process.on('SIGINT', onClose); // on close command
   process.on('SIGTERM', onClose);
   process.on('exit', () => { log({ message: 'Closed', event: LOG_EVENT_SANDBOX_CLOSED }); }); // on master closed

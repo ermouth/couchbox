@@ -18,6 +18,9 @@ function Worker(cluster, props = {}) {
   process.on('message', (message) => {
     const { msg } = message;
     switch (msg) {
+      case 'exit':
+        _onClose(true);
+        break;
       case 'close':
         _onClose();
         break;
