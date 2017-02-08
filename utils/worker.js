@@ -31,6 +31,9 @@ function Worker(cluster, props = {}) {
   process.on('unhandledRejection', _onUnhandledError);
   process.on('uncaughtException', _onError);
   process.on('SIGINT', _onSIGINT);
+  process.on('SIGTERM', _onSIGTERM);
+  process.on('SIGKILL', _onSIGKILL);
+  process.on('SIGSTOP', _onSIGSTOP);
   process.on('exit', () => {
     log({
       message: 'Closed',
@@ -41,6 +44,7 @@ function Worker(cluster, props = {}) {
   function _onUnhandledError(error) {
     emitter.emit(WORKER_EVENT_UNHANDLED_ERROR, error);
   }
+
   function _onError(error) {
     log({
       message: name +' error',
@@ -49,8 +53,21 @@ function Worker(cluster, props = {}) {
     });
     emitter.emit(WORKER_EVENT_ERROR, error);
   }
+
   function _onSIGINT() {
-    // log('SIGINT');
+    log('SIGINT');
+    _onClose(true);
+  }
+  function _onSIGTERM() {
+    log('SIGTERM');
+    _onClose(true);
+  }
+  function _onSIGKILL() {
+    log('SIGKILL');
+    _onClose(true);
+  }
+  function _onSIGSTOP() {
+    log('SIGSTOP');
     _onClose(true);
   }
 
