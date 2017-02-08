@@ -338,6 +338,7 @@ module.exports = function initMaster(cluster) {
     startWorkerBucket(dbName);
   }; // when bucket worker unsubscribed from feed - update worker's meta and try to start new
   const onBucketWorkerOld = (dbName, data = {}) => {
+    console.log('onBucketWorkerOld', dbName);
     const seq = +data.seq;
     if (seq > 0) { // if worker has seq
       if (getBucketWorkerByDbSeq(dbName, seq).length) { /** log('Worker '+ seq +' already started'); */ }
@@ -346,10 +347,8 @@ module.exports = function initMaster(cluster) {
   }; // when detected old bucket worker
   const onBucketWorkerExit = (pid, dbName, message, code) => {
     // detect if worker killed - start new worker
+    console.log('onBucketWorkerExit', dbName, code, message);
     if (!message && code === 'SIGKILL' && workers.has(pid)) { // if worker crashed
-      console.log();
-      console.log(code, message);
-      console.log();
       const { seq } = workers.get(pid);
       removeWorker(pid);
       if (seq > 0) startWorkerBucket(dbName, seq); // try restart worker
@@ -359,6 +358,7 @@ module.exports = function initMaster(cluster) {
   }; // when bucket worker closed
 
   function startWorkerBucket(db, seq) {
+    console.log('startWorkerBucket', db, seq);
     if ( // don't start worker if
       isClosing // master closing
       || !dbs.has(db) // in dbs no worker db
