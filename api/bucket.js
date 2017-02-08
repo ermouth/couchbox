@@ -19,6 +19,7 @@ function Bucket(props = {}) {
   let seq = 0;
 
   const getSeq = () => seq;
+  const getBucket = () => bucket;
 
   const init = (endpoints = {}) => new Promise((resolve, reject) => {
     let keys;
@@ -49,7 +50,7 @@ function Bucket(props = {}) {
         error
       });
     }).then((results) => {
-      const bucket = { getSeq };
+      const bucket = { getSeq, getBucket };
       results.forEach(info => {
         if (!(info && info.domain && info.endpoint && info.api )) return null;
         const { domain, endpoint } = info;
