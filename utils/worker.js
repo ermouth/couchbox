@@ -32,8 +32,6 @@ function Worker(cluster, props = {}) {
   process.on('uncaughtException', _onError);
   process.on('SIGINT', _onSIGINT);
   process.on('SIGTERM', _onSIGTERM);
-  process.on('SIGKILL', _onSIGKILL);
-  process.on('SIGSTOP', _onSIGSTOP);
   process.on('exit', () => {
     log({
       message: 'Closed',
@@ -60,14 +58,6 @@ function Worker(cluster, props = {}) {
   }
   function _onSIGTERM() {
     log('SIGTERM');
-    _onClose(true);
-  }
-  function _onSIGKILL() {
-    log('SIGKILL');
-    _onClose(true);
-  }
-  function _onSIGSTOP() {
-    log('SIGSTOP');
     _onClose(true);
   }
 
