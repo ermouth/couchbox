@@ -37,6 +37,7 @@ module.exports = function initWorker(cluster, props = {}) {
       event: LOG_EVENT_SOCKET_ERROR,
       error
     });
+    console.error(error);
   });
 
   worker.emitter.on(WORKER_EVENT_EXIT, (forced) => {
