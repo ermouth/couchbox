@@ -75,6 +75,7 @@ module.exports = function initMaster(cluster) {
       });
   } // on close master
   process.on('SIGINT', onClose); // on close command
+  process.on('SIGTERM', onClose); // on terminate server command
   process.on('exit', () => { log({ message: 'Closed', event: LOG_EVENT_SANDBOX_CLOSED }); }); // on master closed
 
 

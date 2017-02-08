@@ -53,11 +53,9 @@ function Worker(cluster, props = {}) {
   }
 
   function _onSIGINT() {
-    log('SIGINT');
     _onClose(true);
   }
   function _onSIGTERM() {
-    log('SIGTERM');
     _onClose(true);
   }
 
