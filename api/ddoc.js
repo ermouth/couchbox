@@ -37,9 +37,9 @@ function DDoc(props = {}) {
         const props = Object.assign({ logger }, vmContext);
         Object.keys(body.api).forEach(path => {
           try {
-            const lambda = new Handler(path, body.api[path], props);
-            if (timeout < lambda.timeout) timeout = lambda.timeout;
-            api.push(lambda);
+            const handler = new Handler(name, path, body.api[path], props);
+            if (timeout < handler.timeout) timeout = handler.timeout;
+            api.push(handler);
           } catch (error) {
             log({
               message: 'Error init lambda: '+ path,

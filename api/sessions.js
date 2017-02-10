@@ -4,6 +4,8 @@ const Logger = require('./../utils/logger');
 const couchdb = require('./../utils/couchdb');
 const config = require('../config');
 
+const { EmptyRequestError } = require('../constants/errors');
+
 const { LOG_EVENT_API_SESSION_ERROR } = require('../constants/logEvents');
 
 const SESSION_TTL = config.get('user.session') * 1e3; // to ms
@@ -100,7 +102,7 @@ function Sessions(props = {}) {
   };
 
   const loadSession = (request) => new Promise((resolve, reject) => {
-    if (!request) return reject(new Error('Empty request'));
+    if (!request) return reject(new EmptyRequestError());
     let sid, session;
 
     // Basic auth

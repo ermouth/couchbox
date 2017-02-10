@@ -361,7 +361,7 @@ function DB(props = {}) {
       message: 'Hook error: ' + hookName,
       ref: change.id,
       event: LOG_EVENT_HOOK_ERROR,
-      error
+      error: lib.errorBeautify(error)
     });
     return Promise.resolve();
   }; // log hook error

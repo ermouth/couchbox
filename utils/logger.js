@@ -120,11 +120,19 @@ function Logger(props = {}) {
     db_saving = false;
   };
 
+  const getChain = () => {
+    let chain = [];
+    if (_parent) chain = _parent.getChain();
+    chain.push(_prefix);
+    return chain;
+  };
+
   return {
     log: preLog,
     goOffline: _parent ? _parent.goOffline : goOffline,
     saveForced: _parent ? _parent.saveForced : saveForced,
-    getLog: () => (msg) => preLog({ msg })
+    getLog: () => (msg) => preLog({ msg }),
+    getChain
   };
 }
 

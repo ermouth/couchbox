@@ -95,3 +95,26 @@ const checkPhone = module.exports.checkPhone = function checkPhone(phone) {
 const toBase64 = module.exports.toBase64 = function toBase64(str) {
   return new Buffer(str).toString('base64');
 };
+
+module.exports.errorBeautify = function errorStackGrabber(error) {
+  if (!error) return error;
+  switch (error.message) {
+    case 'operation timed out':
+      return {
+        message: 'gateway_timeout',
+        reason: error.message,
+        code: 504,
+        error: error
+      };
+  }
+  if (error.stack) {
+    const stack = error.stack.split(/\n/g, 2);
+    if (stack && stack.length === 2) {
+      const errPos = stack[1].match(/at\sObject\.(.*)\s.+>:(\d+):(\d+)\)/);
+      if (errPos && errPos.length && errPos[1] && errPos[2] >= 0 && errPos[3] >= 0) {
+        error.message += ' at "'+ errPos[1] +'" on ('+ errPos[2] + ':'+ errPos[3] + ')';
+      }
+    }
+  }
+  return error;
+};

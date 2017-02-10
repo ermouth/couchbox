@@ -8,6 +8,12 @@ const Logger = require('../utils/logger');
 const config = require('../config');
 
 const {
+  NotFoundError,
+  SendingError,
+  BadReferrerError
+} = require('../constants/errors');
+
+const {
   LOG_EVENT_API_REQUEST_ERROR,
   LOG_EVENT_API_REQUEST_REJECT,
   LOG_EVENT_API_SAVE,
@@ -34,9 +40,9 @@ const H_CORS_CRED = 'Access-Control-Allow-Credentials';
 const corsHeads = (request) => {
   const headers = API_DEFAULT_HEADERS;
   if (!(request && request.headers && request.headers.origin)) return Promise.resolve(headers);
-  if (!CORS) return Promise.reject(new Error('Referrer not valid'));
+  if (!CORS) return Promise.reject(new BadReferrerError());
   const rule = CORS_ORIGINS['*'] ? '*' : CORS_ORIGINS[request.headers.origin] ? request.headers.origin : null;
-  if (!rule) return Promise.reject(new Error('Referrer not valid'));
+  if (!rule) return Promise.reject(new BadReferrerError());
   headers[H_CORS_ORIGIN] = rule;
   headers[H_CORS_HEADERS] = CORS_HEADES || '';
   headers[H_CORS_METHODS] = CORS_METHODS || '';
@@ -119,8 +125,61 @@ function Router(props = {}) {
     .then(() => request);
   };
 
-  function onRequest(req, res) {
-    const end = () => res.end((error) => {
+  const makeError = (error) => {
+    let code = 500;
+    const json = {
+      error: 'not_found',
+      reason: 'missing'
+    };
+
+    if (error) {
+      if (error.code > 0) code = error.code;
+      if (error.reason) json.reason = error.reason;
+
+      if (error instanceof Error) {
+        json.error = error.message;
+      } else {
+        if (Object.isObject(error)) {
+          json.error = new Error(error.message || error.error);
+        } else {
+          json.error = new Error(error);
+        }
+      }
+    }
+
+    return { code, json };
+  };
+
+  const sendResult = (res, result = {}) => {
+    const code = result.code || API_DEFAULT_CODE;
+    const headers = result.headers || API_DEFAULT_HEADERS;
+    if (result.json) {
+      headers['Content-Type'] = 'application/json';
+      try {
+        result.body = JSON.stringify(result.json);
+      } catch (error) {
+        log({
+          message: 'Error on parse result',
+          event: LOG_EVENT_API_REQUEST_ERROR,
+          error
+        });
+        return sendResult(res, makeError(new SendingError(error)));
+      }
+    }
+    res.writeHead(code, headers);
+    if (result.body !== undefined) {
+      try {
+        res.write(result.body);
+      } catch (error) {
+        log({
+          message: 'Error on send result',
+          event: LOG_EVENT_API_REQUEST_ERROR,
+          error
+        });
+        return sendResult(res, makeError(new SendingError(error)));
+      }
+    }
+    res.end((error) => {
       if (error) {
         log({
           message: 'Error on send response',
@@ -129,56 +188,15 @@ function Router(props = {}) {
         });
       }
     });
-    const sendResult = (result = {}) => {
-      const code = result.code || API_DEFAULT_CODE;
-      const headers = result.headers || API_DEFAULT_HEADERS;
-      res.writeHead(code, headers);
-      if (result.body !== undefined) {
-        try {
-          res.write(result.body);
-        } catch (error) {
-          log({
-            message: 'Error on result.body',
-            event: LOG_EVENT_API_REQUEST_ERROR,
-            error
-          });
-          return sendError(500, error);
-        }
-      }
-      end();
-    };
-    const sendJSON = (result = {}) => {
-      const code = result.code || API_DEFAULT_CODE;
-      const headers = result.headers || API_DEFAULT_HEADERS;
-      headers['Content-Type'] = 'application/json';
-      res.writeHead(code, headers);
-      try {
-        res.write(JSON.stringify(result.json));
-      } catch (error) {
-        log({
-          message: 'Error on result.json',
-          event: LOG_EVENT_API_REQUEST_ERROR,
-          error
-        });
-        return sendError(500, error);
-      }
-      end();
-    };
-    const sendError = (code, error) => {
-      let json = {};
-      if (code === 404) {
-        json.error = error && error.message ? error.message : 'not_found';
-        json.reason = error && error.reason ? error.reason : 'missing';
-      } else {
-        json.error = error ? error : new Error('Empty error');
-        if (error && error.reason) json.reason = error.reason;
-      }
-      sendJSON({ code, json });
-    };
+  };
+
+  function onRequest(req, res) {
+    const send = result => sendResult(res, result);
+    const sendError = error => sendResult(res, makeError(error));
 
     const request = makeRoute(req);
     const route = getRoute(request.host, request.routePath);
-    if (!route) return sendError(404, new Error('not_found'));
+    if (!route) return sendError(new NotFoundError('not_found'));
 
     (request.method === 'OPTIONS'
       ? corsHeads(request).then(headers => ({ headers }))
@@ -197,27 +215,13 @@ function Router(props = {}) {
           return result;
         })
       )
-    ).then(result => {
-      // on result
-      if (result.json) sendJSON(result);
-      else sendResult(result);
-    }).catch(error => {
-      // on error
-      let errorCode = 500;
-      if (!(error instanceof Error)) {
-        if (Object.isObject(error)) {
-          if (error.code > 0) errorCode = error.code;
-          error = new Error(error.message || error.error);
-        } else {
-          error = new Error(error);
-        }
-      }
+    ).then(send).catch(error => {
       log({
         message: 'Route rejection',
         event: LOG_EVENT_API_REQUEST_REJECT,
         error
       });
-      sendError(errorCode, error);
+      sendError(error);
     });
   }
 

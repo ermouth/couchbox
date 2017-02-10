@@ -10,33 +10,30 @@ const config = require('../config');
 const { LOG_EVENT_DDOC_INIT, LOG_EVENT_DDOC_ERROR, LOG_EVENT_FILTER_ERROR } = require('../constants/logEvents');
 
 
-function Filter(name, lambda, props) {
+function Filter(ddoc, name, lambda, props) {
+  const filterName = ddoc +'/'+ name;
   const logger = new Logger({
-    prefix: 'Filter '+ name,
+    prefix: 'Filter '+ filterName,
     logger: props.logger
   });
   const log = logger.getLog();
 
   let _lambda;
-  let isGood = false;
 
   try {
     _lambda = lib.makeFunc(lambda);
-    isGood = true;
   } catch(error) {
-    isGood = false;
+    _lambda = undefined;
     log({
-      message: 'Error compile filter lambda: '+ name,
+      message: 'Error compile filter lambda: '+ filterName,
       event: LOG_EVENT_FILTER_ERROR,
       error
     });
   }
 
-  return {
-    name,
-    filter: (doc) => isGood && !!_lambda(doc),
-    isGood
-  };
+  return _lambda
+    ? (doc) => _lambda(doc) === true
+    : undefined;
 }
 
 function DDoc(db, props = {}) {
@@ -68,11 +65,10 @@ function DDoc(db, props = {}) {
 
           Object.keys(body.filters).forEach(filterKey => {
             if (!body.hooks[filterKey]) return null;
-            const fieldName = name +'/'+ filterKey;
-            const filter = new Filter(fieldName, body.filters[filterKey], filterProps);
-            if (filter && filter.isGood) {
-              const hook = new Hook(fieldName, body.hooks[filterKey], hookProps);
-              if (hook && hook.isGood) {
+            const filter = new Filter(name, filterKey, body.filters[filterKey], filterProps);
+            if (filter) {
+              const hook = new Hook(name, filterKey, body.hooks[filterKey], hookProps);
+              if (hook) {
                 hooks.set(filterKey, hook);
                 filters.set(filterKey, filter);
               }
@@ -98,7 +94,7 @@ function DDoc(db, props = {}) {
     for (let filterKey of filters.keys()) {
       let filterResult = false;
       try {
-        filterResult = filters.get(filterKey).filter(change.doc);
+        filterResult = filters.get(filterKey)(change.doc);
       } catch(error) {
         filterResult = false;
         log({
