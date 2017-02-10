@@ -87,9 +87,16 @@ function Sessions(props = {}) {
       users.set(name, user);
       const ttl = Date.now() + SESSION_TTL;
       sessions.set(sid, { user: name, ttl });
+    } else {
+      removeSession(sid, true);
+      userCtx = Object.clone(userCtxDef);
     }
-    else removeSession(sid, true);
     return userCtx;
+  };
+
+  const userCtxDef = {
+    name: null,
+    roles: []
   };
 
   const loadSession = (request) => new Promise((resolve, reject) => {
@@ -134,7 +141,7 @@ function Sessions(props = {}) {
           });
     }
 
-    return resolve(undefined);
+    return resolve(Object.clone(userCtxDef));
   });
 
   return { loadSession, removeSession, close };

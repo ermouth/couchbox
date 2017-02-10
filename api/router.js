@@ -104,7 +104,10 @@ function Router(props = {}) {
     request.cookie = cookieParser.parse(request.headers.cookie || '');
     if (route.bucket) request.info = { update_seq: route.bucket.getSeq() };
     return Promise.all([
-      sessions.loadSession(request).then(userCtx => { request.userCtx = userCtx; }),
+      sessions.loadSession(request).then(userCtx => {
+        if (route.bucket) userCtx.db = route.bucket.name;
+        request.userCtx = userCtx;
+      }),
       parseBody(req).then(body => { request.body = body; }).catch(error => {
         log({
           message: 'Error on parse body',
@@ -162,19 +165,20 @@ function Router(props = {}) {
       end();
     };
     const sendError = (code, error) => {
+      let json = {};
       if (code === 404) {
-        res.writeHead(code, API_DEFAULT_HEADERS);
-        res.write(error.toString());
-        return end();
+        json.error = error && error.message ? error.message : 'not_found';
+        json.reason = error && error.reason ? error.reason : 'missing';
+      } else {
+        json.error = error ? error : new Error('Empty error');
+        if (error && error.reason) json.reason = error.reason;
       }
-      const json = error ? error : new Error('Empty error');
-      if (!json.type) json.type = 'Error';
       sendJSON({ code, json });
     };
 
     const request = makeRoute(req);
     const route = getRoute(request.host, request.routePath);
-    if (!route) return sendError(404, new Error('404 Not found'));
+    if (!route) return sendError(404, new Error('not_found'));
 
     (request.method === 'OPTIONS'
       ? corsHeads(request).then(headers => ({ headers }))

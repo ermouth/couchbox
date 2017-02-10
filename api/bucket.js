@@ -50,7 +50,7 @@ function Bucket(props = {}) {
         error
       });
     }).then((results) => {
-      const bucket = { getSeq, getBucket };
+      const bucket = { name, getSeq, getBucket };
       results.forEach(info => {
         if (!(info && info.domain && info.endpoint && info.api )) return null;
         const { domain, endpoint } = info;
