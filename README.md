@@ -1,7 +1,7 @@
 # Couchbox
 
 Couchbox extends CouchDB query server with backstage \_changes feed hooks and
-configurable REST API. Both [hooks](#hooks) and [REST API](#rest_api) are functions
+configurable REST API. Both [hooks](#hooks) and [REST API](#rest-api) are functions
 in design docs. Unlike native query server functions, couchbox parts are async and
 have per-ddoc configuarble access to DB and outside world.
 
@@ -114,6 +114,22 @@ when needed_.
 
 Key’s value ie `bucket fetch sms` means all hooks in a particular ddoc will see
 `this._bucket`, `this._fetch` and `this._sms` methods, whatever they do.
+
+### Hooks and workers
+
+TLDR: one worker for one DB. All hooks originating from one CouchDB bucket run in
+one worker thread.
+
+This is bit different from CouchDB query server, where each ddoc has own SpiderMonkey
+instance.
+
+On any DB ddoc change worker must restart entirely. In this case running hooks are not
+killed immediately, they are allowed to resolve/reject each. Worker to die receives
+changes until new worker successfully start, then waits for running jobs to finish,
+and then terminates itself.
+
+Worker may command supervisor to restart itself, if decides there were too many hanged
+jobs and memory might have leaked.
 
 ## REST API
 
