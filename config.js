@@ -1,3 +1,10 @@
+/*
+* Couchbox, query server extension for CouchDB, v 0.1
+* Worker configurator, prepares cfg
+* ---------
+* (c) 2017 ftescht, ermouth
+*/
+
 require('sugar');
 const lib = require('./utils/lib');
 const { env } = process;

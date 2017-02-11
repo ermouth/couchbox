@@ -203,8 +203,8 @@ looks like:
 }
 ```
 Unlike CouchDB, no `uuid`, `form`, `secObj`, `requested_path` and `id` properties
-present in request object. Also the property `info` has only one key with DB update
-sequence.
+present in the request object. Also the property `info` has only one key with DB
+update sequence.
 
 ### Result object
 
