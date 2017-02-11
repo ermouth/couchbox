@@ -174,6 +174,42 @@ With above data, POST-ing to `abc.example.com/cmd/sendmail/all/immediate` will
 call lambda, that presumably sends emails (and we configured it to have an
 access to `this._email` extension to be able to act this way).
 
+### Request object
+
+The request object is CouchDB-styled, with minor differences. Request object
+looks like:
+``` javascript
+{
+  "info":{"update_seq": 12345},
+  "host": "abc.example.com"
+  "method": "GET",
+  "path": ["cmd","sendmail","all","immediate"],
+  "raw_path": "/auth/_design/login/_rewrite/?reflect=true",
+  "query": {"param": "value"},
+  "headers": {
+    "Accept": "text/html",
+    "Connection": "close",
+    "Host": "abc.example.com",
+    "User-Agent": "Mozilla/5.0"
+  },
+  "body": " /* body string */ ",
+  "peer": "0.0.0.0",
+  "cookie": {"AuthSession": "B64TOKEN"},
+  "userCtx": {
+    "db": "auth",
+    "name": "username",
+    "roles": ["_admin"]
+  }
+}
+```
+Unlike CouchDB, no `uuid`, `form`, `secObj`, `requested_path` and `id` properties
+present in request object. Also the property `info` has only one key with DB update
+sequence.
+
+### Result object
+
+To be written.
+
 ### Api and workers
 
 TLDR: all REST API request listeners run in a single worker. However, several
