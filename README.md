@@ -3,7 +3,7 @@
 Couchbox extends CouchDB query server with backstage \_changes feed hooks and
 configurable REST API. Both [hooks](#hooks) and [REST API](#rest-api) are functions
 in design docs. Unlike native query server functions, couchbox parts are async and
-have per-ddoc configuarble access to DB and outside world.
+have per-ddoc configurable access to DB and outside world via aux methods.
 
 Couchbox is multi-worker and employs native CouchDB config. Once run, Couchbox tracks
 changes in both CouchDB config and ddocs and seamlessly restarts appropriate workers.
@@ -13,20 +13,20 @@ and each ddoc has own set of available aux methods, also defined in CouchDB conf
 
 ## Hooks
 
-Hooks are pairs of a filter function from `.filters` section and complimentary
+Hooks are pairs of a filter function from `.filters` section and a complimentary
 section in `.hooks` object. For example:
 
 ``` javascript
 {
   _id: "_design/email",
   filters:{
-    emailQueue: function (doc, req){ return doc.type=="email"; }
+    emailQueue: function (doc, req) { return doc.type=="email"; }
   },
   hooks:{
     emailQueue:{
       timeout: 10000,
       mode: 'transitive',
-      lambda: function (doc){
+      lambda: function (doc) {
         var doc = doc;
         this._email({
           to:   doc.to,
@@ -35,16 +35,17 @@ section in `.hooks` object. For example:
         .then(function(){
           doc.sent = Date.now();
           resolve ({
-            code:200,
-            message:'Email sent',
-            docs:[doc] // docs to save
+            code:200,              // code for log
+            message:'Email sent',  // msg for log
+            docs:[doc]             // docs to save
           });
         });
       }
-}}}
+    }
+}}
 ```
-Filter part is an ordinary filter function, except hook filter never receive `req`
-argument, since there is no inbound http request for action.
+Filter part is an ordinary filter function, except hook filters never receive `req`
+argument, since there are no inbound http requests for action.
 
 A hook itself has three properties: `.timeout` in milliseconds, a body of the hook
 in `.lambda`, and a `.mode` defining how doc updates are processed (sequentially
@@ -53,7 +54,8 @@ or in parallel).
 Lambda function receives doc as an argument and must call `resolve()` or `reject()`
 function in `.timeout` timeframe, or it is assumed rejected. Lambda is not allowed
 to return Promise for safety reasons: a wrapper Promise must be able to auto-reject
-on timeout, so it’s safer to instantiate Promise outside ddoc code.
+on timeout and handle uncaught error, so it’s safer to instantiate Promise outside
+lambda code.
 
 Lambdas have access to aux functions using `this._method` syntax, so aux functions look
 like extensions of the ddoc (in CouchDB query server `this` points to parent ddoc
@@ -117,15 +119,21 @@ Key’s value ie `bucket fetch sms` means all hooks in a particular ddoc will se
 
 ### Hooks and workers
 
-TLDR: one worker for one DB. All hooks originating from one CouchDB bucket run in
-one worker thread.
+TLDR: one hook worker for one CouchDB bucket (DB).
 
-This is bit different from CouchDB query server, where each ddoc has own SpiderMonkey
+All hooks originating from one CouchDB bucket run in one worker thread. This is  
+different from CouchDB query server model, where each ddoc has own SpiderMonkey
 instance.
 
-On any DB ddoc change worker must restart entirely. In this case running hooks are not
+The ‘one worker for a DB’ approach guarantees sequential changes processing without
+complicated cross-worker interlocks. To avoid worker global scope intervention each
+hook runs in a separate node.js `vm` context.
+
+__Note__, that REST API employs yet another model of workers, also different from CouchDB.
+
+On any DB ddoc change hook worker must restart entirely. In this case running fns aren’t
 killed immediately, they are allowed to resolve/reject each. Worker to die receives
-changes until new worker successfully start, then waits for running jobs to finish,
+\_changes until new worker successfully start, then waits for running jobs to finish,
 and then terminates itself.
 
 Worker may command supervisor to restart itself, if decides there were too many hanged
@@ -135,3 +143,56 @@ jobs and memory might have leaked.
 
 REST API (api for brevity) functions are defined similar to hooks. They are just
 sections in ddocs, although without complimentary filter.
+
+Appropriate CouchDB config section may look like this...
+```
+"api":{
+  "abc.example.com|cmd|sendmail":"db1/email bucket email",
+  "def.example.com":"db2/ddoc2 bucket"
+}
+```
+...and appropriate ddoc in `db1` bucket like this:
+```javascript
+{
+  _id:"_design/email",
+  api:{
+    "all/immediate": {
+      timeout: 1000,
+      methods:["POST"],
+      lambda: function (req) {
+        // send emails
+        resolve({
+          code:200,
+          body:'Emails sent',
+          docs:[/*docs to save*/]
+        });
+      }
+    }
+}}
+```
+With above data, POST-ing to `abc.example.com/cmd/sendmail/all/immediate` will
+call lambda, that presumably sends emails (and we configured it to have an
+access to `this._email` extension to be able to act this way).
+
+### Api and workers
+
+TLDR: all REST API request listeners run in a single worker. However, several
+identical round-robin workers can run simultaneously in different threads.
+
+So Couchbox api feature provides a farm of identical monolith single-threaded
+web servers. On any monitored ddoc change all farm workers restart one by one,
+first finishing requests pending.
+
+Api lambdas run in separate node.js `vm` instances, so they neither can see, nor
+can intervene their parent worker global scope.
+
+## Niceties
+
+Couchbox supports `require()` exactly as CouchDB query server does. So if a ddoc
+has, say, text property `.Underscore` with the value that is lodash source JS,
+one can use `require("Underscore")` to have lodash onboard inside lambda.
+
+CouchDB QS native methods `isArray()`, `toJSON()` are also emulated.
+
+-----------
+(c) 2017 ftescht, ermouth. Couchbox is MIT licensed.
