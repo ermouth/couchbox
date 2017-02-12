@@ -121,7 +121,7 @@ Key’s value ie `bucket fetch sms` means all hooks in a particular ddoc will se
 
 TLDR: one hook worker for one CouchDB bucket (DB).
 
-All hooks originating from one CouchDB bucket run in one worker thread. This is  
+All hooks originating from one CouchDB bucket run in one worker thread. This is
 different from CouchDB query server model, where each ddoc has own SpiderMonkey
 instance.
 
@@ -209,7 +209,7 @@ update sequence.
 ### Result object
 
 Api call must end up calling `resolve(result)` or `reject(result)`. The `result` object
-have quite simple structure:
+has quite simple structure:
 ```javascript
 {
   code:200, // or any http code
