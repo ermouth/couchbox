@@ -11,12 +11,7 @@ function Bucket(db) {
     if (!id) return Promise.reject(new Error('Bad document id: '+ id));
     if (!Object.isObject(params)) return Promise.reject(new Error('Bad params: '+ JSON.stringify(params)));
 
-    return new Promise((resolve, reject) => {
-      db.get(id, params, (error, result) => {
-        if (error) reject(error);
-        else resolve(result);
-      });
-    });
+    return new Promise((resolve, reject) => db.get(id, params, (error, result) => error ? reject(error) : resolve(result)));
   }
 
   function allDocs() {
@@ -24,12 +19,7 @@ function Bucket(db) {
 
     if (!Object.isObject(params)) return Promise.reject(new Error('Bad params: '+ JSON.stringify(params)));
 
-    return new Promise((resolve, reject) => {
-      db.list(params, (error, result) => {
-        if (error) reject(error);
-        else resolve(result);
-      });
-    });
+    return new Promise((resolve, reject) => db.list(params, (error, result) => error ? reject(error) : resolve(result)));
   }
 
   function query() {
@@ -41,12 +31,7 @@ function Bucket(db) {
     if (!viewname) return Promise.reject(new Error('Bad viewname: '+ viewname));
     if (!Object.isObject(params)) return Promise.reject(new Error('Bad params: '+ JSON.stringify(params)));
 
-    return new Promise((resolve, reject) => {
-      db.view(designname, viewname, params, (error, result) => {
-        if (error) reject(error);
-        else resolve(result);
-      });
-    });
+    return new Promise((resolve, reject) => db.view(designname, viewname, params, (error, result) => error ? reject(error) : resolve(result)));
   }
 
   return { get, allDocs, query };

@@ -1,12 +1,12 @@
 const Promise = require('bluebird');
 const vm = require('vm');
-const Logger = require('../utils/logger');
-const { makeModules } = require('../utils/ddocModules');
 const Handler = require('./handler');
-const config = require('../config');
+const Logger = require('../../utils/logger');
+const { makeModules } = require('../../utils/ddocModules');
+const config = require('../../config');
 
-const { LOG_EVENT_DDOC_INIT, LOG_EVENT_API_HANDLER_ERROR } = require('../constants/logEvents');
-const { API_DEFAULT_TIMEOUT } = require('../constants/api');
+const { LOG_EVENT_DDOC_INIT, LOG_EVENT_API_HANDLER_ERROR } = require('../../constants/logEvents');
+const { API_DEFAULT_TIMEOUT } = require('./constants');
 
 function DDoc(props = {}) {
   const { bucket, name, domain, endpoint, methods } = props;

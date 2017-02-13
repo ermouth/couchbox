@@ -1,11 +1,11 @@
 const Promise = require('bluebird');
-const Logger = require('../utils/logger');
-const couchdb = require('../utils/couchdb');
 const DDoc = require('./ddoc');
-const config = require('../config');
+const Logger = require('../../utils/logger');
+const couchdb = require('../../utils/couchdb');
+const config = require('../../config');
 
-const { LOG_EVENT_BUCKET_ERROR, LOG_EVENT_DDOC_ERROR } = require('../constants/logEvents');
-const { API_DEFAULT_TIMEOUT } = require('../constants/api');
+const { LOG_EVENT_BUCKET_ERROR, LOG_EVENT_DDOC_ERROR } = require('../../constants/logEvents');
+const { API_DEFAULT_TIMEOUT } = require('./constants');
 
 function Bucket(props = {}) {
   const { name } = props;

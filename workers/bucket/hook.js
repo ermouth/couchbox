@@ -1,14 +1,14 @@
 require('sugar');
 const Promise = require('bluebird');
 const vm = require('vm');
-const lib = require('../utils/lib');
-const Logger = require('../utils/logger');
-const { lambdaAvailable } = require('../constants/lambdaGlobal');
-const config = require('../config');
+const lib = require('../../utils/lib');
+const Logger = require('../../utils/logger');
+const { lambdaAvailable } = require('../../constants/lambdaGlobal');
+const config = require('../../config');
 
-const sms = require('../methods/sms');
+const sms = require('../../methods/sms');
 
-const { LOG_EVENT_HOOK_ERROR, LOG_EVENT_HOOK_LOG } = require('../constants/logEvents');
+const { LOG_EVENT_HOOK_ERROR, LOG_EVENT_HOOK_LOG } = require('../../constants/logEvents');
 
 const HOOK_MODES = {
   'parallel': 'parallel',

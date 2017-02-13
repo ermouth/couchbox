@@ -1,13 +1,12 @@
 const Promise = require('bluebird');
 const vm = require('vm');
-const lib = require('../utils/lib');
-const Logger = require('../utils/logger');
-const { makeModules } = require('../utils/ddocModules');
+const lib = require('../../utils/lib');
+const Logger = require('../../utils/logger');
+const { makeModules } = require('../../utils/ddocModules');
+const config = require('../../config');
 const Hook = require('./hook');
-const config = require('../config');
 
-
-const { LOG_EVENT_DDOC_INIT, LOG_EVENT_DDOC_ERROR, LOG_EVENT_FILTER_ERROR } = require('../constants/logEvents');
+const { LOG_EVENT_DDOC_INIT, LOG_EVENT_DDOC_ERROR, LOG_EVENT_FILTER_ERROR } = require('../../constants/logEvents');
 
 
 function Filter(ddoc, name, lambda, props) {

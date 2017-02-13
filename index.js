@@ -2,9 +2,9 @@ const cluster = require('cluster');
 
 if (cluster.isMaster) {
   // init master
-  require('./master')(cluster);
+  require('./workers/sandbox')(cluster);
 } else {
-  const { WORKER_TYPE_BUCKET, WORKER_TYPE_API, WORKER_TYPE_SOCKET } = require('./constants/worker');
+  const { Constants: { WORKER_TYPE_BUCKET, WORKER_TYPE_API, WORKER_TYPE_SOCKET } } = require('./utils/worker');
   // init props
   let workerProps;
   try {
@@ -17,13 +17,13 @@ if (cluster.isMaster) {
   if (workerProps) {
     switch (workerProps.forkType) {
       case WORKER_TYPE_BUCKET:
-        require('./bucket/worker')(cluster, workerProps);
+        require('./workers/bucket')(cluster, workerProps);
         break;
       case WORKER_TYPE_SOCKET:
-        require('./socket/worker')(cluster, workerProps);
+        require('./workers/socket')(cluster, workerProps);
         break;
       case WORKER_TYPE_API:
-        require('./api/worker')(cluster, workerProps);
+        require('./workers/api')(cluster, workerProps);
         break;
       default:
         process.exit();

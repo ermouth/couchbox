@@ -1,17 +1,13 @@
-const lib = require('../utils/lib');
-const Worker = require('../utils/worker');
-const Bucket = require('./bucket');
+const lib = require('../../utils/lib');
+const Worker = require('../../utils/worker');
+const API = require('./api');
 
-const {
-  LOG_EVENT_WORKER_START, LOG_EVENT_WORKER_EXIT, LOG_EVENT_WORKER_CLOSE,
-  LOG_EVENT_BUCKET_ERROR
-} = require('../constants/logEvents');
-
-const { WORKER_EVENT_EXIT, WORKER_EVENT_UNHANDLED_ERROR } = require('../constants/worker');
+const { LOG_EVENT_WORKER_START, LOG_EVENT_WORKER_EXIT, LOG_EVENT_WORKER_CLOSE, LOG_EVENT_API_ERROR } = require('../../constants/logEvents');
+const { WORKER_EVENT_EXIT, WORKER_EVENT_UNHANDLED_ERROR } = Worker.Constants;
 
 
 module.exports = function initWorker(cluster, props = {}) {
-  const worker = new Worker(cluster, { name: 'Bucket worker' });
+  const worker = new Worker(cluster, { name: 'API worker' });
   const { logger } = worker;
   const log = logger.getLog();
 
@@ -20,20 +16,10 @@ module.exports = function initWorker(cluster, props = {}) {
     event: LOG_EVENT_WORKER_START
   });
 
-
-  const bucket = new Bucket(Object.assign(props.params || {}, {
+  const api = new API(Object.assign(props.params || {}, {
     logger,
     onInit: (data) => {
       worker.sendToMaster('init', data);
-    },
-    onStartFeed: () => {
-      worker.sendToMaster('startFeed');
-    },
-    onStopFeed: () => {
-      worker.sendToMaster('stopFeed');
-    },
-    onOldWorker: (data) => {
-      worker.sendToMaster('oldWorker', data);
     },
     onClose: (data) => {
       log({
@@ -47,14 +33,15 @@ module.exports = function initWorker(cluster, props = {}) {
 
   worker.emitter.on(WORKER_EVENT_UNHANDLED_ERROR, (error) => {
     log({
-      message: 'UnhandledError db '+ props.params.name,
-      event: LOG_EVENT_BUCKET_ERROR,
+      message: 'UnhandledError api',
+      event: LOG_EVENT_SOCKET_ERROR,
       error
     });
+    console.error(error);
   });
 
   worker.emitter.on(WORKER_EVENT_EXIT, (forced) => {
-    if (bucket.isRunning()) return bucket.close(forced);
+    if (api.isRunning()) return api.close(forced);
     log({
       message: 'On worker exit, forced: '+ (forced === true ? 'true' : 'false'),
       event: LOG_EVENT_WORKER_EXIT
@@ -62,5 +49,5 @@ module.exports = function initWorker(cluster, props = {}) {
     return worker.close();
   });
 
-  bucket.init();
+  api.init();
 };

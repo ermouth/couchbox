@@ -1,16 +1,15 @@
 require('sugar');
 const Promise = require('bluebird');
 const http = require('http');
-const lib = require('../utils/lib');
-const Logger = require('../utils/logger');
 const Bucket = require('./bucket');
 const Router = require('./router');
 const Sessions = require('./sessions');
-const config = require('../config');
+const lib = require('../../utils/lib');
+const Logger = require('../../utils/logger');
+const config = require('../../config');
 
-const { LOG_EVENT_API_START, LOG_EVENT_API_STOP, LOG_EVENT_API_ROUTE_ERROR } = require('../constants/logEvents');
-
-const { API_URL_ROOT } = require('../constants/api');
+const { LOG_EVENT_API_START, LOG_EVENT_API_STOP, LOG_EVENT_API_ROUTE_ERROR } = require('../../constants/logEvents');
+const { API_URL_ROOT } = require('./constants');
 
 function API(props = {}) {
   const logger = new Logger({ prefix: 'API', logger: props.logger });

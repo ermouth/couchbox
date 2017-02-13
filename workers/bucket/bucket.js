@@ -1,10 +1,10 @@
 const Promise = require('bluebird');
-const lib = require('../utils/lib');
-const Logger = require('../utils/logger');
-const couchdb = require('../utils/couchdb');
+const lib = require('../../utils/lib');
+const Logger = require('../../utils/logger');
+const couchdb = require('../../utils/couchdb');
+const saveResults = require('../../utils/resultsSaver');
+const config = require('../../config');
 const DDoc = require('./ddoc');
-const saveResults = require('../utils/resultsSaver');
-const config = require('../config');
 
 
 const CHECK_PROCESSES_TIMEOUT = 120;
@@ -16,9 +16,9 @@ const {
   LOG_EVENT_BUCKET_FEED, LOG_EVENT_BUCKET_FEED_STOP, LOG_EVENT_BUCKET_CHANGES, LOG_EVENT_BUCKET_CLOSE, LOG_EVENT_BUCKET_ERROR,
   LOG_EVENT_BUCKET_DDOC_STOP, LOG_EVENT_DDOC_ERROR,
   LOG_EVENT_HOOK_START, LOG_EVENT_HOOK_RESULT, LOG_EVENT_HOOK_SAVE, LOG_EVENT_HOOK_ERROR
-} = require('../constants/logEvents');
+} = require('../../constants/logEvents');
 
-const { BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD } = require('../constants/bucket');
+const { BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD } = require('./constants');
 
 function DB(props = {}) {
   const name = props.name;

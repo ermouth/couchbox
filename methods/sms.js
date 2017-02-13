@@ -15,6 +15,7 @@ const makeQuery = (phone, message) => 'https://sms.ru/sms/send?api_id='+ API_KEY
 const getError = (status) => {
   switch (+status) {
     case 100:
+      // Good result
       return;
     case 200:
       return new Error('Неправильный api_id');

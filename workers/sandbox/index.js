@@ -6,10 +6,10 @@
 */
 
 require('sugar');
-const lib = require('./utils/lib');
-const Logger = require('./utils/logger');
-const couchdb = require('./utils/couchdb');
-const config = require('./config');
+const lib = require('../../utils/lib');
+const Logger = require('../../utils/logger');
+const couchdb = require('../../utils/couchdb');
+const config = require('../../config');
 
 // Log evets constants
 const {
@@ -18,14 +18,23 @@ const {
   LOG_EVENT_SANDBOX_CONFIG_BUCKET, LOG_EVENT_SANDBOX_CONFIG_HOOKS,
   LOG_EVENT_SANDBOX_CONFIG_API, LOG_EVENT_SANDBOX_CONFIG_ENDPOINTS,
   LOG_EVENT_SANDBOX_CONFIG_SOCKET
-} = require('./constants/logEvents');
+} = require('../../constants/logEvents');
 
 // Worker constants
-const { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET, WORKER_TYPE_API, WORKER_WAIT_TIMEOUT } = require('./constants/worker');
+const { Constants: { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET, WORKER_TYPE_API, WORKER_WAIT_TIMEOUT } } = require('../../utils/worker');
 // Bucket monitor constants
-const { BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD } = require('./constants/bucket');
+const { BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD } = require('../bucket/constants');
 // REST API worker specific constants
-const { API_DEFAULT_TIMEOUT } = require('./constants/api');
+const { API_DEFAULT_TIMEOUT } = require('../api/constants');
+
+// Config keys
+const {
+  CONFIG_COUCHBOX,
+  CONFIG_COUCHBOX_PLUGINS,
+  CONFIG_COUCHBOX_API,
+  CONFIG_COUCHBOX_HOOKS
+} = config.Constants;
+
 
 // Master worker
 module.exports = function initMaster(cluster) {
@@ -103,7 +112,7 @@ module.exports = function initMaster(cluster) {
   // Config, maps CouchDB config vars
   // to internal config stash
   const configMap = {
-    'couchbox': (conf = {}) => {
+    [CONFIG_COUCHBOX]: (conf = {}) => {
       if (!Object.isObject(conf)) return null;
       onConfigFields(conf, [
         ['couchbox.nodename', 'nodename'],
@@ -145,11 +154,11 @@ module.exports = function initMaster(cluster) {
     },
 
     // master config extension, not for workers
-    'hooks': (conf = {}) => {
+    [CONFIG_COUCHBOX_HOOKS]: (conf = {}) => {
       if (!Object.isObject(conf)) return null;
       hooks = conf;
     },
-    'endpoints': (conf = {}) => {
+    [CONFIG_COUCHBOX_API]: (conf = {}) => {
       if (!Object.isObject(conf)) return null;
       endpoints = conf;
     }

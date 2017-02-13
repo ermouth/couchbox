@@ -2,29 +2,29 @@ require('sugar');
 const Promise = require('bluebird');
 const cookieParser = require('cookie');
 const queryString = require('query-string');
-const lib = require('../utils/lib');
-const saveResults = require('../utils/resultsSaver');
-const Logger = require('../utils/logger');
-const config = require('../config');
+const lib = require('../../utils/lib');
+const saveResults = require('../../utils/resultsSaver');
+const Logger = require('../../utils/logger');
+const config = require('../../config');
 
 const {
   NotFoundError,
   SendingError,
   BadReferrerError
-} = require('../constants/errors');
+} = require('../../constants/errors');
 
 const {
   LOG_EVENT_API_REQUEST_ERROR,
   LOG_EVENT_API_REQUEST_REJECT,
   LOG_EVENT_API_SAVE,
-} = require('../constants/logEvents');
+} = require('../../constants/logEvents');
 
 const {
   API_URL_ROOT,
   API_URL_PREFIX,
   API_DEFAULT_CODE,
   API_DEFAULT_HEADERS
-} = require('../constants/api');
+} = require('./constants');
 
 const CORS = config.get('cors.enabled') === true;
 const CORS_CREDENTIALS = config.get('cors.credentials') === true;

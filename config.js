@@ -9,6 +9,13 @@ require('sugar');
 const lib = require('./utils/lib');
 const { env } = process;
 
+
+const CONFIG_COUCHBOX = 'couchbox';
+const CONFIG_COUCHBOX_PLUGINS = 'couchbox_plugins';
+const CONFIG_COUCHBOX_API = 'couchbox_api';
+const CONFIG_COUCHBOX_HOOKS = 'couchbox_hooks';
+
+
 const mapInt = (val) => +val;
 const mapStr = (val) => val;
 const mapBool = (val) => val === true || val === 'true';
@@ -30,6 +37,7 @@ const checkIn = (en, val) => val && en.hasOwnProperty(val);
 const checkEnum = (items) => { const en = {}; items.forEach(i => (en[i] = true)); return checkIn.fill(en); };
 const checkNumPlusArr = (val) => Object.isArray(val) && (val.length === 0 || (val.length > 0 && val.filter(checkNumPlus).unique().length === val.length));
 const checkStrArr = (val) => Object.isArray(val) && (val.length === 0 || (val.length > 0 && val.filter(checkStr).unique().length === val.length));
+
 
 const defaultConfig = {
   'couchbox.nodename': {
@@ -246,6 +254,13 @@ const makeConfig = () => {
 }; // parse config from env variables
 
 const config = module.exports = makeConfig();
+
+module.exports.Constants = {
+  CONFIG_COUCHBOX,
+  CONFIG_COUCHBOX_PLUGINS,
+  CONFIG_COUCHBOX_API,
+  CONFIG_COUCHBOX_HOOKS
+};
 
 module.exports.getEnv = (fieldPath) => defaultConfig[fieldPath] ? defaultConfig[fieldPath].env : undefined;
 

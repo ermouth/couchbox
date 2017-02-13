@@ -3,7 +3,7 @@ const Promise = require('bluebird');
 const redisClient = require('../utils/redis');
 const config = require('../config');
 
-const { SOCKET_NODE_DELIMITER, SOCKET_EVENT_PREFIX } = require('../constants/socket');
+const { SOCKET_NODE_DELIMITER, SOCKET_EVENT_PREFIX } = require('../workers/socket/constants');
 
 module.exports = function (channel, message) {
   if (!channel || !Object.isString(channel) || channel.length === 0) return Promise.reject(new Error('Bad channel: '+ channel));

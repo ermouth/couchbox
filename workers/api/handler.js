@@ -1,16 +1,16 @@
 require('sugar');
 const Promise = require('bluebird');
 const vm = require('vm');
-const lib = require('../utils/lib');
-const Logger = require('../utils/logger');
-const { lambdaAvailable } = require('../constants/lambdaGlobal');
-const config = require('../config');
+const lib = require('../../utils/lib');
+const Logger = require('../../utils/logger');
+const { lambdaAvailable } = require('../../constants/lambdaGlobal');
+const config = require('../../config');
 
-const sms = require('../methods/sms');
+const sms = require('../../methods/sms');
 
-const { TimeoutError } = require('../constants/errors');
-const { LOG_EVENT_API_HANDLER_LOG, LOG_EVENT_API_HANDLER_ERROR } = require('../constants/logEvents');
-const { API_DEFAULT_TIMEOUT } = require('../constants/api');
+const { TimeoutError } = require('../../constants/errors');
+const { LOG_EVENT_API_HANDLER_LOG, LOG_EVENT_API_HANDLER_ERROR } = require('../../constants/logEvents');
+const { API_DEFAULT_TIMEOUT } = require('./constants');
 
 function Handler(ddoc, path, params = {}, props = {}) {
   const handlerName = ddoc +'/'+ path;

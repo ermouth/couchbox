@@ -12,7 +12,7 @@ const Bucket = require('../methods/bucket');
 
 
 const { LOG_EVENT_DDOC_ERROR } = require('../constants/logEvents');
-const { BUCKET_DDOC_CONTEXT_DENY } = require('../constants/bucket');
+const { BUCKET_DDOC_CONTEXT_DENY } = require('../workers/bucket/constants');
 
 
 const makeModules = (body, props = {}) => {

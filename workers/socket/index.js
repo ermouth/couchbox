@@ -1,9 +1,10 @@
-const lib = require('../utils/lib');
-const Worker = require('../utils/worker');
+const lib = require('../../utils/lib');
+const Worker = require('../../utils/worker');
 const Socket = require('./socket');
 
-const { LOG_EVENT_WORKER_START, LOG_EVENT_WORKER_CLOSE, LOG_EVENT_WORKER_EXIT, LOG_EVENT_SOCKET_ERROR } = require('./../constants/logEvents');
-const { WORKER_EVENT_EXIT, WORKER_EVENT_UNHANDLED_ERROR } = require('./../constants/worker');
+const { LOG_EVENT_WORKER_START, LOG_EVENT_WORKER_EXIT, LOG_EVENT_WORKER_CLOSE, LOG_EVENT_SOCKET_ERROR } = require('../../constants/logEvents');
+const { WORKER_EVENT_EXIT, WORKER_EVENT_UNHANDLED_ERROR } = Worker.Constants;
+
 
 module.exports = function initWorker(cluster, props = {}) {
   const worker = new Worker(cluster, { name: 'Socket worker' });

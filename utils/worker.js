@@ -4,7 +4,16 @@ const lib = require('./lib');
 const Logger = require('./logger');
 
 const { LOG_EVENT_LOG_ERROR, LOG_EVENT_WORKER_CLOSED, LOG_EVENT_WORKER_ERROR } = require('../constants/logEvents');
-const { WORKER_EVENT_EXIT, WORKER_EVENT_MESSAGE, WORKER_EVENT_ERROR, WORKER_EVENT_UNHANDLED_ERROR } = require('../constants/worker');
+
+const WORKER_EVENT_EXIT = 'WORKER_EVENT_EXIT';
+const WORKER_EVENT_MESSAGE = 'WORKER_EVENT_MESSAGE';
+const WORKER_EVENT_ERROR = 'WORKER_EVENT_ERROR';
+const WORKER_EVENT_UNHANDLED_ERROR = 'WORKER_EVENT_UNHANDLED_ERROR';
+
+const WORKER_TYPE_BUCKET = 'WORKER_TYPE_BUCKET';
+const WORKER_TYPE_SOCKET = 'WORKER_TYPE_SOCKET';
+const WORKER_TYPE_API = 'WORKER_TYPE_API';
+const WORKER_WAIT_TIMEOUT = 500;
 
 function Worker(cluster, props = {}) {
   const pid = process.pid;
@@ -84,3 +93,14 @@ function Worker(cluster, props = {}) {
 }
 
 module.exports = Worker;
+module.exports.Constants = {
+  WORKER_EVENT_EXIT,
+  WORKER_EVENT_MESSAGE,
+  WORKER_EVENT_ERROR,
+  WORKER_EVENT_UNHANDLED_ERROR,
+
+  WORKER_TYPE_BUCKET,
+  WORKER_TYPE_SOCKET,
+  WORKER_TYPE_API,
+  WORKER_WAIT_TIMEOUT
+};
