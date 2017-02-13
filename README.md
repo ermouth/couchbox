@@ -67,14 +67,14 @@ A hook normally can not write to DB during processing. The only way to write DB 
 to add `.docs` property to a resolved object. This property must be an array
 of JSONs to save.
 
-Each doc JSON in an array may have additional properties `_db` and `_node`,
+Each doc object in an array may have additional properties `_db` and `_node`,
 they define destination node and DB for the doc.
 
 Each row in the `.docs` array only runs after previous row save finished successfully.
 If doc save fails, save chain stops and error is logged. Successfully saved docs
-are __not__ deleted.
+are __not__ deleted on subsequent save error.
 
-The `.docs` array may have non-plain structure, any row can be an array of docs also.
+The `.docs` array can be non-plain, any row can be an array of docs also.
 In this case all docs of the row are saved simultaneously, and next row is processed
 only after all docs are saved successfully.
 
@@ -121,7 +121,7 @@ Key’s value ie `bucket fetch sms` means all hooks in a particular ddoc will se
 
 TLDR: one hook worker for one CouchDB bucket (DB).
 
-All hooks originating from one CouchDB bucket run in one worker thread. This is  
+All hooks originating from one CouchDB bucket run in one worker thread. This is
 different from CouchDB query server model, where each ddoc has own SpiderMonkey
 instance.
 
@@ -147,14 +147,14 @@ sections in ddocs, although without complimentary filter.
 Appropriate CouchDB config section may look like this...
 ```
 "api":{
-  "abc.example.com|cmd|sendmail":"db1/email bucket email",
+  "abc.example.com|cmd|sendmail":"db1/mail bucket email",
   "def.example.com":"db2/ddoc2 bucket"
 }
 ```
-...and appropriate ddoc in `db1` bucket like this:
+...and the ddoc in `db1` bucket like this:
 ```javascript
 {
-  _id:"_design/email",
+  _id:"_design/mail",
   api:{
     "all/immediate": {
       timeout: 1000,
@@ -170,7 +170,7 @@ Appropriate CouchDB config section may look like this...
     }
 }}
 ```
-With above data, POST-ing to `abc.example.com/cmd/sendmail/all/immediate` will
+With above config, POST-ing to `abc.example.com/cmd/sendmail/all/immediate` will
 call lambda, that presumably sends emails (and we configured it to have an
 access to `this._email` extension to be able to act this way).
 
@@ -184,7 +184,7 @@ looks like:
   "host": "abc.example.com"
   "method": "GET",
   "path": ["cmd","sendmail","all","immediate"],
-  "raw_path": "/auth/_design/login/_rewrite/?reflect=true",
+  "raw_path": "/cmd/sendmail/all/immediate/?param=value",
   "query": {"param": "value"},
   "headers": {
     "Accept": "text/html",
@@ -202,13 +202,30 @@ looks like:
   }
 }
 ```
-Unlike CouchDB, no `uuid`, `form`, `secObj`, `requested_path` and `id` properties
-present in the request object. Also the property `info` has only one key with DB
+Unlike CouchDB, no `.uuid`, `.form`, `.secObj`, `.requested_path` and `.id` properties
+present in the request object. Also the property `.info` has only one key with DB
 update sequence.
 
 ### Result object
 
-To be written.
+Api call must end up calling `resolve(result)` or `reject(result)`. The `result` object
+has quite simple structure:
+```javascript
+{
+  code:200, // or any http code
+  body:'Body string',
+  // json:{}, // may be used instead of .body
+  headers:{ /* response headers */ },
+  docs:[
+    [{_id:"doc1"},{_id:"doc2",_db:"db2"}],    // first pile of docs to save
+    {_id:"doc3",_db:"db3",_node:"nodename"}   // doc to save after the first pile
+  ]
+}
+```
+Fields `.headers` and `.docs` are optional. Code and body are sent to a client only
+if all docs were saved successfully. [More about saving docs](#saving-docs).
+
+If there were any errors during saving docs, a client receives `500` response.
 
 ### Api and workers
 
