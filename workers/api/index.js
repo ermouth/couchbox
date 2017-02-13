@@ -34,7 +34,7 @@ module.exports = function initWorker(cluster, props = {}) {
   worker.emitter.on(WORKER_EVENT_UNHANDLED_ERROR, (error) => {
     log({
       message: 'UnhandledError api',
-      event: LOG_EVENT_SOCKET_ERROR,
+      event: LOG_EVENT_API_ERROR,
       error
     });
     console.error(error);
