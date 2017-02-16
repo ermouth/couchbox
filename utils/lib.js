@@ -1,8 +1,16 @@
 require('sugar');
 const crypto = require('crypto');
-const UglifyJS = require('uglify-js');
+const globalsDetect = require('acorn-globals');
 
 const uuid = module.exports.uuid = (now = Date.now()) => (now+'').substr(0,12)+('0000'+Number.random(46656,2821109907455).toString(36)).substr(-8);
+
+const sdbmCode = module.exports.sdbmCode = function sdbmCode(src) {
+  // Very fast hash used in Berkeley DB
+  const s = JSON.stringify(src), length = s.length;
+  let i = 0, hash = -219;
+  while (i < length) hash = s.charCodeAt(i++)+(hash<<6)+(hash<<16)-hash;
+  return (1e11+hash).toString(36);
+};
 
 const hashMD5 = module.exports.hashMD5 = (data) => crypto.createHash('md5').update(JSON.stringify(data)).digest('hex');
 
@@ -18,20 +26,18 @@ const parseJSON = module.exports.parseJSON = function parseJSON(json) {
 
 const coverFunction = (funcSrc) => '(' + funcSrc + ')';
 
-const uglifyParse = (funcSrc) => UglifyJS.parse(coverFunction(funcSrc));
-
-const getGlobals = module.exports.getGlobals = function getGlobals(funcSrc) {
-  if (!funcSrc) return null;
-  const ast = uglifyParse(funcSrc);
-  ast.figure_out_scope();
-  if (typeof(ast.globals) == "object" && ast.globals._size) {
-    return Object.keys(ast.globals._values).map(valueKey => ast.globals._values[valueKey].name);
-  }
-  return [];
+const getGlobals = module.exports.getGlobals = function getGlobals(src) {
+  return (src) ? globalsDetect(src).map(i => i.name) : null;
 };
 
 const validateGlobals = module.exports.validateGlobals = function validateGlobals(funcSrc, params = {}) {
-  const globals = getGlobals(funcSrc);
+  let globals;
+  try {
+    globals = getGlobals(funcSrc);
+  } catch(error) {
+    return error;
+  }
+
   const errors = [];
   if (params.available && params.available.length) {
     const available = {};
@@ -76,11 +82,6 @@ const addField = module.exports.addField = (obj = {}, path, value) => {
 };
 
 const evalFunc = module.exports.evalFunc = (funcSrc) => eval(coverFunction(funcSrc));
-
-const makeFunc = module.exports.makeFunc = function makeFunc(funcSrc) {
-  uglifyParse(funcSrc);
-  return evalFunc(funcSrc);
-};
 
 const checkPhone = module.exports.checkPhone = function checkPhone(phone) {
   if (!phone || phone.length < 9) return null;

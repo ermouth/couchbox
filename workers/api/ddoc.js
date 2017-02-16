@@ -1,12 +1,15 @@
 const Promise = require('bluebird');
 const vm = require('vm');
-const Handler = require('./handler');
 const Logger = require('../../utils/logger');
-const { makeModules } = require('../../utils/ddocModules');
+const { makeModules, makeHandler } = require('../../utils/modules');
 const config = require('../../config');
 
-const { LOG_EVENT_DDOC_INIT, LOG_EVENT_API_HANDLER_ERROR } = require('../../constants/logEvents');
-const { API_DEFAULT_TIMEOUT } = require('./constants');
+const {
+  API_DEFAULT_TIMEOUT,
+  LOG_EVENTS: {
+    DDOC_INIT, API_LOG, API_ERROR
+  }
+} = require('./constants');
 
 function DDoc(props = {}) {
   const { bucket, name, domain, endpoint, methods } = props;
@@ -15,6 +18,7 @@ function DDoc(props = {}) {
     logger: props.logger
   });
   const log = logger.getLog();
+  const ddoc = this;
 
   return new Promise((resolve, reject) => {
     bucket.get('_design/'+ name, {}, (error, body) => {
@@ -25,32 +29,36 @@ function DDoc(props = {}) {
 
       let timeout = 0;
 
+      const handlerFilter = (handler) => {
+        if (handler) {
+          if (timeout < handler.timeout) timeout = handler.timeout;
+          return true;
+        }
+      };
+      const onHandlerError = (handlerKey, error) => {
+        log({
+          message: 'Error init api lambda: '+ handlerKey,
+          event: API_ERROR,
+          error
+        });
+        return null;
+      };
+
       log({
         message: 'Started ddoc: "'+ name + '" with methods: "'+ methods.join(',') +'" and req path: "' + domain +'/'+ endpoint + '"',
-        event: LOG_EVENT_DDOC_INIT
+        event: DDOC_INIT
       });
 
-      const api = [];
-
-      if (body.api && Object.isObject(body.api)) {
-        const vmContext = makeModules(body, { log, bucket, methods });
-        const props = Object.assign({ logger }, vmContext);
-        Object.keys(body.api).forEach(path => {
-          try {
-            const handler = new Handler(name, path, body.api[path], props);
-            if (timeout < handler.timeout) timeout = handler.timeout;
-            api.push(handler);
-          } catch (error) {
-            log({
-              message: 'Error init lambda: '+ path,
-              event: LOG_EVENT_API_HANDLER_ERROR,
-              error
-            });
-          }
+      const referrer = ([request]) => request.raw_path;
+      makeModules(body, { log, bucket, methods }).then(ddocContext => {
+        const handlerProps = Object.assign({ logger, logEvent: API_LOG, errorEvent: API_ERROR, methods, referrer }, ddocContext);
+        const apiHandlers = Object.keys(body.api || {}).map(handlerKey =>
+          makeHandler(bucket, name, handlerKey, body.api[handlerKey], handlerProps).catch(onHandlerError.fill(handlerKey)));
+        Promise.all(apiHandlers).then(handlers => {
+          const api = handlers.filter(handlerFilter);
+          return resolve({ name, id, rev, domain, endpoint, methods, api, timeout: timeout || API_DEFAULT_TIMEOUT });
         });
-      }
-
-      return resolve({ name, id, rev, domain, endpoint, methods, api, timeout: timeout || API_DEFAULT_TIMEOUT });
+      });
     });
   });
 }

@@ -19,12 +19,13 @@ const CONFIG_COUCHBOX_HOOKS = 'couchbox_hooks';
 const mapInt = (val) => +val;
 const mapStr = (val) => val;
 const mapBool = (val) => val === true || val === 'true';
+const mapJSON = (val) => Object.isString(val) ? lib.parseJSON(val) : Object.isObject(val) ? val : undefined;
 const mapsStrArr = (splitter) => (val) =>  val
   ? Object.isString(val)
     ? val.split(splitter).map(mapStr).filter(checkStr)
     : Object.isArray(val) ? val.map(mapStr).filter(checkStr) : []
   : [];
-const mapsIntArr = (splitter) => (val) =>  val
+const mapsIntArr = (splitter) => (val) => val
   ? Object.isString(val)
     ? val.split(splitter).map(mapInt).filter(checkNumPlus)
     : Object.isArray(val) ? val.map(mapInt).filter(checkNumPlus) : []
@@ -33,7 +34,8 @@ const mapsIntArr = (splitter) => (val) =>  val
 const checkBool = (val) => val === true || val === false;
 const checkNumPlus = (val) => val > 0;
 const checkStr = (val) => val && val.length > 0;
-const checkIn = (en, val) => val && en.hasOwnProperty(val);
+const checkJSON = (val) => Object.isObject(val);
+const checkIn = (en, val) => val && val in en;
 const checkEnum = (items) => { const en = {}; items.forEach(i => (en[i] = true)); return checkIn.fill(en); };
 const checkNumPlusArr = (val) => Object.isArray(val) && (val.length === 0 || (val.length > 0 && val.filter(checkNumPlus).unique().length === val.length));
 const checkStrArr = (val) => Object.isArray(val) && (val.length === 0 || (val.length > 0 && val.filter(checkStr).unique().length === val.length));
@@ -231,11 +233,11 @@ const defaultConfig = {
     check: checkStrArr
   },
 
-  'sms.key': {
-    env: 'SMS_KEY',
-    value: null,
-    map: mapStr,
-    check: checkStr
+  'plugins': {
+    env: 'PLUGINS',
+    value: {},
+    map: mapJSON,
+    check: checkJSON
   },
 };
 
@@ -245,7 +247,7 @@ const makeConfig = () => {
     const field = defaultConfig[fieldPath];
     if (!field) return null;
     lib.addField(conf, fieldPath, field.value);
-    if (field.env && env.hasOwnProperty(field.env)) {
+    if (field.env && field.env in env) {
       const value = field.map(env[field.env]);
       if (field.check(value)) lib.addField(conf, fieldPath, value);
     }
@@ -255,13 +257,6 @@ const makeConfig = () => {
 
 const config = module.exports = makeConfig();
 
-module.exports.Constants = {
-  CONFIG_COUCHBOX,
-  CONFIG_COUCHBOX_PLUGINS,
-  CONFIG_COUCHBOX_API,
-  CONFIG_COUCHBOX_HOOKS
-};
-
 module.exports.getEnv = (fieldPath) => defaultConfig[fieldPath] ? defaultConfig[fieldPath].env : undefined;
 
 module.exports.toEnv = () => {
@@ -269,7 +264,8 @@ module.exports.toEnv = () => {
   Object.keys(defaultConfig).forEach(fieldPath => {
     const field = defaultConfig[fieldPath];
     if (!field || !field.env) return null;
-    conf[field.env] = lib.getField(config, fieldPath);
+    const val = lib.getField(config, fieldPath);
+    conf[field.env] = Object.isObject(val) || Object.isArray(val) ? JSON.stringify(val) : val;
   });
   return conf;
 }; // serialize config to env variables
@@ -298,9 +294,35 @@ module.exports.set = (fieldPath, val) => {
   return false;
 }; // set property, need valid val
 
+module.exports.patch = (fieldPath, key, val) => {
+  const field = defaultConfig[fieldPath];
+  if (!field) return null;
+  const value = field.map(val);
+  if (field.check(value)) {
+    lib.addField(config, [fieldPath, key].join('.'), value);
+    return true;
+  }
+  return false;
+}; // patch property, need valid val
+
 module.exports.clean = (fieldPath) => {
   const field = defaultConfig[fieldPath];
   if (!field) return null;
   lib.addField(config, fieldPath, undefined);
   return true;
 }; // set property to undefined
+
+module.exports.Constants = {
+  CONFIG_COUCHBOX,
+  CONFIG_COUCHBOX_PLUGINS,
+  CONFIG_COUCHBOX_API,
+  CONFIG_COUCHBOX_HOOKS
+};
+
+module.exports.LOG_EVENTS = {
+  CONFIG_BUCKET: 'config/bucket',
+  CONFIG_HOOKS: 'config/hooks',
+  CONFIG_API: 'config/api',
+  CONFIG_ENDPOINTS: 'config/endpoints',
+  CONFIG_SOCKET: 'config/socket',
+};

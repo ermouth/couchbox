@@ -7,35 +7,27 @@ const saveResults = require('../../utils/resultsSaver');
 const Logger = require('../../utils/logger');
 const config = require('../../config');
 
+
 const {
   NotFoundError,
   SendingError,
   BadReferrerError
-} = require('../../constants/errors');
-
-const {
-  LOG_EVENT_API_REQUEST_ERROR,
-  LOG_EVENT_API_REQUEST_REJECT,
-  LOG_EVENT_API_SAVE,
-} = require('../../constants/logEvents');
+} = require('../../utils/errors');
 
 const {
   API_URL_ROOT,
   API_URL_PREFIX,
   API_DEFAULT_CODE,
-  API_DEFAULT_HEADERS
+  API_DEFAULT_HEADERS,
+  CORS,
+  CORS_CREDENTIALS,
+  CORS_ORIGINS,
+  CORS_METHODS,
+  CORS_HEADES,
+  LOG_EVENTS: {
+    API_SAVE, API_REQUEST_ERROR, API_REQUEST_REJECT
+  }
 } = require('./constants');
-
-const CORS = config.get('cors.enabled') === true;
-const CORS_CREDENTIALS = config.get('cors.credentials') === true;
-const CORS_ORIGINS = {}; config.get('cors.origins').forEach(host => host && (CORS_ORIGINS[host] = true));
-const CORS_METHODS = config.get('cors.methods').join(', ');
-const CORS_HEADES = config.get('cors.headers').join(', ');
-
-const H_CORS_ORIGIN = 'Access-Control-Allow-Origin';
-const H_CORS_HEADERS = 'Access-Control-Allow-Headers';
-const H_CORS_METHODS = 'Access-Control-Allow-Methods';
-const H_CORS_CRED = 'Access-Control-Allow-Credentials';
 
 const corsHeads = (request) => {
   const headers = API_DEFAULT_HEADERS;
@@ -43,10 +35,10 @@ const corsHeads = (request) => {
   if (!CORS) return Promise.reject(new BadReferrerError());
   const rule = CORS_ORIGINS['*'] ? '*' : CORS_ORIGINS[request.headers.origin] ? request.headers.origin : null;
   if (!rule) return Promise.reject(new BadReferrerError());
-  headers[H_CORS_ORIGIN] = rule;
-  headers[H_CORS_HEADERS] = CORS_HEADES || '';
-  headers[H_CORS_METHODS] = CORS_METHODS || '';
-  headers[H_CORS_CRED] = CORS_CREDENTIALS;
+  headers['Access-Control-Allow-Origin'] = rule;
+  headers['Access-Control-Allow-Headers'] = CORS_HEADES || '';
+  headers['Access-Control-Allow-Methods'] = CORS_METHODS || '';
+  headers['Access-Control-Allow-Credentials'] = CORS_CREDENTIALS;
   return Promise.resolve(headers);
 };
 
@@ -117,7 +109,7 @@ function Router(props = {}) {
       parseBody(req).then(body => { request.body = body; }).catch(error => {
         log({
           message: 'Error on parse body',
-          event: LOG_EVENT_API_REQUEST_ERROR,
+          event: API_REQUEST_ERROR,
           error
         });
       })
@@ -207,7 +199,7 @@ function Router(props = {}) {
               log({
                 message: 'Saved api results: "' + request.raw_path + '"',
                 ref: request.raw_path,
-                event: LOG_EVENT_API_SAVE
+                event: API_SAVE
               });
               return result;
             });
@@ -218,7 +210,7 @@ function Router(props = {}) {
     ).then(send).catch(error => {
       log({
         message: 'Route rejection',
-        event: LOG_EVENT_API_REQUEST_REJECT,
+        event: API_REQUEST_REJECT,
         error
       });
       sendError(error);

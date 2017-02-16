@@ -11,17 +11,13 @@ const Logger = require('../../utils/logger');
 const couchdb = require('../../utils/couchdb');
 const config = require('../../config');
 
-// Log evets constants
-const {
-  LOG_EVENT_LOG_ERROR,
-  LOG_EVENT_SANDBOX_START, LOG_EVENT_SANDBOX_CLOSE, LOG_EVENT_SANDBOX_CLOSED,
-  LOG_EVENT_SANDBOX_CONFIG_BUCKET, LOG_EVENT_SANDBOX_CONFIG_HOOKS,
-  LOG_EVENT_SANDBOX_CONFIG_API, LOG_EVENT_SANDBOX_CONFIG_ENDPOINTS,
-  LOG_EVENT_SANDBOX_CONFIG_SOCKET
-} = require('../../constants/logEvents');
+// Log events constants
+const { LOG_ERROR } = Logger.LOG_EVENTS;
+const { CONFIG_API, CONFIG_BUCKET, CONFIG_SOCKET, CONFIG_ENDPOINTS, CONFIG_HOOKS } = config.LOG_EVENTS;
+const { SANDBOX_START, SANDBOX_CLOSE, SANDBOX_CLOSED } = require('./constants').LOG_EVENTS;
 
 // Worker constants
-const { Constants: { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET, WORKER_TYPE_API, WORKER_WAIT_TIMEOUT } } = require('../../utils/worker');
+const { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET, WORKER_TYPE_API, WORKER_WAIT_TIMEOUT } = require('../../utils/worker').Constants;
 // Bucket monitor constants
 const { BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD } = require('../bucket/constants');
 // REST API worker specific constants
@@ -42,7 +38,7 @@ module.exports = function initMaster(cluster) {
   const log = logger.getLog();
   log({
     message: 'Started',
-    event: LOG_EVENT_SANDBOX_START
+    event: SANDBOX_START
   });
 
   // map of current workers
@@ -93,20 +89,20 @@ module.exports = function initMaster(cluster) {
   function onClose() {
     if (isClosing) return null;
     isClosing = true;
-    log({ message: 'Close', event: LOG_EVENT_SANDBOX_CLOSE });
+    log({ message: 'Close', event: SANDBOX_CLOSE });
     clearTimeout(configUpdateTimeout); // stop config update
 
     for (let pid of workers.keys()) sendMessage(pid, 'exit'); // send close for all workers
 
     logger.saveForced() // start save log forced
-      .catch(error => log({ message: 'Close', event: LOG_EVENT_LOG_ERROR, error }))
+      .catch(error => log({ message: 'Close', event: LOG_ERROR, error }))
       .finally(() => { logger.goOffline(); });
   }
 
   // Init proc signals listeners
   process.on('SIGINT', onClose); // on close command
   process.on('SIGTERM', onClose);
-  process.on('exit', () => { log({ message: 'Closed', event: LOG_EVENT_SANDBOX_CLOSED }); }); // on master closed
+  process.on('exit', () => { log({ message: 'Closed', event: SANDBOX_CLOSED }); }); // on master closed
 
 
   // Config, maps CouchDB config vars
@@ -161,6 +157,10 @@ module.exports = function initMaster(cluster) {
     [CONFIG_COUCHBOX_API]: (conf = {}) => {
       if (!Object.isObject(conf)) return null;
       endpoints = conf;
+    },
+    [CONFIG_COUCHBOX_PLUGINS]: (conf = {}) => {
+      if (!Object.isObject(conf)) return null;
+      Object.keys(conf).forEach(key => { config.patch('plugins', key, conf[key]); });
     }
   }; // map for couchdb config
 
@@ -194,11 +194,11 @@ module.exports = function initMaster(cluster) {
 
 
     // Check socket config
-    const newConfigSocketHash = lib.hashMD5(['couchbox', 'socket', 'redis'].map(config.get)); // update configSocketHash by critical fields
+    const newConfigSocketHash = lib.sdbmCode(['couchbox', 'socket', 'redis'].map(config.get)); // update configSocketHash by critical fields
     if (newConfigSocketHash !== configSocketHash) {
       log({
         message: 'Updated socket worker config',
-        event: LOG_EVENT_SANDBOX_CONFIG_SOCKET
+        event: CONFIG_SOCKET
       });
       configSocketHash = newConfigSocketHash;
       updateSocketWorkers();
@@ -207,22 +207,22 @@ module.exports = function initMaster(cluster) {
 
     // Check bucket worker and hooks config
     let updateBuckets = false;
-    const newConfigBucketHash = lib.hashMD5(['couchbox', 'couchdb', 'hooks', 'redis'].map(config.get)); // update configBucketHash by critical fields
+    const newConfigBucketHash = lib.sdbmCode(['couchbox', 'plugins', 'couchdb', 'hooks', 'redis'].map(config.get)); // update configBucketHash by critical fields
     if (configBucketHash !== newConfigBucketHash) {
       configBucketHash = newConfigBucketHash;
       updateBuckets = true;
       log({
         message: 'Updated bucket worker config',
-        event: LOG_EVENT_SANDBOX_CONFIG_BUCKET
+        event: CONFIG_BUCKET
       });
     }
-    const newHooksHash = lib.hashMD5(hooks);
+    const newHooksHash = lib.sdbmCode(hooks);
     if (hooksHash !== newHooksHash) {
       hooksHash = newHooksHash;
       updateBuckets = true;
       log({
         message: 'Updated hooks config',
-        event: LOG_EVENT_SANDBOX_CONFIG_HOOKS
+        event: CONFIG_HOOKS
       });
     }
     if (updateBuckets) updateBucketWorkers(); // start update bucket workers
@@ -230,22 +230,22 @@ module.exports = function initMaster(cluster) {
 
     // Check api worker and endpoints config
     let updateApi = false;
-    const newConfigApiHash = lib.hashMD5(['couchbox', 'couchdb', 'redis', 'cors', 'api'].map(config.get)); // update configBucketHash by critical fields
+    const newConfigApiHash = lib.sdbmCode(['couchbox', 'plugins', 'couchdb', 'redis', 'cors', 'api'].map(config.get)); // update configBucketHash by critical fields
     if (configApiHash !== newConfigApiHash) {
       configApiHash = newConfigApiHash;
       updateApi = true;
       log({
         message: 'Updated api worker config',
-        event: LOG_EVENT_SANDBOX_CONFIG_API
+        event: CONFIG_API
       });
     }
-    const newEndpointsHash = lib.hashMD5(endpoints);
+    const newEndpointsHash = lib.sdbmCode(endpoints);
     if (endpointsHash !== newEndpointsHash) {
       endpointsHash = newEndpointsHash;
       updateApi = true;
       log({
         message: 'Updated endpoints config',
-        event: LOG_EVENT_SANDBOX_CONFIG_ENDPOINTS
+        event: CONFIG_ENDPOINTS
       });
     }
     if (updateApi) updateApiWorkers(); // start update api workers
@@ -271,7 +271,7 @@ module.exports = function initMaster(cluster) {
     Object.keys(dbsTmp).forEach(db_key => {
       const db_ddocs = dbsTmp[db_key] && dbsTmp[db_key].ddocs ? dbsTmp[db_key].ddocs : null;
       if (db_ddocs && Object.keys(db_ddocs).length) {
-        dbsTmp[db_key].ddocsHash = lib.hashMD5(db_ddocs); // set hash of ddocs config
+        dbsTmp[db_key].ddocsHash = lib.sdbmCode(db_ddocs); // set hash of ddocs config
         dbs_keys.push(db_key);
       }
       else dbsTmp[db_key] = null;

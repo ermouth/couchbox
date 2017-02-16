@@ -7,18 +7,17 @@ const config = require('../../config');
 const DDoc = require('./ddoc');
 
 
-const CHECK_PROCESSES_TIMEOUT = 120;
-const CHANGE_DOC_ID = 0;
-const CHANGE_DOC_REV = 1;
-const CHANGE_DOC_HOOKS = 2;
-
 const {
-  LOG_EVENT_BUCKET_FEED, LOG_EVENT_BUCKET_FEED_STOP, LOG_EVENT_BUCKET_CHANGES, LOG_EVENT_BUCKET_CLOSE, LOG_EVENT_BUCKET_ERROR,
-  LOG_EVENT_BUCKET_DDOC_STOP, LOG_EVENT_DDOC_ERROR,
-  LOG_EVENT_HOOK_START, LOG_EVENT_HOOK_RESULT, LOG_EVENT_HOOK_SAVE, LOG_EVENT_HOOK_ERROR
-} = require('../../constants/logEvents');
-
-const { BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD } = require('./constants');
+  BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD,
+  CHECK_PROCESSES_TIMEOUT,
+  CHANGE_DOC_ID, CHANGE_DOC_REV, CHANGE_DOC_HOOKS,
+  LOG_EVENTS: {
+    BUCKET_CHANGES, BUCKET_FEED, BUCKET_FEED_STOP,
+    BUCKET_STOP, BUCKET_CLOSE, BUCKET_ERROR,
+    DDOC_ERROR,
+    HOOK_START, HOOK_SAVE, HOOK_RESULT, HOOK_ERROR
+  }
+} = require('./constants');
 
 function DB(props = {}) {
   const name = props.name;
@@ -85,7 +84,7 @@ function DB(props = {}) {
       if (error && error.message !== 'missing') {
         log({
           message: 'Error on load local bucket state: '+ dbDocId,
-          event: LOG_EVENT_BUCKET_ERROR,
+          event: BUCKET_ERROR,
           error
         });
         return reject(error);
@@ -114,7 +113,7 @@ function DB(props = {}) {
         if (error && error.message === 'Document update conflict.') return updateDBState().then(resolve);
         log({
           message: 'Error on save bucket state',
-          event: LOG_EVENT_BUCKET_ERROR,
+          event: BUCKET_ERROR,
           error
         });
         reject(error);
@@ -137,7 +136,7 @@ function DB(props = {}) {
   const onInitError = (error) => {
     log({
       message: 'Error on init db: '+ name,
-      event: LOG_EVENT_BUCKET_ERROR,
+      event: BUCKET_ERROR,
       error
     });
     close();
@@ -178,7 +177,7 @@ function DB(props = {}) {
     const { name, rev } = data;
     const methods = Object.isArray(data.methods) ? data.methods
       : Object.isString(data.methods) ? data.methods.split(/\s+/g).compact(true).unique() : [];
-    const ddoc = new DDoc(db, { name, rev, methods, logger });
+    const ddoc = new DDoc(db, props.name, { name, rev, methods, logger });
     ddoc.init()
       .then(data => {
         if (worker_seq < data.seq) worker_seq = data.seq;
@@ -188,7 +187,7 @@ function DB(props = {}) {
       .catch(error => {
         log({
           message: 'Error on init ddoc: '+ name,
-          event: LOG_EVENT_DDOC_ERROR,
+          event: DDOC_ERROR,
           error
         });
       })
@@ -206,7 +205,7 @@ function DB(props = {}) {
   const startChanges = () => new Promise((resolve, reject) => {
     log({
       message: 'Start changes since '+ last_seq +' between: '+ max_seq,
-      event: LOG_EVENT_BUCKET_CHANGES
+      event: BUCKET_CHANGES
     });
     const limit = max_seq - worker_seq;
     db.changes({ since: last_seq, limit, include_docs: true }, (error, changes) => {
@@ -235,7 +234,7 @@ function DB(props = {}) {
   const startFeed = () => {
     log({
       message: 'Start feed '+ worker_seq +' since: '+ last_seq,
-      event: LOG_EVENT_BUCKET_FEED
+      event: BUCKET_FEED
     });
     feed = db.follow({ since: last_seq, include_docs: true });
     feed.on('change', onChange);
@@ -246,7 +245,7 @@ function DB(props = {}) {
     if (hasFeed()) {
       log({
         message: 'Stop feed',
-        event: LOG_EVENT_BUCKET_FEED_STOP
+        event: BUCKET_FEED_STOP
       });
       feed.stop();
       _onStopFeed();
@@ -276,7 +275,7 @@ function DB(props = {}) {
     if (ddocName && props.ddocs[ddocName]) {
       log({
         message: 'Stop on ddoc change: '+ ddocName,
-        event: LOG_EVENT_BUCKET_DDOC_STOP
+        event: BUCKET_STOP
       });
       worker_type = BUCKET_WORKER_TYPE_OLD;
       return close();
@@ -311,7 +310,7 @@ function DB(props = {}) {
       const ddoc = ddocksO[hookName[0]] >= 0 ? ddocs[ddocksO[hookName[0]]] : null;
       if (ddoc) {
         const hook = ddoc.getHook(hookName[1]);
-        if (hook && hook.isGood) hooksAll.push(hook);
+        if (hook) hooksAll.push(hook);
       }
     });
 
@@ -324,9 +323,9 @@ function DB(props = {}) {
     log({
       message: 'Start hook: ' + hook.name,
       ref: change.id,
-      event: LOG_EVENT_HOOK_START
+      event: HOOK_START
     });
-    hook.run(change) // run hook
+    hook.handler(Object.clone(change.doc, true)) // run hook with cloned doc
       .then(onHook.fill(hook.name, change)) // if ok run onHook
       .catch(onHookError.fill(hook.name, change)) // else run onHookError
       .finally(() => {
@@ -339,7 +338,7 @@ function DB(props = {}) {
       message: result.message || result.docs,
       code: result.code,
       ref: change.id,
-      event: LOG_EVENT_HOOK_RESULT
+      event: HOOK_RESULT
     });
     if (result && result.code === 200 && result.docs) { // check hook results
       if (result.docs.length) {
@@ -347,7 +346,7 @@ function DB(props = {}) {
           log({
             message: 'Saved hook results: ' + hookName,
             ref: change.id,
-            event: LOG_EVENT_HOOK_SAVE
+            event: HOOK_SAVE
           });
           return Promise.resolve();
         });
@@ -360,7 +359,7 @@ function DB(props = {}) {
     log({
       message: 'Hook error: ' + hookName,
       ref: change.id,
-      event: LOG_EVENT_HOOK_ERROR,
+      event: HOOK_ERROR,
       error: lib.errorBeautify(error)
     });
     return Promise.resolve();
@@ -371,7 +370,7 @@ function DB(props = {}) {
     if (isRunning()) return setTimeout(close, CHECK_PROCESSES_TIMEOUT); // if worker has tasks wait
     log({
       message: 'Close',
-      event: LOG_EVENT_BUCKET_CLOSE
+      event: BUCKET_CLOSE
     });
     updateDBState(true).then(() => { // on close
       _onClose(worker_seq); // call _onClose

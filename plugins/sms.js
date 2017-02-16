@@ -1,16 +1,10 @@
 const Promise = require('bluebird');
-const Logger = require('./../utils/logger');
 const { checkPhone } = require('../utils/lib');
 const fetch = require('node-fetch');
-const config = require('../config');
 
-const logger = new Logger({ prefix: 'SMS' });
-const _log = logger.getLog();
 
-const { LOG_EVENT_TASK_SMS, LOG_EVENT_TASK_SMS_ERROR } = require('../constants/logEvents');
-
-const API_KEY = config.get('sms.key');
-const makeQuery = (phone, message) => 'https://sms.ru/sms/send?api_id='+ API_KEY +'&to='+ phone +'&text='+ encodeURI(message);
+const TASK_SMS = 'sms/send';
+const TASK_SMS_ERROR = 'sms/error';
 
 const getError = (status) => {
   switch (+status) {
@@ -60,40 +54,60 @@ const getError = (status) => {
   }
 };
 
-const sms = (number, message, log) => {
-  if (!(message && message.length)) return Promise.reject(new Error('Empty message'));
-  if (!((number = checkPhone(number)) && number.length)) return Promise.reject(new Error('Bad phone number'));
-  if (!log) log = _log;
+function Plugin(method, conf, log) {
+  const name = '_' + (method || 'sms');
 
-  const phone = '7' + number;
+  const API_KEY = conf.key;
+  const SEND_FROM = conf.from;
+  const makeQuery = (phone, message) => 'https://sms.ru/sms/send?api_id='+ API_KEY + (SEND_FROM ? '&from='+ encodeURI(SEND_FROM) : '') +'&to='+ phone +'&text='+ encodeURI(message);
 
-  log({
-    message: 'Send SMS: "'+ message +'" to: '+ phone,
-    event: LOG_EVENT_TASK_SMS
-  });
+  const sms_method = (ref) => function(number, message) {
+    if (!(message && message.length)) return Promise.reject(new Error('Empty message'));
+    if (!((number = checkPhone(number)) && number.length)) return Promise.reject(new Error('Bad phone number'));
 
-  return new Promise((resolve, reject) => {
-    fetch(makeQuery(phone, message)).then(res => res.text()).then(res => {
-      const status = res.split('\n')[0];
-      const error = getError(status);
-      if (error) {
+    const phone = '7' + number;
+
+    log({
+      message: 'Send SMS: "'+ message +'" to: '+ phone,
+      event: TASK_SMS,
+      ref
+    });
+
+    return new Promise((resolve, reject) => {
+      fetch(makeQuery(phone, message)).then(res => res.text()).then(res => {
+        const status = res.split('\n')[0];
+        const error = getError(status);
+        if (error) {
+          log({
+            message: 'Error send SMS: "'+ message +'" to: '+ phone,
+            event: TASK_SMS_ERROR,
+            error,
+            ref
+          });
+          return reject(error);
+        }
+        resolve({ status, ok: true });
+      }).catch(error => {
         log({
           message: 'Error send SMS: "'+ message +'" to: '+ phone,
-          event: LOG_EVENT_TASK_SMS_ERROR,
-          error
+          event: TASK_SMS_ERROR,
+          error,
+          ref
         });
-        return reject(error);
-      }
-      resolve({ status, ok: true });
-    }).catch(error => {
-      log({
-        message: 'Error send SMS: "'+ message +'" to: '+ phone,
-        event: LOG_EVENT_TASK_SMS_ERROR,
-        error
+        reject(error);
       });
-      reject(error);
     });
-  });
-};
+  };
 
-module.exports = sms;
+  return new Promise(resolve => {
+
+    function make(env) {
+      const { ref, ctx } = env;
+      return sms_method(ref).bind(ctx);
+    }
+
+    resolve({ name, make });
+  });
+}
+
+module.exports = Plugin;

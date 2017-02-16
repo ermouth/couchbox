@@ -4,8 +4,12 @@ const Logger = require('../../utils/logger');
 const couchdb = require('../../utils/couchdb');
 const config = require('../../config');
 
-const { LOG_EVENT_BUCKET_ERROR, LOG_EVENT_DDOC_ERROR } = require('../../constants/logEvents');
-const { API_DEFAULT_TIMEOUT } = require('./constants');
+const {
+  API_DEFAULT_TIMEOUT,
+  LOG_EVENTS: {
+    BUCKET_ERROR, DDOC_ERROR
+  }
+} = require('./constants');
 
 function Bucket(props = {}) {
   const { name } = props;
@@ -32,7 +36,7 @@ function Bucket(props = {}) {
         .catch(error => {
           log({
             message: 'Error init DDoc: '+ ddoc,
-            event: LOG_EVENT_DDOC_ERROR,
+            event: DDOC_ERROR,
             error
           });
         })
@@ -46,10 +50,10 @@ function Bucket(props = {}) {
     })).catch(error => {
       log({
         message: 'Error init Bucket: '+ name,
-        event: LOG_EVENT_BUCKET_ERROR,
+        event: BUCKET_ERROR,
         error
       });
-    }).then((results) => {
+    }).then(results => {
       const bucket = { name, getSeq, getBucket };
       results.forEach(info => {
         if (!(info && info.domain && info.endpoint && info.api )) return null;
@@ -64,7 +68,7 @@ function Bucket(props = {}) {
           if (!error) error = new Error('No bucket info');
           log({
             message: 'Error init Bucket: '+ name,
-            event: LOG_EVENT_BUCKET_ERROR,
+            event: BUCKET_ERROR,
             error
           });
           reject(error);

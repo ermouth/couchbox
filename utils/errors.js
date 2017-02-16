@@ -31,6 +31,15 @@ class EmptyRequestError extends Error {
   }
 }
 
+class RejectHandlerError extends Error {
+  constructor(error) {
+    super('Reject handler execution' + (error && error.message ? ': '+ error.message : ''));
+    this.code = 500;
+    this.reason = error && error.message ? error.message : 'plugin rejection';
+    if (error) this.error = error;
+  }
+}
+
 class BadReferrerError extends Error {
   constructor(message) {
     super(message || 'Referrer not valid');
@@ -43,5 +52,6 @@ module.exports = {
   SendingError,
   TimeoutError,
   EmptyRequestError,
-  BadReferrerError
+  BadReferrerError,
+  RejectHandlerError
 };

@@ -2,9 +2,9 @@ const lib = require('../../utils/lib');
 const Worker = require('../../utils/worker');
 const Bucket = require('./bucket');
 
-const { LOG_EVENT_WORKER_START, LOG_EVENT_WORKER_EXIT, LOG_EVENT_WORKER_CLOSE, LOG_EVENT_BUCKET_ERROR } = require('../../constants/logEvents');
-const { WORKER_EVENT_EXIT, WORKER_EVENT_UNHANDLED_ERROR } = Worker.Constants;
 
+const { WORKER_HANDLE_EXIT, WORKER_HANDLE_ERROR, WORKER_HANDLE_UNHANDLED_ERROR } = Worker.Constants;
+const { WORKER_START, WORKER_EXIT, WORKER_CLOSE, WORKER_ERROR } = Worker.LOG_EVENTS;
 
 module.exports = function initWorker(cluster, props = {}) {
   const worker = new Worker(cluster, { name: 'Bucket worker' });
@@ -13,47 +13,54 @@ module.exports = function initWorker(cluster, props = {}) {
 
   log({
     message: 'Started with '+ Object.keys(props).map(key => (key +'='+ JSON.stringify(props[key]).replace(/"/g, ''))).join(' '),
-    event: LOG_EVENT_WORKER_START
+    event: WORKER_START
   });
-
 
   const bucket = new Bucket(Object.assign(props.params || {}, {
     logger,
     onInit: (data) => {
-      worker.sendToMaster('init', data);
+      worker.send('init', data);
     },
     onStartFeed: () => {
-      worker.sendToMaster('startFeed');
+      worker.send('startFeed');
     },
     onStopFeed: () => {
-      worker.sendToMaster('stopFeed');
+      worker.send('stopFeed');
     },
     onOldWorker: (data) => {
-      worker.sendToMaster('oldWorker', data);
+      worker.send('oldWorker', data);
     },
     onClose: (data) => {
       log({
         message: 'Close',
-        event: LOG_EVENT_WORKER_CLOSE
+        event: WORKER_CLOSE
       });
-      worker.sendToMaster('close', data);
+      worker.send('close', data);
       worker.close();
     }
   }));
 
-  worker.emitter.on(WORKER_EVENT_UNHANDLED_ERROR, (error) => {
+  worker.on(WORKER_HANDLE_ERROR, (error) => {
     log({
-      message: 'UnhandledError db '+ props.params.name,
-      event: LOG_EVENT_BUCKET_ERROR,
+      message: 'Error bucket '+ props.params.name,
+      event: WORKER_ERROR,
       error
     });
   });
 
-  worker.emitter.on(WORKER_EVENT_EXIT, (forced) => {
+  worker.on(WORKER_HANDLE_UNHANDLED_ERROR, (error) => {
+    log({
+      message: 'UnhandledError bucket '+ props.params.name,
+      event: WORKER_ERROR,
+      error
+    });
+  });
+
+  worker.on(WORKER_HANDLE_EXIT, (forced) => {
     if (bucket.isRunning()) return bucket.close(forced);
     log({
       message: 'On worker exit, forced: '+ (forced === true ? 'true' : 'false'),
-      event: LOG_EVENT_WORKER_EXIT
+      event: WORKER_EXIT
     });
     return worker.close();
   });

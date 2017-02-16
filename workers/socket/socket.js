@@ -5,14 +5,15 @@ const redisClient = require('../../utils/redis');
 const lib = require('../../utils/lib');
 const config = require('../../config');
 
-const { LOG_EVENT_SOCKET_START, LOG_EVENT_SOCKET_STOP } = require('../../constants/logEvents');
 
-
-const NODE_NAME = config.get('couchbox.nodename');
-const SOCKET_PORT = config.get('socket.port');
-const SOCKET_PATH = config.get('socket.path');
-const { SOCKET_EVENT_PREFIX } = require('./constants');
-
+const {
+  NODE_NAME,
+  SOCKET_EVENT_PREFIX,
+  SOCKET_PORT, SOCKET_PATH,
+  LOG_EVENTS: {
+    SOCKET_START, SOCKET_STOP
+  }
+} = require('./constants');
 
 function Socket(props = {}) {
   const logger = new Logger({ prefix: 'Socket', logger: props.logger });
@@ -35,7 +36,7 @@ function Socket(props = {}) {
       _running = true;
       log({
         message: 'Start listen sockets on port: '+ SOCKET_PORT +' with path: '+ SOCKET_PATH,
-        event: LOG_EVENT_SOCKET_START
+        event: SOCKET_START
       });
       redisClient.subscribe(SOCKET_EVENT_PREFIX + NODE_NAME);
       _onInit();
@@ -76,11 +77,11 @@ function Socket(props = {}) {
       _running = false;
       log({
         message: 'Stop listen sockets on port: '+ SOCKET_PORT + ', forced: ' + (forced === true ? 'true' : 'false'),
-        event: LOG_EVENT_SOCKET_STOP
+        event: SOCKET_STOP
       });
       _onClose();
     });
-    if (clientCount) Array.from(clients.values()).forEach(key => destroyConnection(connections[key]));
+    if (clientCount) Array.from(clients.values()).forEach(destroyConnection);
   };
 
   const isRunning = () => _running === true || _closing === true;

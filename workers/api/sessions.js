@@ -4,10 +4,13 @@ const Logger = require('../../utils/logger');
 const couchdb = require('../../utils/couchdb');
 const config = require('../../config');
 
-const { EmptyRequestError } = require('../../constants/errors');
-const { LOG_EVENT_API_SESSION_ERROR } = require('../../constants/logEvents');
 
-const SESSION_TTL = config.get('user.session') * 1e3; // to ms
+const { EmptyRequestError } = require('../../utils/errors');
+
+const {
+  SESSION_TTL,
+  LOG_EVENTS: { API_SESSION_ERROR }
+} = require('./constants');
 
 function Sessions(props = {}) {
   const logger = new Logger({ prefix: 'Sessions', logger: props.logger });
@@ -116,7 +119,7 @@ function Sessions(props = {}) {
           .catch(error => {
             log({
               message: 'Error on session by Basic auth',
-              event: LOG_EVENT_API_SESSION_ERROR,
+              event: API_SESSION_ERROR,
               error
             });
             resolve(undefined);
@@ -135,7 +138,7 @@ function Sessions(props = {}) {
           .catch(error => {
             log({
               message: 'Error on session by cookie',
-              event: LOG_EVENT_API_SESSION_ERROR,
+              event: API_SESSION_ERROR,
               error
             });
             resolve(undefined);

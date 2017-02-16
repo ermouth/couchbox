@@ -10,6 +10,7 @@ const DB_SAVE = config.get('logger.dbSave') === true;
 const BULK_SIZE = config.get('logger.bulkSize');
 
 const LOG_DEFAULT_NODE = 'couchbox';
+const LOG_DEFAULT_EVENT = 'log';
 const LOG_DOCUMENT_TYPE = 'flog';
 const LOG_CHAIN_DELIMITER = '→';
 
@@ -39,6 +40,7 @@ if (DB_SAVE) {
 function Logger(props = {}) {
   const _parent = props.logger;
   const _prefix = props.prefix;
+  const _defEvent = props.logEvent || LOG_DEFAULT_EVENT;
 
   const logs = new Array(BULK_SIZE);
   let log_index = 0;
@@ -72,7 +74,7 @@ function Logger(props = {}) {
   });
 
   const endLog = _parent ? _parent.log : function(data) {
-    const { time, chain, msg } = data;
+    const { time, chain, msg, logEvent } = data;
 
     let message, event = {  };
     if (Object.isString(msg)) {
@@ -95,6 +97,7 @@ function Logger(props = {}) {
       if (msg.event) event.event = msg.event;
       if (msg.ref) event.ref = msg.ref;
     }
+    if (logEvent && !event.event) event.event = logEvent;
 
     log(message, chain, time);
     if (db_saving) {
@@ -106,11 +109,11 @@ function Logger(props = {}) {
     }
   };
 
-  const preLog = ({ time, chain, msg }) => {
+  const preLog = ({ time, chain, msg, logEvent = _defEvent}) => {
     if (!time) time = new Date();
     if (!chain) chain = [];
     chain.push(_prefix);
-    endLog({ time, chain, msg });
+    endLog({ time, chain, msg, logEvent });
   };
 
   const saveForced = () => db_saving ? saveToDB() : Promise.resolve();
@@ -137,3 +140,4 @@ function Logger(props = {}) {
 }
 
 module.exports = Logger;
+module.exports.LOG_EVENTS = { LOG_ERROR: 'log/error' };

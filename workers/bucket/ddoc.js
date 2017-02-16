@@ -2,118 +2,117 @@ const Promise = require('bluebird');
 const vm = require('vm');
 const lib = require('../../utils/lib');
 const Logger = require('../../utils/logger');
-const { makeModules } = require('../../utils/ddocModules');
+const { makeModules, makeHandler } = require('../../utils/modules');
 const config = require('../../config');
-const Hook = require('./hook');
-
-const { LOG_EVENT_DDOC_INIT, LOG_EVENT_DDOC_ERROR, LOG_EVENT_FILTER_ERROR } = require('../../constants/logEvents');
 
 
-function Filter(ddoc, name, lambda, props) {
-  const filterName = ddoc +'/'+ name;
-  const logger = new Logger({
-    prefix: 'Filter '+ filterName,
-    logger: props.logger
-  });
-  const log = logger.getLog();
+const { DDOC_INIT, DDOC_ERROR, FILTER_ERROR, HOOK_ERROR, HOOK_LOG } = require('./constants').LOG_EVENTS;
 
-  let _lambda;
-
-  try {
-    _lambda = lib.makeFunc(lambda);
-  } catch(error) {
-    _lambda = undefined;
-    log({
-      message: 'Error compile filter lambda: '+ filterName,
-      event: LOG_EVENT_FILTER_ERROR,
-      error
-    });
-  }
-
-  return _lambda
-    ? (doc) => _lambda(doc) === true
-    : undefined;
-}
-
-function DDoc(db, props = {}) {
+function DDoc(bucket, bucketName, props = {}) {
   const { name, methods } = props;
   const logger = new Logger({
     prefix: 'DDoc '+ name,
     logger: props.logger
   });
   const log = logger.getLog();
+  const ddoc = this;
 
   const hooks = new Map();
-  const filters = new Map();
+  const filters = [];
+
   let id;
   let rev = props.rev;
   let seq;
 
   function init() {
     return new Promise((resolve, reject) => {
-      db.get('_design/'+ name, { local_seq: true, rev }, (error, body) => {
+      bucket.get('_design/'+ name, { local_seq: true, rev }, (error, body) => {
         if (error) return reject(error);
 
         id = body._id;
         rev = body._rev;
         seq = body._local_seq;
 
-        if (body.filters && body.hooks) {
-          const filterProps = { logger };
-          const hookProps = Object.assign({}, filterProps, makeModules(body, { log, bucket: db, methods }));
-
-          Object.keys(body.filters).forEach(filterKey => {
-            if (!body.hooks[filterKey]) return null;
-            const filter = new Filter(name, filterKey, body.filters[filterKey], filterProps);
-            if (filter) {
-              const hook = new Hook(name, filterKey, body.hooks[filterKey], hookProps);
-              if (hook) {
-                hooks.set(filterKey, hook);
-                filters.set(filterKey, filter);
-              }
+        const referrer = ([doc]) => bucketName +'/'+ doc._id +'/'+ doc._rev;
+        makeModules(body, { log, bucket, methods }).then(ddocContext => {
+          const keys = Object.keys(body.filters || {}).sort();
+          Promise.all(keys.map(key => {
+            const filterSrc = body.filters[key];
+            const hookParams = body.hooks[key];
+            if (!filterSrc || !hookParams) return Promise.resolve();
+            let filter;
+            try {
+              filter = lib.evalFunc(filterSrc);
+            } catch (error) {
+              log({
+                message: 'Error compile filter: '+ key,
+                event: FILTER_ERROR,
+                error
+              });
             }
-          });
-        }
+            if (filter) {
+              const onHandlerError = (error) => {
+                log({
+                  message: 'Error init hook lambda: '+ key,
+                  event: HOOK_ERROR,
+                  error
+                });
+                return null;
+              };
+              const handlerProps = Object.assign({ logger, logEvent: HOOK_LOG, errorEvent: HOOK_ERROR, methods, referrer }, ddocContext);
+              return makeHandler(bucket, name, key, hookParams, handlerProps).catch(onHandlerError).then(handler => {
+                if (handler && handler.handler) {
+                  const hook = {
+                    name: key,
+                    mode: hookParams.mode,
+                    handler: handler.handler
+                  };
+                  return { key, filter, hook };
+                }
+              })
+            }
+            else return Promise.resolve();
+          })).then(handlers => {
+            handlers.filter(i => i && i.key).map(({ key, filter, hook }) => {
+              hooks.set(key, { filter, hook });
+              return key;
+            }).sort().forEach(k => filters.push(k));
 
-        log({
-          message: 'Started ddoc: '+ name,
-          event: LOG_EVENT_DDOC_INIT,
-          error
+            log({
+              message: 'Started ddoc: '+ name,
+              event: DDOC_INIT,
+              error
+            });
+
+            return resolve({ seq });
+          });
         });
-        return resolve({ seq });
       });
     });
   }
 
   const getInfo = () => ({ name, rev, methods });
-  const getHook = (hookName) => hooks.has(hookName) ? hooks.get(hookName) : null;
+  const getHook = (key) => hooks.has(key) ? hooks.get(key).hook : null;
 
-  function filter(change) {
-    const hooksResult = [];
-    for (let filterKey of filters.keys()) {
-      let filterResult = false;
+  const filter = (change) => {
+    const res = [];
+    filters.forEach(key => {
+      const { filter, hook } = hooks.get(key);
+      let filterRes = false;
       try {
-        filterResult = filters.get(filterKey)(change.doc);
-      } catch(error) {
-        filterResult = false;
+        filterRes = filter(change.doc);
+      } catch (e) {
+        filterRes = false;
         log({
-          message: 'Error on filter: '+ name +'/'+ filterKey,
-          event: LOG_EVENT_DDOC_ERROR,
+          message: 'Error on filter: '+ name +'/'+ key,
+          event: DDOC_ERROR,
           error
         });
       }
-      if (filterResult === true) {
-        const hook = getHook(filterKey);
-        if (hook) hooksResult.push(hook);
-        else log({
-          message: 'Error on filter: '+ name +'/'+ filterKey,
-          event: LOG_EVENT_DDOC_ERROR,
-          error: new Error('Cannot get hook by filter key')
-        });
-      }
-    }
-    return hooksResult;
-  }
+      if (filterRes) res.push(hook);
+    });
+    return res;
+  };
 
   return { name, init, filter, getInfo, getHook };
 }

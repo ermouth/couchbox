@@ -8,8 +8,12 @@ const lib = require('../../utils/lib');
 const Logger = require('../../utils/logger');
 const config = require('../../config');
 
-const { LOG_EVENT_API_START, LOG_EVENT_API_STOP, LOG_EVENT_API_ROUTE_ERROR } = require('../../constants/logEvents');
-const { API_URL_ROOT } = require('./constants');
+const {
+  API_URL_ROOT,
+  LOG_EVENTS: {
+    API_START, API_STOP, API_ROUTE_ERROR
+  }
+} = require('./constants');
 
 function API(props = {}) {
   const logger = new Logger({ prefix: 'API', logger: props.logger });
@@ -102,14 +106,15 @@ function API(props = {}) {
          bucket.onUpdate((needStop) => needStop && close());
          return res.handlers;
        });
-     })).then(results => {
-       results.flatten().forEach(({ domain, endpoint, path, handler, bucket }) => {
+     })).then(handlers => {
+       handlers.flatten().forEach(({ domain, endpoint, handlerKey, handler, bucket }) => {
+         const path = handlerKey;
          try {
            router.addRoute(domain, endpoint, path, handler, bucket);
          } catch (error) {
            log({
              message: 'Error on route creation: "'+ [domain, '/', endpoint, path].join('') + '"',
-             event: LOG_EVENT_API_ROUTE_ERROR,
+             event: API_ROUTE_ERROR,
              error
            });
          }
@@ -117,7 +122,7 @@ function API(props = {}) {
        server.listen(API_PORT, function () {
          log({
            message: 'Start api listen requests on port: '+ API_PORT,
-           event: LOG_EVENT_API_START
+           event: API_START
          });
          _onInit({ timeout });
        });
@@ -127,7 +132,7 @@ function API(props = {}) {
   const end = (forced) => {
     log({
       message: 'Stop api on port: '+ API_PORT + ', forced: '+ (forced === true ? 'true' : 'false'),
-      event: LOG_EVENT_API_STOP
+      event: API_STOP
     });
     server.close(() => {
       if (_running) {
