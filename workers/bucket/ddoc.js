@@ -30,9 +30,7 @@ function Filter(ddoc, name, lambda, props) {
     });
   }
 
-  return _lambda
-    ? (doc) => _lambda(doc) === true
-    : undefined;
+  return _lambda;
 }
 
 function DDoc(db, props = {}) {
