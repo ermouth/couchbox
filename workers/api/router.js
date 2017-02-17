@@ -167,27 +167,31 @@ function Router(props = {}) {
       }
     }
     res.writeHead(code, headers);
-    if (result.body !== undefined) {
-      try {
-        res.write(result.body);
-      } catch (error) {
-        log({
-          message: 'Error on send result',
-          event: LOG_EVENT_API_REQUEST_ERROR,
-          error
-        });
-        return sendResult(res, makeError(new SendingError(error)));
+    if (result.stream && result.stream.pipe) {
+      result.stream.pipe(res);
+    } else {
+      if (result.body !== undefined) {
+        try {
+          res.write(result.body);
+        } catch (error) {
+          log({
+            message: 'Error on send result',
+            event: LOG_EVENT_API_REQUEST_ERROR,
+            error
+          });
+          return sendResult(res, makeError(new SendingError(error)));
+        }
       }
+      res.end((error) => {
+        if (error) {
+          log({
+            message: 'Error on send response',
+            event: LOG_EVENT_API_REQUEST_ERROR,
+            error
+          });
+        }
+      });
     }
-    res.end((error) => {
-      if (error) {
-        log({
-          message: 'Error on send response',
-          event: LOG_EVENT_API_REQUEST_ERROR,
-          error
-        });
-      }
-    });
   };
 
   function onRequest(req, res) {
