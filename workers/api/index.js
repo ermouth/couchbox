@@ -37,7 +37,6 @@ module.exports = function initWorker(cluster, props = {}) {
       event: WORKER_ERROR,
       error
     });
-    console.error(error);
   });
 
   worker.emitter.on(WORKER_HANDLE_EXIT, (forced) => {

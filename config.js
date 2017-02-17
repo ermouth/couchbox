@@ -48,6 +48,12 @@ const defaultConfig = {
     map: mapStr,
     check: checkStr
   },
+  'couchbox.nodes': {
+    env: 'NODES',
+    value: {},
+    map: mapJSON,
+    check: checkJSON
+  },
 
   'system.configTimeout': {
     env: 'DB_CONFIG_TIMEOUT',

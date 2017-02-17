@@ -112,6 +112,7 @@ module.exports = function initMaster(cluster) {
       if (!Object.isObject(conf)) return null;
       onConfigFields(conf, [
         ['couchbox.nodename', 'nodename'],
+        ['couchbox.nodes', 'nodes'],
         ['socket.enabled', 'socket'],
         ['socket.port', 'socket_port'],
         ['socket.path', 'socket_path'],
