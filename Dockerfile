@@ -14,17 +14,19 @@ RUN curl -sL https://deb.nodesource.com/setup_7.x | sudo -E bash - && \
 
 # Create app directory
 RUN mkdir -p /usr/app
+RUN mkdir -p /usr/app/src
 WORKDIR /usr/app
 
 # Install app global dependencies
 RUN npm -g install node-gyp
 
 # Copy app
+COPY ./docker.js /usr/app/index.js
 COPY ./package.json /usr/app/package.json
 
 # Install packages
 RUN npm install
 
-VOLUME ["/usr/app"]
+VOLUME ["/usr/app/src"]
 EXPOSE 8000 8001 8002 8003
 CMD [ "npm", "start" ]

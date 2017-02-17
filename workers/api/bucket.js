@@ -18,7 +18,7 @@ function Bucket(props = {}) {
 
   const bucket = couchdb.connectBucket(name);
 
-  const ddocs = {};
+  const ddocs = new Set();
   let timeout = 0;
   let seq = 0;
 
@@ -43,7 +43,7 @@ function Bucket(props = {}) {
         .then(info => {
           if (info) {
             if (timeout < info.timeout) timeout = info.timeout;
-            ddocs[info.id] = info;
+            ddocs.add(info.id);
           }
           return info;
         });
@@ -87,7 +87,7 @@ function Bucket(props = {}) {
     feed = bucket.follow({ since: 'now' });
     feed.on('change', function (change) {
       if (seq < change.seq) seq = change.seq;
-      if (change && change.id && ddocs.hasOwnProperty(change.id)) {
+      if (change && change.id && ddocs.has(change.id)) {
         feed.stop();
         callback(true);
       }
