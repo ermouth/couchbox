@@ -153,23 +153,25 @@ function Router(props = {}) {
   const sendResult = (res, result = {}) => {
     const code = result.code || API_DEFAULT_CODE;
     const headers = result.headers || API_DEFAULT_HEADERS;
-    if (result.json) {
-      headers['Content-Type'] = 'application/json';
-      try {
-        result.body = JSON.stringify(result.json);
-      } catch (error) {
-        log({
-          message: 'Error on parse result',
-          event: LOG_EVENT_API_REQUEST_ERROR,
-          error
-        });
-        return sendResult(res, makeError(new SendingError(error)));
-      }
-    }
-    res.writeHead(code, headers);
+    
     if (result.stream && result.stream.pipe) {
+      res.writeHead(code, headers);
       result.stream.pipe(res);
     } else {
+      if (result.json) {
+        headers['Content-Type'] = 'application/json';
+        try {
+          result.body = JSON.stringify(result.json);
+        } catch (error) {
+          log({
+            message: 'Error on parse result',
+            event: LOG_EVENT_API_REQUEST_ERROR,
+            error
+          });
+          return sendResult(res, makeError(new SendingError(error)));
+        }
+      }
+      res.writeHead(code, headers);
       if (result.body !== undefined) {
         try {
           res.write(result.body);
