@@ -2,7 +2,7 @@ const Promise = require('bluebird');
 const vm = require('vm');
 const lib = require('../../utils/lib');
 const Logger = require('../../utils/logger');
-const { makeModules, makeHandler } = require('../../utils/modules');
+const { makeContext, makeHandler } = require('../../utils/modules');
 const config = require('../../config');
 
 
@@ -34,58 +34,58 @@ function DDoc(bucket, bucketName, props = {}) {
         seq = body._local_seq;
 
         const referrer = ([doc]) => bucketName +'/'+ doc._id +'/'+ doc._rev;
-        makeModules(body, { log, bucket, methods }).then(ddocContext => {
-          const keys = Object.keys(body.filters || {}).sort();
-          Promise.all(keys.map(key => {
-            const filterSrc = body.filters[key];
-            const hookParams = body.hooks[key];
-            if (!filterSrc || !hookParams) return Promise.resolve();
-            let filter;
-            try {
-              filter = lib.evalFunc(filterSrc);
-            } catch (error) {
-              log({
-                message: 'Error compile filter: '+ key,
-                event: FILTER_ERROR,
-                error
-              });
-            }
-            if (filter) {
-              const onHandlerError = (error) => {
-                log({
-                  message: 'Error init hook lambda: '+ key,
-                  event: HOOK_ERROR,
-                  error
-                });
-                return null;
-              };
-              const handlerProps = Object.assign({ logger, logEvent: HOOK_LOG, errorEvent: HOOK_ERROR, methods, referrer }, ddocContext);
-              return makeHandler(bucket, name, key, hookParams, handlerProps).catch(onHandlerError).then(handler => {
-                if (handler && handler.handler) {
-                  const hook = {
-                    name: key,
-                    mode: hookParams.mode,
-                    handler: handler.handler
-                  };
-                  return { key, filter, hook };
-                }
-              })
-            }
-            else return Promise.resolve();
-          })).then(handlers => {
-            handlers.filter(i => i && i.key).map(({ key, filter, hook }) => {
-              hooks.set(key, { filter, hook });
-              return key;
-            }).sort().forEach(k => filters.push(k));
+        const context = makeContext(body, log);
+        const keys = Object.keys(body.filters || {}).sort();
 
+        Promise.all(keys.map(key => {
+          const filterSrc = body.filters[key];
+          const hookParams = body.hooks[key];
+          if (!filterSrc || !hookParams) return Promise.resolve();
+          let filter;
+          try {
+            filter = lib.evalFunc(filterSrc);
+          } catch (error) {
             log({
-              message: 'Started ddoc: '+ name,
-              event: DDOC_INIT,
+              message: 'Error compile filter: '+ key,
+              event: FILTER_ERROR,
               error
             });
+          }
+          if (filter) {
+            const onHandlerError = (error) => {
+              log({
+                message: 'Error init hook lambda: '+ key,
+                event: HOOK_ERROR,
+                error
+              });
+              return null;
+            };
+            const handlerProps = Object.assign({ logger, logEvent: HOOK_LOG, errorEvent: HOOK_ERROR, methods, referrer }, context);
+            return makeHandler(bucket, name, key, hookParams, handlerProps).catch(onHandlerError).then(handler => {
+              if (handler && handler.handler) {
+                const hook = {
+                  name: key,
+                  mode: hookParams.mode,
+                  handler: handler.handler
+                };
+                return { key, filter, hook };
+              }
+            })
+          }
+          else return Promise.resolve();
+        })).then(handlers => {
+          handlers.filter(i => i && i.key).map(({ key, filter, hook }) => {
+            hooks.set(key, { filter, hook });
+            return key;
+          }).sort().forEach(k => filters.push(k));
 
-            return resolve({ seq });
+          log({
+            message: 'Started ddoc: '+ name,
+            event: DDOC_INIT,
+            error
           });
+
+          return resolve({ seq });
         });
       });
     });

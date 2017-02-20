@@ -193,7 +193,6 @@ function Router(props = {}) {
     const sendError = error => sendResult(res, makeError(error));
 
     const request = makeRoute(req);
-    console.log('onRequest', request.host, request.routePath);
     const route = getRoute(request.host, request.routePath);
     if (!route) return sendError(new NotFoundError('not_found'));
 

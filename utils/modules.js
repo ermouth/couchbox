@@ -15,6 +15,7 @@ const PLUGIN_ERROR = 'plugin/error';
 const HANDLER_LOG = 'handler/log';
 const HANDLER_ERROR = 'handler/error';
 const HANDLER_DEFAULT_TIMEOUT = 10e3;
+const PROCESS_TIMEOUT = config.get('process.timeout');
 const CONTEXT_DENY = {
   language: true,
   filters: true,
@@ -129,54 +130,55 @@ const makePlugins = (ctx, methods = [], log) => {
   });
 };
 
-const makeModules = (body = {}, props = {}) => {
-  const { bucket, methods, log } = props;
-  const module_cache = {};
-  const ctx = {}; Object.keys(body).forEach(key => (key && key[0] !== '_' && !CONTEXT_DENY[key]) && (ctx[key] = body[key]));
+const makeContext = (body = {}, log) => {
+  const ctx = {};
+  Object.keys(body).forEach(key => (key && key[0] !== '_' && !CONTEXT_DENY[key]) && (ctx[key] = body[key]));
 
   const context = new vm.createContext(lambdaGlobals);
-  const timeout = config.get('process.timeout');
 
-  return makePlugins(ctx, methods, log).then(plugins => {
-    const modulesCtx = new Proxy(ctx, {
-      get: (target, prop) => {
-        if (prop in target) return target[prop];
-        if (prop in plugins) {
-          target[prop] = plugins[prop].make({ bucket, ctx, reject:()=>{} });
-        } else {
-          target[prop] = undefined;
-        }
-        return target[prop];
-      }
-    });
+  const module_cache = {};
 
-    function requireModule(property, module) {
-      module = module || {};
-      const newModule = resolveModule(property.split('/'), module.parent, modulesCtx);
-      if (!module_cache.hasOwnProperty(newModule.id)) {
-        module_cache[newModule.id] = {};
-        const script = '(function (module, exports, require, log) { ' + newModule.current + '\n })';
-        try {
-          vm.runInContext(script, context, { timeout }).call(modulesCtx, newModule, newModule.exports, (property) => requireModule(property, newModule), log);
-        } catch (error) {
-          log({
-            message: 'Error on require property: '+ property,
-            event: MODULE_ERROR,
-            error
-          });
-        }
-        module_cache[newModule.id] = newModule.exports;
-      }
-      return module_cache[newModule.id];
+  function compileModule(property, module) {
+    const script = '(function (module, exports, require, log) { ' + module.current + '\n })';
+    try {
+      module_cache[module.id] = vm.runInContext(script, context);
+    } catch (error) {
+      log({
+        message: 'Error on compile require property: ' + property,
+        event: MODULE_ERROR,
+        error
+      });
     }
+  }
 
-    return { context, ctx, requireModule };
-  });
+  function makeModule(log, property, module) {
+    const modulesCtx = this;
+    try {
+      module_cache[module.id].call(modulesCtx, module, module.exports, (property) => _requireModule.call(modulesCtx, log, property, module), log);
+    } catch (error) {
+      log({
+        message: 'Error on require: ' + property,
+        event: MODULE_ERROR,
+        error
+      });
+    }
+    return module.exports;
+  }
+
+  function requireModule(log, property, module) {
+    const modulesCtx = this;
+    module = module || {};
+    const newModule = resolveModule(property.split('/'), module.parent, modulesCtx);
+    if (!(newModule.id in module_cache)) compileModule(property, newModule);
+    return makeModule.call(modulesCtx, log, property, newModule, log);
+  }
+
+  return { context, ctx, requireModule };
 };
 
 const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
   const handlerName = ddoc +'/'+ handlerKey;
-  const { methods, requireModule, ctx = {}, context, referrer } = props;
+  const { ctx = {}, context, requireModule, methods, referrer } = props;
   const logger = new Logger({
     prefix: 'Handler '+ handlerName,
     logger: props.logger,
@@ -191,21 +193,29 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
 
   const lambdaName = ddoc +'__'+ handlerKey.replace(/[^a-z0-9]+/g, '_');
   const lambdaSrc = body.lambda.trim().replace(/^function.*?\(/, 'function '+ lambdaName +'(');
-  const timeout = body.timeout && body.timeout > 0 ? body.timeout : (config.get('process.timeout') || HANDLER_DEFAULT_TIMEOUT);
+  const timeout = body.timeout && body.timeout > 0 ? body.timeout : (PROCESS_TIMEOUT || HANDLER_DEFAULT_TIMEOUT);
   const validate = body.dubug !== true;
 
+  const lambda_globals = lib.getGlobals(lambdaSrc);
   if (validate) {
-    const validationResult = lib.validateGlobals(lambdaSrc, { available: lambdaAvailable });
+    const validationResult = lib.validateGlobals(lambda_globals, { available: lambdaAvailable });
     if (validationResult) return Promise.reject(new Error('Bad lambda validation: '+ JSON.stringify(validationResult)));
   }
+  const needRequire = lambda_globals.indexOf('require') >= 0;
 
-  const _script = new vm.Script(
+  const script = (
     '(function runner__'+ lambdaName +'(require, log, params){' +
       'return new Promise(' +
         '(resolve, reject) => { (' + lambdaSrc + ').apply(this, params); }' +
       ');' +
     '})'
   );
+  let lambda;
+  try {
+    lambda = vm.runInContext(script, context)
+  } catch (error) {
+    return Promise.reject(new Error('Bad lambda compilation "'+ error.message + '"'));
+  }
 
   const errorHandler = (error) => {
     if (error instanceof Promise.TimeoutError) {
@@ -215,11 +225,13 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
     }
   };
 
+
   return makePlugins(ctx, methods, log).then(plugins => {
 
     function handler() {
+      const params = Array.from(arguments);
+
       return new Promise((resolve0, reject0) => {
-        const params = Array.from(arguments);
         const reject = (error) => reject0(new RejectHandlerError(error));
         const proxy = Proxy.revocable(ctx, {
           get: (target, prop) => {
@@ -231,15 +243,21 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
               );
             }
             return target[prop];
-          }
+          },
+          has: (target, prop) => prop in target || prop in plugins,
+          set: () => undefined,
+          defineProperty: () => undefined,
+          deleteProperty: () => undefined
         });
+
         const modulesCtx = proxy.proxy;
-        const onDone = () => { proxy.revoke(); };
+        const _require = needRequire ? function(prop) { return requireModule.call(modulesCtx, log, prop) }: null;
+        const onDone = () => proxy.revoke();
 
         try {
-          return _script.runInContext(context)
-            .call(modulesCtx, requireModule, log, params).timeout(timeout)
-            .catch(errorHandler).then(resolve0).catch(reject).finally(onDone)
+          return lambda.call(modulesCtx, _require, log, params)
+            .timeout(timeout)
+            .catch(errorHandler).then(resolve0).catch(reject).finally(onDone);
         } catch(error) {
           log({
             message: 'Error run handler lambda: '+ handlerName,
@@ -258,7 +276,7 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
 
 
 module.exports = {
-  makeModules,
+  makeContext,
   makePlugins,
   makeHandler,
   Constants: {

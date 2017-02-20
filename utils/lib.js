@@ -30,14 +30,7 @@ const getGlobals = module.exports.getGlobals = function getGlobals(src) {
   return (src) ? globalsDetect(src).map(i => i.name) : null;
 };
 
-const validateGlobals = module.exports.validateGlobals = function validateGlobals(funcSrc, params = {}) {
-  let globals;
-  try {
-    globals = getGlobals(funcSrc);
-  } catch(error) {
-    return error;
-  }
-
+const validateGlobals = module.exports.validateGlobals = function validateGlobals(globals, params = {}) {
   const errors = [];
   if (params.available && params.available.length) {
     const available = {};

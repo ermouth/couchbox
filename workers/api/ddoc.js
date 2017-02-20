@@ -1,7 +1,7 @@
 const Promise = require('bluebird');
 const vm = require('vm');
 const Logger = require('../../utils/logger');
-const { makeModules, makeHandler } = require('../../utils/modules');
+const { makeContext, makeHandler } = require('../../utils/modules');
 const config = require('../../config');
 
 const {
@@ -50,14 +50,17 @@ function DDoc(props = {}) {
       });
 
       const referrer = ([request]) => request.raw_path;
-      makeModules(body, { log, bucket, methods }).then(ddocContext => {
-        const handlerProps = Object.assign({ logger, logEvent: API_LOG, errorEvent: API_ERROR, methods, referrer }, ddocContext);
-        const apiHandlers = Object.keys(body.api || {}).map(handlerKey =>
-          makeHandler(bucket, name, handlerKey, body.api[handlerKey], handlerProps).catch(onHandlerError.fill(handlerKey)));
-        Promise.all(apiHandlers).then(handlers => {
-          const api = handlers.filter(handlerFilter);
-          return resolve({ name, id, rev, domain, endpoint, methods, api, timeout: timeout || API_DEFAULT_TIMEOUT });
-        });
+      const context = makeContext(body, log);
+
+      const handlerProps = Object.assign({ logger, logEvent: API_LOG, errorEvent: API_ERROR, methods, referrer }, context);
+      const apiHandlers = Object.keys(body.api || {}).map(handlerKey =>
+        makeHandler(bucket, name, handlerKey, body.api[handlerKey], handlerProps)
+          .catch(error => onHandlerError(handlerKey, error))
+      );
+
+      Promise.all(apiHandlers).then(handlers => {
+        const api = handlers.filter(handlerFilter);
+        return resolve({ name, id, rev, domain, endpoint, methods, api, timeout: timeout || API_DEFAULT_TIMEOUT });
       });
     });
   });

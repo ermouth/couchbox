@@ -16,12 +16,9 @@ const saveBatch = (bucket, toSave) => {
 
 const saveDoc = (bucket, doc) => {
   if (!doc) return Promise.reject(new Error('Bad document'));
-  let docDB = bucket;
-  if (doc._db) {
-    docDB = couchdb.connectBucket(doc._db);
-    delete doc['_db'];
-  }
-  return getOldDoc(docDB, doc).then(oldDoc => updateDoc(docDB, oldDoc, doc));
+  const docDB = doc._db ? couchdb.connectBucket(doc._db) : bucket;
+  const newDoc = Object.reject(doc, /^(?!(_rev$|_id$|_attachments$))_.+$/);
+  return getOldDoc(docDB, newDoc).then(oldDoc => updateDoc(docDB, oldDoc, newDoc));
 }; // save one doc: load old by result params and update
 
 const getOldDoc = (docDB, doc) => new Promise((resolve, reject) => {
