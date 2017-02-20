@@ -189,7 +189,7 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
   if (!body.lambda) return Promise.reject(new Error('No lambda'));
 
 
-  const lambdaName = ddoc +'__'+ handlerKey;
+  const lambdaName = ddoc +'__'+ handlerKey.replace(/[^a-z0-9]+/g, '_');
   const lambdaSrc = body.lambda.trim().replace(/^function.*?\(/, 'function '+ lambdaName +'(');
   const timeout = body.timeout && body.timeout > 0 ? body.timeout : (config.get('process.timeout') || HANDLER_DEFAULT_TIMEOUT);
   const validate = body.dubug !== true;

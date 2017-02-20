@@ -72,7 +72,7 @@ const makeRoute = (req) => {
   const query = queryIndex >= 0 ? queryString.parse(url.substring(queryIndex + 1)) : {};
   const path = raw_path.substring(1).split('/');
 
-  const routePath = '/' + path.slice(0,2).join('/');
+  const routePath = '/' + path.filter(i => i && i.length).join('/');
 
   return { host, port, method, raw_path, query, path, routePath, headers, peer };
 };
@@ -193,6 +193,7 @@ function Router(props = {}) {
     const sendError = error => sendResult(res, makeError(error));
 
     const request = makeRoute(req);
+    console.log('onRequest', request.host, request.routePath);
     const route = getRoute(request.host, request.routePath);
     if (!route) return sendError(new NotFoundError('not_found'));
 
