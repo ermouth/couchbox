@@ -11,6 +11,7 @@ const DB_IP = config.get('couchdb.ip');
 const DB_PORT = config.get('couchdb.port');
 const DB_USER = config.get('couchdb.user');
 const DB_PASS = config.get('couchdb.pass') || 'momomo';
+const DB_SECRET = config.get('couchdb.secret');
 
 const DB_ADDRESS = DB_IP +':'+ DB_PORT;
 const DB_URL = DB_CONNECTION +'://'+ DB_ADDRESS;
@@ -95,7 +96,7 @@ const makeAuthHeaders = (userCtx) => {
   }
   if (userCtx && Object.isString(userCtx.name)) {
     headers['X-Auth-CouchDB-UserName'] = userCtx.name;
-    headers['X-Auth-CouchDB-Token'] = crypto.createHmac('sha1', config.get('couchdb.secret')).update(userCtx.name).digest('hex');
+    headers['X-Auth-CouchDB-Token'] = crypto.createHmac('sha1', DB_SECRET).update(userCtx.name).digest('hex');
   }
   return headers;
 }; // return HTTP header for virtual auth by userCtx
@@ -106,5 +107,8 @@ module.exports = {
   connect,
   connectBucket,
   makeAuthHeaders,
-  getBasicSession, getCookieSession
+  getBasicSession, getCookieSession,
+  Constants: {
+    DB_URL
+  }
 };

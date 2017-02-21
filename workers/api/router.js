@@ -31,7 +31,7 @@ const {
 
 const corsHeads = (request) => {
   const headers = API_DEFAULT_HEADERS;
-  if (!(request && request.headers && request.headers.origin)) return Promise.resolve(headers);
+  if (!(request && request.headers && request.headers.origin)) return Promise.resolve({ headers });
   if (!CORS) return Promise.reject(new BadReferrerError());
   const rule = CORS_ORIGINS['*'] ? '*' : CORS_ORIGINS[request.headers.origin] ? request.headers.origin : null;
   if (!rule) return Promise.reject(new BadReferrerError());
@@ -39,7 +39,7 @@ const corsHeads = (request) => {
   headers['Access-Control-Allow-Headers'] = CORS_HEADES || '';
   headers['Access-Control-Allow-Methods'] = CORS_METHODS || '';
   headers['Access-Control-Allow-Credentials'] = CORS_CREDENTIALS;
-  return Promise.resolve(headers);
+  return Promise.resolve({ headers });
 };
 
 const parseBody = (req) => {
@@ -196,24 +196,39 @@ function Router(props = {}) {
     const route = getRoute(request.host, request.routePath);
     if (!route) return sendError(new NotFoundError('not_found'));
 
-    (request.method === 'OPTIONS'
-      ? corsHeads(request).then(headers => ({ headers }))
-      : makeRequest(req, request, route).then(request =>
-        route.handler(request).then(result => {
-          if (route.bucket && result.docs && result.docs.length) {
-            return saveResults(route.bucket.getBucket(), result.docs).then(() => {
-              log({
-                message: 'Saved api results: "' + request.raw_path + '"',
-                ref: request.raw_path,
-                event: API_SAVE
-              });
-              return result;
-            });
-          }
+    let processPromise;
+
+    const processRequest = (request) => route.handler(request).then(result => {
+      if (route.bucket && result.docs && result.docs.length) {
+        return saveResults(route.bucket.getBucket(), result.docs).then(() => {
+          log({
+            message: 'Saved api results: "' + request.raw_path + '"',
+            ref: request.raw_path,
+            event: API_SAVE
+          });
           return result;
-        })
-      )
-    ).then(send).catch(error => {
+        });
+      }
+      return result;
+    });
+
+    if (request.headers.origin) {
+      if (request.method === 'OPTIONS') {
+        // send cors headers only
+        processPromise = corsHeads(request);
+      } else {
+        // send cors headers and router result
+        processPromise = Promise.all([
+          corsHeads(request),
+          makeRequest(req, request, route).then(processRequest)
+        ]).then(([corsResult, routerResult]) => Object.assign(corsResult, routerResult));
+      }
+    } else {
+      // send router result
+      processPromise = makeRequest(req, request, route).then(processRequest);
+    }
+
+    processPromise.then(send).catch(error => {
       log({
         message: 'Route rejection',
         event: API_REQUEST_REJECT,

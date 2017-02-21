@@ -20,16 +20,20 @@ const mapInt = (val) => +val;
 const mapStr = (val) => val;
 const mapBool = (val) => val === true || val === 'true';
 const mapJSON = (val) => Object.isString(val) ? lib.parseJSON(val) : Object.isObject(val) ? val : undefined;
-const mapsStrArr = (splitter) => (val) =>  val
-  ? Object.isString(val)
-    ? val.split(splitter).map(mapStr).filter(checkStr)
-    : Object.isArray(val) ? val.map(mapStr).filter(checkStr) : []
-  : [];
-const mapsIntArr = (splitter) => (val) => val
-  ? Object.isString(val)
-    ? val.split(splitter).map(mapInt).filter(checkNumPlus)
-    : Object.isArray(val) ? val.map(mapInt).filter(checkNumPlus) : []
-  : [];
+const mapsStrArr = (splitter) => (val) => {
+  return val
+    ? Object.isString(val)
+      ? val.split(splitter).map(mapStr).filter(checkStr)
+      : Object.isArray(val) ? val.map(mapStr).filter(checkStr) : []
+    : [];
+};
+const mapsIntArr = (splitter) => (val) => {
+  return val
+    ? Object.isString(val)
+      ? val.split(splitter).map(mapInt).filter(checkNumPlus)
+      : Object.isArray(val) ? val.map(mapInt).filter(checkNumPlus) : []
+    : [];
+}
 
 const checkBool = (val) => val === true || val === false;
 const checkNumPlus = (val) => val > 0;
@@ -40,17 +44,25 @@ const checkEnum = (items) => { const en = {}; items.forEach(i => (en[i] = true))
 const checkNumPlusArr = (val) => Object.isArray(val) && (val.length === 0 || (val.length > 0 && val.filter(checkNumPlus).unique().length === val.length));
 const checkStrArr = (val) => Object.isArray(val) && (val.length === 0 || (val.length > 0 && val.filter(checkStr).unique().length === val.length));
 
+const strStr = (val) => val;
+const strInt = (val) => val.toString();
+const strBool = (val) => val.toString();
+const strArrStr = (delimiter) => (val) => val.map(strStr).join(delimiter);
+const strArrInt = (delimiter) => (val) => val.map(strInt).join(delimiter);
+const strJSON = (val) => JSON.stringify(val);
 
 const defaultConfig = {
   'couchbox.nodename': {
     env: 'NODE_NAME',
     value: undefined,
+    str: strStr,
     map: mapStr,
     check: checkStr
   },
   'couchbox.nodes': {
     env: 'NODES',
     value: {},
+    str: strJSON,
     map: mapJSON,
     check: checkJSON
   },
@@ -58,6 +70,7 @@ const defaultConfig = {
   'system.configTimeout': {
     env: 'DB_CONFIG_TIMEOUT',
     value: 10000,
+    str: strInt,
     map: mapInt,
     check: checkNumPlus
   },
@@ -65,6 +78,7 @@ const defaultConfig = {
   'process.timeout': {
     env: 'DB_HOOK_TIMEOUT',
     value: 5000,
+    str: strInt,
     map: mapInt,
     check: checkNumPlus
   },
@@ -72,74 +86,71 @@ const defaultConfig = {
   'logger.db': {
     env: 'LOGGER_DB',
     value: 'log',
+    str: strStr,
     map: mapStr,
     check: checkStr
   },
   'logger.dbSave': {
     env: 'LOGGER_DB_SAVE',
     value: false,
+    str: strBool,
     map: mapBool,
     check: checkBool
   },
   'logger.bulkSize': {
     env: 'LOGGER_BULK_SIZE',
     value: 100,
+    str: strInt,
     map: mapInt,
     check: checkNumPlus
-  },
-
-  'nodes.domain': {
-    env: 'NODES_DOMAIN',
-    value: 'vezdelegko.ru',
-    map: mapStr,
-    check: checkStr
-  },
-  'nodes.domainPrefix': {
-    env: 'NODES_DOMAIN_PREFIX',
-    value: 'https://couch-',
-    map: mapStr,
-    check: checkStr
   },
 
   'couchdb.connection': {
     env: 'DB_CONNECTION',
     value: 'http',
+    str: strStr,
     map: mapStr,
     check: checkEnum(['http', 'https'])
   },
   'couchdb.ip': {
     env: 'DB_IP',
     value: 'localhost',
+    str: strStr,
     map: mapStr,
     check: checkStr
   },
   'couchdb.port': {
     env: 'DB_PORT',
     value: 5984,
+    str: strInt,
     map: mapInt,
     check: checkNumPlus
   },
   'couchdb.user': {
     env: 'DB_USER',
     value: 'system',
+    str: strStr,
     map: mapStr,
     check: checkStr
   },
   'couchdb.pass': {
     env: 'DB_PASS',
     value: '',
+    str: strStr,
     map: mapStr,
     check: checkStr
   },
   'couchdb.secret': {
     env: 'DB_SECRET',
     value: undefined,
+    str: strStr,
     map: mapStr,
     check: checkStr
   },
   'couchdb.cookie': {
     env: 'DB_COOKIE',
     value: undefined,
+    str: strStr,
     map: mapStr,
     check: checkStr
   },
@@ -147,6 +158,7 @@ const defaultConfig = {
   'user.session': {
     env: 'USER_SESSION',
     value: 60 * 60, // in seconds (default 1 hour)
+    str: strInt,
     map: mapInt,
     check: checkNumPlus
   },
@@ -154,12 +166,14 @@ const defaultConfig = {
   'redis.ip': {
     env: 'REDIS_IP',
     value: 'localhost',
+    str: strStr,
     map: mapStr,
     check: checkStr
   },
   'redis.port': {
     env: 'REDIS_PORT',
     value: 6379,
+    str: strInt,
     map: mapInt,
     check: checkNumPlus
   },
@@ -167,18 +181,21 @@ const defaultConfig = {
   'socket.enabled': {
     env: 'SOCKET',
     value: false,
+    str: strBool,
     map: mapBool,
     check: checkBool
   },
   'socket.port': {
     env: 'SOCKET_PORT',
     value: 8000,
+    str: strInt,
     map: mapInt,
     check: checkNumPlus
   },
   'socket.path': {
     env: 'SOCKET_PATH',
     value: '/_socket',
+    str: strStr,
     map: mapStr,
     check: checkStr
   },
@@ -186,24 +203,28 @@ const defaultConfig = {
   'api.enabled': {
     env: 'API',
     value: false,
+    str: strBool,
     map: mapBool,
     check: checkBool
   },
   'api.ports': {
     env: 'API_PORTS',
     value: [],
-    map: mapsIntArr(','),
+    str: strArrInt(','),
+    map: mapsIntArr(/,\s*/),
     check: checkNumPlusArr
   },
   'api.hostKey': {
     env: 'API_HOST_KEY',
     value: 'Host',
+    str: strStr,
     map: mapStr,
     check: checkStr
   },
   'api.restartDelta': {
     env: 'API_RESTART_DELTA',
     value: 5000,
+    str: strInt,
     map: mapInt,
     check: checkNumPlus
   },
@@ -211,30 +232,35 @@ const defaultConfig = {
   'cors.enabled': {
     env: 'CORS',
     value: false,
+    str: strBool,
     map: mapBool,
     check: checkBool
   },
   'cors.credentials': {
     env: 'CORS_CREDENTIALS',
     value: false,
+    str: strBool,
     map: mapBool,
     check: checkBool
   },
   'cors.headers': {
     env: 'CORS_HEADERS',
     value: [],
+    str: strArrStr(', '),
     map: mapsStrArr(/,\s*/),
     check: checkStrArr
   },
   'cors.methods': {
     env: 'CORS_METHODS',
     value: [],
+    str: strArrStr(', '),
     map: mapsStrArr(/,\s*/),
     check: checkStrArr
   },
   'cors.origins': {
     env: 'CORS_ORIGINS',
     value: [],
+    str: strArrStr(', '),
     map: mapsStrArr(/,\s*/),
     check: checkStrArr
   },
@@ -242,6 +268,7 @@ const defaultConfig = {
   'plugins': {
     env: 'PLUGINS',
     value: {},
+    str: strJSON,
     map: mapJSON,
     check: checkJSON
   },
@@ -271,7 +298,7 @@ module.exports.toEnv = () => {
     const field = defaultConfig[fieldPath];
     if (!field || !field.env) return null;
     const val = lib.getField(config, fieldPath);
-    conf[field.env] = Object.isObject(val) || Object.isArray(val) ? JSON.stringify(val) : val;
+    conf[field.env] = field.str(val);
   });
   return conf;
 }; // serialize config to env variables
