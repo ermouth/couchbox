@@ -144,7 +144,7 @@ const makeContext = (body = {}, log) => {
       module_cache[module.id] = vm.runInContext(script, context);
     } catch (error) {
       log({
-        message: 'Error on compile require property: ' + property,
+        message: 'Error compiling require property: ' + property,
         event: MODULE_ERROR,
         error
       });
@@ -157,7 +157,7 @@ const makeContext = (body = {}, log) => {
       module_cache[module.id].call(modulesCtx, module, module.exports, (property) => _requireModule.call(modulesCtx, log, property, module), log);
     } catch (error) {
       log({
-        message: 'Error on require: ' + property,
+        message: 'Error during require: ' + property,
         event: MODULE_ERROR,
         error
       });
@@ -199,7 +199,7 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
   const lambda_globals = lib.getGlobals(lambdaSrc);
   if (validate) {
     const validationResult = lib.validateGlobals(lambda_globals, { available: lambdaAvailable });
-    if (validationResult) return Promise.reject(new Error('Bad lambda validation: '+ JSON.stringify(validationResult)));
+    if (validationResult) return Promise.reject(new Error('Lambda validation failed: '+ JSON.stringify(validationResult)));
   }
   const needRequire = lambda_globals.indexOf('require') >= 0;
 
@@ -214,7 +214,7 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
   try {
     lambda = vm.runInContext(script, context)
   } catch (error) {
-    return Promise.reject(new Error('Bad lambda compilation "'+ error.message + '"'));
+    return Promise.reject(new Error('Failed compiling lambda "'+ error.message + '"'));
   }
 
   const errorHandler = (error) => {
@@ -260,7 +260,7 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
             .catch(errorHandler).then(resolve0).catch(reject).finally(onDone);
         } catch(error) {
           log({
-            message: 'Error run handler lambda: '+ handlerName,
+            message: 'Error running lambda handler: '+ handlerName,
             event: props.errorEvent || HANDLER_ERROR,
             error
           });
