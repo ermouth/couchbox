@@ -31,22 +31,15 @@ function Bucket(props = {}) {
     if (!(endpoints && Object.isObject(endpoints) && (keys = Object.keys(endpoints)) && keys.length)) return reject(new Error('Bad endpoints'));
     Promise.all(keys.map(key => {
       const { ddoc, endpoint, domain, methods } = endpoints[key];
-      ddoc['_design/' + ddoc] = null;
-      return DDoc({ logger, bucket, name: ddoc, domain, endpoint, methods })
-        .catch(error => {
-          log({
-            message: 'Error init DDoc: '+ ddoc,
-            event: DDOC_ERROR,
-            error
-          });
-        })
-        .then(info => {
-          if (info) {
-            if (timeout < info.timeout) timeout = info.timeout;
-            ddocs.add(info.id);
-          }
-          return info;
+      const ddocId = '_design/' + ddoc;
+      if (!ddocs.has(ddocId)) ddocs.add(ddocId);
+      return DDoc({ logger, bucket, name: ddoc, domain, endpoint, methods }).catch(error => {
+        log({
+          message: 'Error init DDoc: '+ ddoc,
+          event: DDOC_ERROR,
+          error
         });
+      });
     })).catch(error => {
       log({
         message: 'Error init Bucket: '+ name,
@@ -57,6 +50,7 @@ function Bucket(props = {}) {
       const bucket = { name, getSeq, getBucket };
       results.forEach(info => {
         if (!(info && info.domain && info.endpoint && info.api )) return null;
+        if (info.timeout && timeout < info.timeout) timeout = info.timeout;
         const { domain, endpoint } = info;
         info.api.forEach(apiItem => {
           handlers.push(Object.assign({ domain, endpoint, bucket }, apiItem));

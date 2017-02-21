@@ -112,11 +112,8 @@ function Router(props = {}) {
     request.cookie = cookieParser.parse(request.headers.cookie || '');
     if (route.bucket) request.info = { update_seq: route.bucket.getSeq() };
     return Promise.all([
-      sessions.loadSession(request).then(userCtx => {
-        if (route.bucket) userCtx.db = route.bucket.name;
-        request.userCtx = userCtx;
-      }),
-      parseBody(req).then(body => { request.body = body; }).catch(error => {
+      sessions.loadSession(request),
+      parseBody(req).catch(error => {
         log({
           message: 'Error on parse body',
           event: API_REQUEST_ERROR,
@@ -124,7 +121,12 @@ function Router(props = {}) {
         });
       })
     ])
-    .then(() => request);
+    .then((userCtx, body) => {
+      if (route.bucket) userCtx.db = route.bucket.name;
+      request.userCtx = userCtx;
+      request.body = body;
+      return request;
+    });
   };
 
   const makeError = (error) => {
