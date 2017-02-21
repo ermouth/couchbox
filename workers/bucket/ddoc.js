@@ -61,16 +61,17 @@ function DDoc(bucket, bucketName, props = {}) {
               return null;
             };
             const handlerProps = Object.assign({ logger, logEvent: HOOK_LOG, errorEvent: HOOK_ERROR, methods, referrer }, context);
-            return makeHandler(bucket, name, key, hookParams, handlerProps).catch(onHandlerError).then(handler => {
-              if (handler && handler.handler) {
-                const hook = {
-                  name: key,
-                  mode: hookParams.mode,
-                  handler: handler.handler
-                };
-                return { key, filter, hook };
-              }
-            })
+            return makeHandler(bucket, name, key, hookParams, handlerProps).catch(onHandlerError)
+              .then(handler => {
+                if (handler && handler.handler) {
+                  const hook = {
+                    name: name +'/'+ key,
+                    mode: hookParams.mode,
+                    handler: handler.handler
+                  };
+                  return { key, filter, hook };
+                }
+              });
           }
           else return Promise.resolve();
         })).then(handlers => {
