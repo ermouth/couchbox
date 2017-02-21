@@ -53,10 +53,12 @@ function DDoc(props = {}) {
       const context = makeContext(body, log);
 
       const handlerProps = Object.assign({ logger, logEvent: API_LOG, errorEvent: API_ERROR, methods, referrer }, context);
-      const apiHandlers = Object.keys(body.api || {}).map(handlerKey =>
-        makeHandler(bucket, name, handlerKey, body.api[handlerKey], handlerProps)
+      const apiHandlers = Object.keys(body.api || {}).map(handlerKey => {
+        const handlerBody = body.api[handlerKey];
+        return makeHandler(bucket, name, handlerKey, handlerBody, handlerProps)
           .catch(error => onHandlerError(handlerKey, error))
-      );
+          .then(result => Object.assign(result, { methods: handlerBody.methods }));
+      });
 
       Promise.all(apiHandlers).then(handlers => {
         const api = handlers.filter(handlerFilter);

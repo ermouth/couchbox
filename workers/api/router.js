@@ -19,6 +19,8 @@ const {
   API_URL_PREFIX,
   API_DEFAULT_CODE,
   API_DEFAULT_HEADERS,
+  API_DEFAULT_METHODS,
+  API_AVAILABLE_METHODS,
   CORS,
   CORS_CREDENTIALS,
   CORS_ORIGINS,
@@ -84,9 +86,15 @@ function Router(props = {}) {
 
   const routes = new Map();
 
-  const getRoute = (host, routePath) => routes.get(host + routePath) || routes.get('*' + routePath);
+  const getRoute = (host, routePath, method) => {
+    let route = routes.get(host + routePath);
+    if (route && (method === 'OPTIONS' || route.methods[method])) return route;
+    if (host !== '*') return getRoute('*', routePath, method);
+  };
 
-  function addRoute(domain, endpoint, path, handler, bucket) {
+  function addRoute(domain, endpoint, path, methods0 = API_DEFAULT_METHODS, handler, bucket) {
+    methods0 = methods0.map(m => m.toUpperCase()).filter(m => m in API_AVAILABLE_METHODS);
+    if (!methods0 || !methods0.length) throw new Error('Empty methods');
     if (!domain) throw new Error('Empty domain');
     if (!endpoint) throw new Error('Empty endpoint');
     if (endpoint[0] !== API_URL_PREFIX) throw new Error('Bad endpoint: ' + endpoint);
@@ -94,8 +102,10 @@ function Router(props = {}) {
     if (!handler) throw new Error('Empty handler');
     if (!(endpoint && endpoint.length >= 1 && path && path.length >= 1 && path[0] !== '/')) throw new Error('Bad route');
 
+    const methods = {}; methods0.forEach(m => methods[m] = true);
+
     const routeKey = domain + API_URL_ROOT + endpoint + (endpoint === API_URL_PREFIX ? '' : '/')+ path;
-    routes.set(routeKey, { handler, bucket });
+    routes.set(routeKey, { handler, bucket, methods });
   }
 
   const makeRequest = (req, request, route) => {
@@ -193,7 +203,7 @@ function Router(props = {}) {
     const sendError = error => sendResult(res, makeError(error));
 
     const request = makeRoute(req);
-    const route = getRoute(request.host, request.routePath);
+    const route = getRoute(request.host, request.routePath, request.method);
     if (!route) return sendError(new NotFoundError('not_found'));
 
     let processPromise;

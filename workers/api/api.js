@@ -56,7 +56,7 @@ function API(props = {}) {
 
 
   // Default routes
-  router.addRoute('*', '_', 'now', (req) => Promise.resolve({
+  router.addRoute('*', '_', 'now', ['GET','POST'], (req) => Promise.resolve({
     code: 200,
     headers: { 'Content-Type': 'text/plain' },
     body: Date.now().toString()
@@ -107,10 +107,10 @@ function API(props = {}) {
          return res.handlers;
        });
      })).then(handlers => {
-       handlers.flatten().forEach(({ domain, endpoint, handlerKey, handler, bucket }) => {
+       handlers.flatten().forEach(({ domain, endpoint, handlerKey, methods, handler, bucket }) => {
          const path = handlerKey;
          try {
-           router.addRoute(domain, endpoint, path, handler, bucket);
+           router.addRoute(domain, endpoint, path, methods, handler, bucket);
          } catch (error) {
            log({
              message: 'Error on route creation: "'+ [domain, '/', endpoint, path].join('') + '"',

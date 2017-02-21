@@ -10,6 +10,7 @@ const CORS_ORIGINS = {}; config.get('cors.origins').forEach(host => host && (COR
 const CORS_METHODS = config.get('cors.methods').join(', ');
 const CORS_HEADES = config.get('cors.headers').join(', ');
 
+
 module.exports = {
   NODE_NAME,
 
@@ -26,6 +27,14 @@ module.exports = {
   API_DEFAULT_TIMEOUT: 10e3,
   API_DEFAULT_CODE: 200,
   API_DEFAULT_HEADERS: { 'Content-Type': 'text/plain' },
+  API_DEFAULT_METHODS: ['GET','POST'],
+  API_AVAILABLE_METHODS: {
+    GET: true,
+    POST: true,
+    HEAD: true,
+    PUT: true,
+    DELETE: true
+  },
 
   LOG_EVENTS: {
     BUCKET_ERROR: 'bucket/error',
