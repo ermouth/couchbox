@@ -7,8 +7,9 @@ const config = require('../config');
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'HEAD'];
 const HTTP_METHODS_VALID = {}; HTTP_METHODS.forEach(m => HTTP_METHODS_VALID[m] = true);
 
-const nodes = config.get('couchbox.nodes') || {};
-const getNodeURL = node => nodes[node];
+const NODE_NAME = config.get('couchbox.nodename');
+const NODES = config.get('couchbox.nodes') || {};
+const getNodeURL = node => NODES[node];
 const getUrlDomain = (url, startInd) => {
   if (url && url.length > 7 && url.substr(0, 4) === 'http') {
     if (!startInd) startInd = url.indexOf(':', 3) + 3;
@@ -34,7 +35,7 @@ function Plugin(method, conf = {}, log) {
     return null;
   };
 
-  Object.keys(nodes).map(getNodeURL).filter(u => checkUrl(u) === null).forEach(u => {
+  Object.keys(NODES).map(getNodeURL).filter(u => checkUrl(u) === null).forEach(u => {
     nodesDomains[getUrlDomain(u)] = true;
   });
 
@@ -54,15 +55,16 @@ function Plugin(method, conf = {}, log) {
       queryParams.method = HTTP_METHODS[0];
     }
 
-    if (!options.node && !hasUrlHttp(url)) {
+    if ((!options.node || options.node === NODE_NAME) && !hasUrlHttp(url)) {
       url = couchdb.Constants.DB_URL + (url[0] === '/' ? '' : '/') + url;
     }
-    if (options.node) {
+    if (options.node && !hasUrlHttp(url)) {
       const nodeURL = getNodeURL(options.node);
       if (!nodeURL) return Promise.reject(new Error('Bad node: '+ options.node));
       if (hasUrlHttp(url)) return Promise.reject(new Error('Bad url: '+ url));
       url = getNodeURL(options.node) + (url[0] === '/' ? '' : '/') + url;
     }
+    console.log('url', url);
     const urlError = checkUrl(url);
     if (urlError) return Promise.reject(new Error('Bad url: "'+ url + '" reason: '+ urlError.toString()));
 
