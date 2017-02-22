@@ -56,7 +56,7 @@ function API(props = {}) {
 
 
   // Default routes
-  router.addRoute('*', '_', 'now', ['GET','POST'], (req) => Promise.resolve({
+  router.addRoute('*', '_now', '', ['GET','POST'], (req) => Promise.resolve({
     code: 200,
     headers: { 'Content-Type': 'text/plain' },
     body: Date.now().toString()

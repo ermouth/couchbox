@@ -31,6 +31,8 @@ const {
   }
 } = require('./constants');
 
+const ROOT_PATH = '/';
+
 const corsHeads = (request) => {
   const headers = API_DEFAULT_HEADERS;
   if (!(request && request.headers && request.headers.origin)) return Promise.resolve({ headers });
@@ -72,9 +74,9 @@ const makeRoute = (req) => {
   const queryIndex = url.indexOf('?');
   const raw_path = queryIndex >= 0 ? url.substring(0, queryIndex) : url;
   const query = queryIndex >= 0 ? queryString.parse(url.substring(queryIndex + 1)) : {};
-  const path = raw_path.substring(1).split('/');
+  const path = raw_path.substring(1).split(ROOT_PATH);
 
-  const routePath = '/' + path.filter(i => i && i.length).join('/');
+  const routePath = ROOT_PATH + path.filter(i => i && i.length).join(ROOT_PATH);
 
   return { host, port, method, raw_path, query, path, routePath, headers, peer };
 };
@@ -85,12 +87,44 @@ function Router(props = {}) {
   const log = logger.getLog();
 
   const routes = new Map();
+  const paths = {};
 
-  const getRoute = (host, routePath, method) => {
-    let route = routes.get(host + routePath);
-    if (route && (method === 'OPTIONS' || route.methods[method])) return route;
-    if (host !== '*') return getRoute('*', routePath, method);
+  const findRoute = (path, parent) => {
+    const p = path.shift();
+    const node = (parent || paths)[p];
+    if (node) {
+      if (path.length) return findRoute(path, node);
+      return Object.isObject(node) ? node[ROOT_PATH] : node;
+    }
+    return Object.isObject(parent) ? parent[ROOT_PATH] : parent;
   };
+  const getRoute = (host, path, method) => {
+    const routeKey = findRoute([host].concat(path).compact(true));
+    if (routeKey) {
+      let route = routes.get(routeKey);
+      if (route && (method === 'OPTIONS' || route.methods[method])) return route;
+    }
+    if (host !== '*') return getRoute('*', path, method);
+  };
+
+  function addPath(path, routeKey, index = 1) {
+    const p = path.slice(0, index).join('.');
+    const node = lib.getField(paths, p);
+    const val = path.length > index ? {} : routeKey;
+    if (!node) {
+      if (index > 1) {
+        const parentPath = path.slice(0, index - 1).join('.');
+        const parent = lib.getField(paths, parentPath);
+        if (parent) {
+          if (!Object.isObject(parent)) lib.addField(paths, parentPath, { [ROOT_PATH]: parent });
+          lib.addField(paths, p, val);
+        }
+      } else {
+        lib.addField(paths, p, val);
+      }
+    }
+    if (path.length > index) addPath(path, routeKey, index + 1);
+  }
 
   function addRoute(domain, endpoint, path, methods0 = API_DEFAULT_METHODS, handler, bucket) {
     methods0 = methods0.map(m => m.toUpperCase()).filter(m => m in API_AVAILABLE_METHODS);
@@ -98,14 +132,17 @@ function Router(props = {}) {
     if (!domain) throw new Error('Empty domain');
     if (!endpoint) throw new Error('Empty endpoint');
     if (endpoint[0] !== API_URL_PREFIX) throw new Error('Bad endpoint: ' + endpoint);
-    if (!path) throw new Error('Empty path');
+    if (domain !=='*' && !path) throw new Error('Empty path');
     if (!handler) throw new Error('Empty handler');
-    if (!(endpoint && endpoint.length >= 1 && path && path.length >= 1 && path[0] !== '/')) throw new Error('Bad route');
+    if (domain !=='*' && !(endpoint && endpoint.length >= 1 && path && path.length >= 1 && path[0] !== ROOT_PATH)) throw new Error('Bad route');
 
     const methods = {}; methods0.forEach(m => methods[m] = true);
 
-    const routeKey = domain + API_URL_ROOT + endpoint + (endpoint === API_URL_PREFIX ? '' : '/')+ path;
+    const routeKey = domain + API_URL_ROOT + endpoint + (endpoint === API_URL_PREFIX ? '' : ROOT_PATH)+ path;
     routes.set(routeKey, { handler, bucket, methods });
+    const fullPath = [domain, endpoint].concat(path.split(ROOT_PATH).compact(true));
+    addPath(fullPath, routeKey);
+    console.log('paths', paths);
   }
 
   const makeRequest = (req, request, route) => {
@@ -205,7 +242,7 @@ function Router(props = {}) {
     const sendError = error => sendResult(res, makeError(error));
 
     const request = makeRoute(req);
-    const route = getRoute(request.host, request.routePath, request.method);
+    const route = getRoute(request.host, request.path, request.method);
     if (!route) return sendError(new NotFoundError('not_found'));
 
     let processPromise;
