@@ -20,8 +20,10 @@ function Sessions(props = {}) {
 
   const feed = usersBucket.follow({ since: 'now' });
   feed.on('change', function (change) {
-    const id = change.id.split(':',2)[1];
-    if (id[1]) removeUser(id[1]);
+    if (change.id.indexOf('_design/') !== 0) {
+      const id = change.id.split(':',2)[1];
+      if (id[1]) removeUser(id[1]);
+    }
   });
   feed.follow();
 
