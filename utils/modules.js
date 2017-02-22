@@ -154,7 +154,7 @@ const makeContext = (body = {}, log) => {
   function makeModule(log, property, module) {
     const modulesCtx = this;
     try {
-      module_cache[module.id].call(modulesCtx, module, module.exports, (property) => _requireModule.call(modulesCtx, log, property, module), log);
+      module_cache[module.id].call(modulesCtx, module, module.exports, (property) => requireModule.call(modulesCtx, log, property, module), log);
     } catch (error) {
       log({
         message: 'Error during require: ' + property,
