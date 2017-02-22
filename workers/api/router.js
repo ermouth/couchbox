@@ -100,7 +100,6 @@ function Router(props = {}) {
   };
   const getRoute = (host, path, method) => {
     const routeKey = findRoute([host].concat(path).compact(true));
-    console.log('routeKey', routeKey);
     if (routeKey) {
       let route = routes.get(routeKey);
       if (route && (method === 'OPTIONS' || route.methods[method])) return route;
@@ -108,23 +107,23 @@ function Router(props = {}) {
     if (host !== '*') return getRoute('*', path, method);
   };
 
-  function addPath(path, routeKey, index = 1) {
-    const p = path.slice(0, index).join('.');
-    const node = lib.getField(paths, p);
+  function addPath(path, routeKey, index = 1, separator = ROOT_PATH) {
+    const p = path.slice(0, index).join(separator);
+    const node = lib.getField(paths, p, separator);
     const val = path.length > index ? {} : routeKey;
     if (!node) {
       if (index > 1) {
-        const parentPath = path.slice(0, index - 1).join('.');
-        const parent = lib.getField(paths, parentPath);
+        const parentPath = path.slice(0, index - 1).join(separator);
+        const parent = lib.getField(paths, parentPath, separator);
         if (parent) {
-          if (!Object.isObject(parent)) lib.addField(paths, parentPath, { [ROOT_PATH]: parent });
-          lib.addField(paths, p, val);
+          if (!Object.isObject(parent)) lib.addField(paths, parentPath, { [ROOT_PATH]: parent }, separator);
+          lib.addField(paths, p, val, separator);
         }
       } else {
-        lib.addField(paths, p, val);
+        lib.addField(paths, p, val, separator);
       }
     }
-    if (path.length > index) addPath(path, routeKey, index + 1);
+    if (path.length > index) addPath(path, routeKey, index + 1, separator);
   }
 
   function addRoute(domain, endpoint, path, methods0 = API_DEFAULT_METHODS, handler, bucket) {
@@ -141,9 +140,8 @@ function Router(props = {}) {
 
     const routeKey = domain + API_URL_ROOT + endpoint + (endpoint === API_URL_PREFIX ? '' : ROOT_PATH)+ path;
     routes.set(routeKey, { handler, bucket, methods });
-    const fullPath = [domain, endpoint].concat(path.split(ROOT_PATH).compact(true));
+    const fullPath = [domain, endpoint].concat(path.split(ROOT_PATH)).compact(true);
     addPath(fullPath, routeKey);
-    console.log('paths', paths);
   }
 
   const makeRequest = (req, request, route) => {

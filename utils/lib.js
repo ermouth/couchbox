@@ -52,23 +52,23 @@ const validateGlobals = module.exports.validateGlobals = function validateGlobal
   return errors.length ? errors : false;
 };
 
-const getField = module.exports.getField = (obj = {}, path) => {
-  const fieldPath = Object.isString(path) ? path.split('.') : path;
+const getField = module.exports.getField = (obj = {}, path, separator = '.') => {
+  const fieldPath = Object.isString(path) ? path.split(separator) : path;
   const field = fieldPath.shift();
   if (field) {
     return fieldPath.length > 0
-      ? getField(obj[field], fieldPath)
+      ? getField(obj[field], fieldPath, separator)
       : obj[field];
   }
   return null;
 };
 
-const addField = module.exports.addField = (obj = {}, path, value) => {
-  const fieldPath = Object.isString(path) ? path.split('.') : path;
+const addField = module.exports.addField = (obj = {}, path, value, separator = '.') => {
+  const fieldPath = Object.isString(path) ? path.split(separator) : path;
   const field = fieldPath.shift();
   if (field) {
     obj[field] = fieldPath.length > 0
-      ? addField(obj[field], fieldPath, value)
+      ? addField(obj[field], fieldPath, value, separator)
       : value;
   }
   return obj;
