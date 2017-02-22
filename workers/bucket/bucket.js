@@ -68,17 +68,6 @@ function DB(props = {}) {
       if (inProcess[seq][CHANGE_DOC_HOOKS].length === 0) delete inProcess[seq];
     }
   }; // remove hook from process list by change, if hook is last in change - remove change from processes
-  const getProcesses = (id) => {
-    const hooks = [];
-    Object.keys(inProcess).forEach(seq => {
-      const proc = inProcess[seq];
-      if (proc[CHANGE_DOC_ID] === id) {
-        const rev = proc[CHANGE_DOC_REV];
-        hooks.push([ rev.substring(0, rev.indexOf('-')), proc[CHANGE_DOC_HOOKS] ]);
-      }
-    });
-    return hooks;
-  };
 
   const setWorkerInfo = (worker, type) => {
     last_seq = worker.last_seq;
@@ -229,7 +218,7 @@ function DB(props = {}) {
       resolve();
     });
   }); // load changes since last_seq with limit (max_seq - last_seq) and skip changes with seq greater then max_seq => push changes in queue
-  const startInProcessChanges = () => Promise.all(Object.keys(inProcess).sort((a, b) => a - b).map(addProcessToQueue)); // sort old processes and call addProcessToQueue
+  const startInProcessChanges = () => Promise.each(Object.keys(inProcess).sort((a, b) => a - b), addProcessToQueue); // sort old processes and call addProcessToQueue
   const addProcessToQueue = (processSeq) => new Promise((resolve, reject) => {
     const procItem = inProcess[processSeq];
     const id = procItem[CHANGE_DOC_ID];
@@ -278,7 +267,6 @@ function DB(props = {}) {
   const processQueue = () => {
     const change = queue.shift();
     if (change) {
-      const processes = getProcesses(change.id);
       if (/_design\//.test(change.id)) {
         return onDDoc(change);
       } else {
@@ -323,14 +311,14 @@ function DB(props = {}) {
     if (!hooksAll.length) return updateDBState();
 
     hooksAll.forEach(hook => setInProcess(change, hook.name));
-    return updateDBState().then(() => Promise.all(hooksAll.map(startHook.fill(change))));
+    return updateDBState().then(() => Promise.all(hooksAll.map(hook => startHook(change, hook))));
   };
 
   // start not completed hooks from process for change
   const onOldChange = (hooksNames, change) => {
     const hooksAll = [];
 
-    hooksNames.map(hookNameFull => {
+    hooksNames.forEach(hookNameFull => {
       const hookName = hookNameFull.split('/');
       const ddoc = ddocksO[hookName[0]] >= 0 ? ddocs[ddocksO[hookName[0]]] : null;
       if (ddoc) {
@@ -340,56 +328,119 @@ function DB(props = {}) {
     });
 
     return hooksAll.length
-      ? Promise.all(hooksAll.map(startHook.fill(change)))
+      ? Promise.all(hooksAll.map(hook => startHook(change, hook)))
       : Promise.reject(new Error('Bad hooks'));
   };
 
-  // start hook on change
-  const startHook = (change, hook) => new Promise((resolve) => {
-    log({
-      message: 'Start hook "'+ hook.name +'"',
-      ref: change.id,
-      event: HOOK_START
+  const hookProcesses = new Map();
+  const addProcess = (change, hookName, proc) => {
+    const sequences = hookProcesses.get(change.id) || new Map();
+    const processes = sequences.get(change.seq) || new Map();
+    processes.set(hookName, proc);
+    sequences.set(change.seq, processes);
+    hookProcesses.set(change.id, sequences);
+    return proc.finally(() => {
+      removeProcess(change, hookName);
     });
-    hook.handler(Object.clone(change.doc, true)) // run hook with cloned doc
-      .then(result => {
-        if (!result && (!result.message || !result.docs)) return Promise.reject(new Error('Bad hook result'));
-        const { message, docs } = result;
-        log({
-          message: 'Hook "'+ hook.name +'" result: '+ (message || docs),
-          code: result.code,
-          ref: change.id,
-          event: HOOK_RESULT
-        });
-        if (result.code === 200 && docs) { // check hook results
-          if (docs.length) {
-            return saveResults(db, docs).then(() => { // save results
-              log({
-                message: 'Saved hook "'+ hook.name +'" results',
-                ref: change.id,
-                event: HOOK_SAVE
-              });
-              return Promise.resolve();
-            });
+  };
+  const removeProcess = (change, hookName) => {
+    const sequences = hookProcesses.get(change.id);
+    if (sequences) {
+      const processes = sequences.get(change.seq);
+      if (processes) {
+        processes.delete(hookName);
+        if (processes.size === 0) {
+          sequences.delete(change.seq);
+          if (sequences.size === 0) {
+            hookProcesses.delete(change.id);
           }
-          return Promise.resolve(); // empty results
         }
-        return Promise.reject(new Error('Bad hook result: '+ result.code));
-      })
-      .catch(error => {
-        log({
-          message: 'Hook error: ' + hook.name,
-          ref: change.id,
-          event: HOOK_ERROR,
-          error: lib.errorBeautify(error)
-        });
-      })
-      .finally(() => {
-        // in final remove hook-change from processes and update bucket-worker state
-        setOutProcess(change, hook.name);
-        updateDBState().then(resolve);
+      } else {
+        sequences.delete(change.seq);
+      }
+    } else {
+      hookProcesses.delete(change.id);
+    }
+  };
+  const getProcesses = (change, hookName) => {
+    const sequences = hookProcesses.get(change.id);
+    const res = [];
+    if (sequences && sequences.size) {
+      Array.from(sequences.keys()).sort((a, b) => a - b).forEach(seq => {
+        if (seq >= change.seq) return null;
+        const processes = sequences.get(seq);
+        if (processes && processes.size) {
+          if (processes.has(hookName)) {
+            res.push(processes.get(hookName));
+          }
+        }
       });
-  });
+    }
+    return res;
+  };
+
+  // start hook on change
+  const startHook = (change, hook) => {
+    const hookPromise = () => new Promise((resolve, reject) => {
+      log({
+        message: 'Start hook "'+ hook.name +'"',
+        ref: change.id,
+        event: HOOK_START
+      });
+      hook.handler(Object.clone(change.doc, true)) // run hook with cloned doc
+        .then(result => {
+          if (!result && (!result.message || !result.docs)) return Promise.reject(new Error('Bad hook result'));
+          const { message, docs } = result;
+          log({
+            message: 'Hook "'+ hook.name +'" result: '+ (message || docs),
+            code: result.code,
+            ref: change.id,
+            event: HOOK_RESULT
+          });
+          if (result.code === 200 && docs) { // check hook results
+            if (docs.length) {
+              return saveResults(db, docs).then(() => { // save results
+                log({
+                  message: 'Saved hook "'+ hook.name +'" results',
+                  ref: change.id,
+                  event: HOOK_SAVE
+                });
+                return Promise.resolve();
+              });
+            }
+            return Promise.resolve(); // empty results
+          }
+          return Promise.reject(new Error('Bad hook result: '+ result.code));
+        })
+        .catch(error => {
+          log({
+            message: 'Hook error: ' + hook.name,
+            ref: change.id,
+            event: HOOK_ERROR,
+            error: lib.errorBeautify(error)
+          });
+        })
+        .finally(resolve);
+    }).then(() => {
+      // in final remove hook-change from processes and update bucket-worker state
+      setOutProcess(change, hook.name);
+      return updateDBState();
+    });
+
+    switch (hook.mode) {
+      case 'transitive':
+      case 'sequential': {
+        const deps = getProcesses(change, hook.name);
+        if (deps && deps.length) {
+          return addProcess(change, hook.name, deps.last().then(hookPromise));
+        }
+        return addProcess(change, hook.name, hookPromise());
+      }
+      case 'parallel':
+      default:
+        return addProcess(change, hook.name, hookPromise());
+    }
+  };
 
   const close = () => {
     stopFeed(); // previously stop feed
