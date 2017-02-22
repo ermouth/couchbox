@@ -64,7 +64,6 @@ function Plugin(method, conf = {}, log) {
       if (hasUrlHttp(url)) return Promise.reject(new Error('Bad url: '+ url));
       url = getNodeURL(options.node) + (url[0] === '/' ? '' : '/') + url;
     }
-    console.log('url', url);
     const urlError = checkUrl(url);
     if (urlError) return Promise.reject(new Error('Bad url: "'+ url + '" reason: '+ urlError.toString()));
 
