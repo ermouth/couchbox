@@ -366,31 +366,30 @@ function DB(props = {}) {
     const sequences = hookProcesses.get(change.id);
     const res = [];
     if (sequences && sequences.size) {
-      Array.from(sequences.keys()).sort((a, b) => a - b).forEach(seq => {
+      for (let seq of sequences.keys()) {
         if (direction === 'down') {
-          if (seq >= change.seq) return null;
+          if (seq >= change.seq) continue;
         } else {
-          if (seq <= change.seq) return null;
+          if (seq <= change.seq) continue;
         }
         const processes = sequences.get(seq);
-        if (processes && processes.size) {
-          if (processes.has(hookName)) {
-            res.push(processes.get(hookName));
-          }
+        if (processes && processes.size && processes.has(hookName)) {
+          res.push(processes.get(hookName));
         }
-      });
+      }
     }
     return res;
   };
 
   // start hook on change
   function startHook(change, hook) {
-    const hookPromise = (mode) => new Promise((resolve) => {
-      if (mode === 'transitive') {
+    const hookPromise = () => new Promise((resolve) => {
+      const hookKey = '"'+ hook.name +'"'; // + ' doc: ' + change.id + (change.doc && change.doc._rev ? ':'+change.doc._rev : '');
+      if (hook.mode === 'transitive') {
         const futures = getProcesses(change, hook.name, 'up');
         if (futures && futures.length) {
           log({
-            message: 'Skip hook "'+ hook.name +'"',
+            message: 'Skip hook: '+ hookKey,
             ref: change.id,
             event: HOOK_SKIP
           });
@@ -398,7 +397,7 @@ function DB(props = {}) {
         }
       }
       log({
-        message: 'Start hook "'+ hook.name +'"',
+        message: 'Start hook: '+ hookKey,
         ref: change.id,
         event: HOOK_START
       });
@@ -407,7 +406,7 @@ function DB(props = {}) {
           if (!result && (!result.message || !result.docs)) return Promise.reject(new Error('Bad hook result'));
           const { message, docs } = result;
           log({
-            message: 'Hook "'+ hook.name +'" result: '+ (message || docs),
+            message: 'Hook result: '+ hookKey +' = '+ (message || docs),
             code: result.code,
             ref: change.id,
             event: HOOK_RESULT
@@ -415,7 +414,7 @@ function DB(props = {}) {
           if (Object.isArray(docs) && docs.length) { // check hook results
             return saveResults(db, docs).then(() => { // save results
               log({
-                message: 'Saved hook "'+ hook.name +'" results',
+                message: 'Saved hook results: '+ hookKey,
                 ref: change.id,
                 event: HOOK_SAVE
               });
@@ -440,23 +439,15 @@ function DB(props = {}) {
     });
 
     switch (hook.mode) {
-      case 'transitive': {
+      case 'transitive':
+      case 'sequential':
         const deps = getProcesses(change, hook.name);
         if (deps && deps.length) {
-          return addProcess(change, hook.name, deps.last().then(() => hookPromise('transitive')));
+          return addProcess(change, hook.name, deps.last().then(hookPromise));
         }
-        return addProcess(change, hook.name, hookPromise('transitive'));
-      }
-      case 'sequential': {
-        const deps = getProcesses(change, hook.name);
-        if (deps && deps.length) {
-          return addProcess(change, hook.name, deps.last().then(() => hookPromise('sequential')));
-        }
-        return addProcess(change, hook.name, hookPromise('sequential'));
-      }
       case 'parallel':
       default:
-        return addProcess(change, hook.name, hookPromise('parallel'));
+        return addProcess(change, hook.name, hookPromise());
     }
   }
 
