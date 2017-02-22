@@ -15,7 +15,7 @@ const {
     BUCKET_CHANGES, BUCKET_FEED, BUCKET_FEED_STOP,
     BUCKET_STOP, BUCKET_CLOSE, BUCKET_ERROR,
     DDOC_ERROR,
-    HOOK_START, HOOK_SAVE, HOOK_RESULT, HOOK_ERROR
+    HOOK_START, HOOK_SAVE, HOOK_RESULT, HOOK_SKIP, HOOK_ERROR
   }
 } = require('./constants');
 
@@ -362,12 +362,16 @@ function DB(props = {}) {
       hookProcesses.delete(change.id);
     }
   };
-  const getProcesses = (change, hookName) => {
+  const getProcesses = (change, hookName, direction = 'down') => {
     const sequences = hookProcesses.get(change.id);
     const res = [];
     if (sequences && sequences.size) {
       Array.from(sequences.keys()).sort((a, b) => a - b).forEach(seq => {
-        if (seq >= change.seq) return null;
+        if (direction === 'down') {
+          if (seq >= change.seq) return null;
+        } else {
+          if (seq <= change.seq) return null;
+        }
         const processes = sequences.get(seq);
         if (processes && processes.size) {
           if (processes.has(hookName)) {
@@ -380,8 +384,19 @@ function DB(props = {}) {
   };
 
   // start hook on change
-  const startHook = (change, hook) => {
-    const hookPromise = () => new Promise((resolve, reject) => {
+  function startHook(change, hook) {
+    const hookPromise = (mode) => new Promise((resolve) => {
+      if (mode === 'transitive') {
+        const futures = getProcesses(change, hook.name, 'up');
+        if (futures && futures.length) {
+          log({
+            message: 'Skip hook "'+ hook.name +'"',
+            ref: change.id,
+            event: HOOK_SKIP
+          });
+          return resolve();
+        }
+      }
       log({
         message: 'Start hook "'+ hook.name +'"',
         ref: change.id,
@@ -397,20 +412,17 @@ function DB(props = {}) {
             ref: change.id,
             event: HOOK_RESULT
           });
-          if (result.code === 200 && docs) { // check hook results
-            if (docs.length) {
-              return saveResults(db, docs).then(() => { // save results
-                log({
-                  message: 'Saved hook "'+ hook.name +'" results',
-                  ref: change.id,
-                  event: HOOK_SAVE
-                });
-                return Promise.resolve();
+          if (Object.isArray(docs) && docs.length) { // check hook results
+            return saveResults(db, docs).then(() => { // save results
+              log({
+                message: 'Saved hook "'+ hook.name +'" results',
+                ref: change.id,
+                event: HOOK_SAVE
               });
-            }
-            return Promise.resolve(); // empty results
+              return Promise.resolve();
+            });
           }
-          return Promise.reject(new Error('Bad hook result: '+ result.code));
+          return Promise.resolve(); // empty results
         })
         .catch(error => {
           log({
@@ -428,19 +440,25 @@ function DB(props = {}) {
     });
 
     switch (hook.mode) {
-      case 'transitive':
+      case 'transitive': {
+        const deps = getProcesses(change, hook.name);
+        if (deps && deps.length) {
+          return addProcess(change, hook.name, deps.last().then(() => hookPromise('transitive')));
+        }
+        return addProcess(change, hook.name, hookPromise('transitive'));
+      }
       case 'sequential': {
         const deps = getProcesses(change, hook.name);
         if (deps && deps.length) {
-          return addProcess(change, hook.name, deps.last().then(hookPromise));
+          return addProcess(change, hook.name, deps.last().then(() => hookPromise('sequential')));
         }
-        return addProcess(change, hook.name, hookPromise());
+        return addProcess(change, hook.name, hookPromise('sequential'));
       }
       case 'parallel':
       default:
-        return addProcess(change, hook.name, hookPromise());
+        return addProcess(change, hook.name, hookPromise('parallel'));
     }
-  };
+  }
 
   const close = () => {
     stopFeed(); // previously stop feed

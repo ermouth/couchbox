@@ -29,6 +29,7 @@ module.exports = {
 
     HOOK_START: 'hook/start',
     HOOK_RESULT: 'hook/result',
+    HOOK_SKIP: 'hook/skip',
     HOOK_SAVE: 'hook/save',
     HOOK_LOG: 'hook/log',
     HOOK_ERROR: 'hook/error',
