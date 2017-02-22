@@ -100,6 +100,7 @@ function Router(props = {}) {
   };
   const getRoute = (host, path, method) => {
     const routeKey = findRoute([host].concat(path).compact(true));
+    console.log('routeKey', routeKey);
     if (routeKey) {
       let route = routes.get(routeKey);
       if (route && (method === 'OPTIONS' || route.methods[method])) return route;
@@ -142,6 +143,7 @@ function Router(props = {}) {
     routes.set(routeKey, { handler, bucket, methods });
     const fullPath = [domain, endpoint].concat(path.split(ROOT_PATH).compact(true));
     addPath(fullPath, routeKey);
+    console.log('paths', paths);
   }
 
   const makeRequest = (req, request, route) => {
