@@ -121,7 +121,7 @@ function Router(props = {}) {
         });
       })
     ])
-    .then((userCtx, body) => {
+    .then(([userCtx, body]) => {
       if (route.bucket) userCtx.db = route.bucket.name;
       request.userCtx = userCtx;
       request.body = body;
