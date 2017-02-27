@@ -20,8 +20,6 @@ function Plugin(method, conf = {}, log) {
     pass:  conf.pass
   };
 
-  console.log('connection', connection);
-
   const defaults = {
     from: conf.from
   };
