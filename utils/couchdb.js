@@ -10,7 +10,7 @@ const DB_CONNECTION = config.get('couchdb.connection');
 const DB_IP = config.get('couchdb.ip');
 const DB_PORT = config.get('couchdb.port');
 const DB_USER = config.get('couchdb.user');
-const DB_PASS = config.get('couchdb.pass') || 'momomo';
+const DB_PASS = config.get('couchdb.pass');
 const DB_SECRET = config.get('couchdb.secret');
 
 const DB_ADDRESS = DB_IP +':'+ DB_PORT;
