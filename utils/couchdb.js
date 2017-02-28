@@ -13,16 +13,42 @@ const DB_USER = config.get('couchdb.user');
 const DB_PASS = config.get('couchdb.pass');
 const DB_SECRET = config.get('couchdb.secret');
 
+const CONNECTION_DELIMETER = '://';
 const DB_ADDRESS = DB_IP +':'+ DB_PORT;
-const DB_URL = DB_CONNECTION +'://'+ DB_ADDRESS;
-const DB_CONNECTION_URL = DB_CONNECTION +'://'+ DB_USER +':'+ DB_PASS +'@'+ DB_ADDRESS;
+const DB_URL = DB_CONNECTION + CONNECTION_DELIMETER + DB_ADDRESS;
+const DB_CONNECTION_URL = DB_CONNECTION + CONNECTION_DELIMETER + DB_USER +':'+ DB_PASS +'@'+ DB_ADDRESS;
 
+const NODE_NAME = config.get('couchbox.nodename');
+const NODES = config.get('couchbox.nodes') || {};
 
 let auth_attempts = 5;
-let connection;
+const connections = new Map();
 
-const connect = () => connection ? connection : (connection = nano(DB_CONNECTION_URL)); // return db connection
+// return db connection
+const connect = (nodeName = NODE_NAME) => {
+  if (nodeName && Object.isString(nodeName) && nodeName in NODES) {
+    if (connections.has(nodeName)) {
+      return connections.get(nodeName);
+    } else {
+      if (nodeName === NODE_NAME) {
+        connections.set(nodeName, nano(DB_CONNECTION_URL));
+      } else {
+        const node = NODES[nodeName].split(CONNECTION_DELIMETER);
+        const connectionString = node[0] + CONNECTION_DELIMETER + DB_USER +':'+ DB_PASS +'@'+ node[1];
+        connections.set(nodeName, nano(connectionString));
+      }
+      return connections.get(nodeName);
+    }
+  }
+};
 const connectBucket = (db) => connect().use(db); // return db-bucket connection
+
+const connectNodeBucket = (nodeName = NODE_NAME, db) => {
+  if (nodeName && Object.isString(nodeName) && nodeName in NODES && db && Object.isString(db)) {
+    const connection = connect(nodeName);
+    if (connection) return connection.use(db);
+  }
+};
 
 const auth = () => new Promise((resolve, reject) => {
   const oldCookie = config.get('couchdb.cookie');
@@ -106,6 +132,7 @@ module.exports = {
   loadConfig,
   connect,
   connectBucket,
+  connectNodeBucket,
   makeAuthHeaders,
   getBasicSession, getCookieSession,
   Constants: {
