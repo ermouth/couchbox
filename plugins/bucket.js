@@ -31,8 +31,8 @@ function Plugin(method, conf, log) {
       const viewname = arguments[1];
       const params = arguments[2] || {};
 
-      if (!designname) return Promise.reject(new Error('Bad designname: '+ designname));
-      if (!viewname) return Promise.reject(new Error('Bad viewname: '+ viewname));
+      if (!designname) return Promise.reject(new Error('Bad design document name: '+ designname));
+      if (!viewname) return Promise.reject(new Error('Bad view name: '+ viewname));
       if (!Object.isObject(params)) return Promise.reject(new Error('Bad params: '+ JSON.stringify(params)));
 
       return new Promise((resolve, reject) => bucket.view(designname, viewname, params, (error, result) => error ? reject(error) : resolve(result)));
