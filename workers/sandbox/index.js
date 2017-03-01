@@ -335,6 +335,28 @@ module.exports = function initMaster(cluster) {
 
   // Workers manipulations
 
+  const forkWorker = (function (debug) {
+    if (!debug) return (props = {}) => cluster.fork(props);
+    let debugPort = 0;
+
+    const workerArgv = [];
+    process.execArgv.forEach(prop => {
+      const [propName, propVal] = prop.split('=');
+      if (propName === '--debug-brk' || propName === '--debug') {
+        debugPort = +propVal;
+      } else {
+        workerArgv.push(prop);
+      }
+    });
+    cluster.setupMaster({ execArgv: workerArgv.concat([ '--debug-brk='+ debugPort ]) });
+
+    return (props = {}) => {
+      ++debugPort;
+      cluster.settings.execArgv = [ '--debug-brk='+ debugPort ].concat(workerArgv);
+      return cluster.fork(props);
+    };
+  })('v8debug' in global && typeof global['v8debug'] === 'object');
+
   const getWorkers = () => Array.from(workers.values());
   // remove worker by pid
   const removeWorker = (pid) => workers.has(pid) ? workers.delete(pid) : null;
@@ -419,7 +441,7 @@ module.exports = function initMaster(cluster) {
     const { ddocs, ddocsHash, configHash } = dbs.get(db);
     const forkType = WORKER_TYPE_BUCKET;
     const workerProps = JSON.stringify({ forkType, params: { name:db, seq, ddocs }});
-    const fork = cluster.fork(Object.assign(
+    const fork = forkWorker(Object.assign(
       config.toEnv(), // send current config
       { workerProps } // send worker properties
     ));
@@ -466,7 +488,8 @@ module.exports = function initMaster(cluster) {
     const configHash = configSocketHash;
     const forkType = WORKER_TYPE_SOCKET;
     const workerProps = JSON.stringify({ forkType, params: {} });
-    const fork = cluster.fork(Object.assign(
+
+    const fork = forkWorker(Object.assign(
       config.toEnv(), // send current config
       { workerProps } // send worker properties
     ));
@@ -507,7 +530,8 @@ module.exports = function initMaster(cluster) {
     const configHash = configApiHash;
     const forkType = WORKER_TYPE_API;
     const workerProps = JSON.stringify({ forkType, params: { endpoints, port } });
-    const fork = cluster.fork(Object.assign(
+
+    const fork = forkWorker(Object.assign(
       config.toEnv(), // send current config
       { workerProps } // send worker properties
     ));
