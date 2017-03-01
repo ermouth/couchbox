@@ -21,28 +21,22 @@ const DB_CONNECTION_URL = DB_CONNECTION + CONNECTION_DELIMETER + DB_USER +':'+ D
 const NODE_NAME = config.get('couchbox.nodename');
 const NODES = config.get('couchbox.nodes') || {};
 
-console.log('NODE_NAME', NODE_NAME);
-console.log('NODES', NODES);
-
 let auth_attempts = 5;
 const connections = new Map();
 
 // return db connection
 const connect = (nodeName = NODE_NAME) => {
-  if (nodeName && Object.isString(nodeName) && nodeName in NODES) {
-    if (connections.has(nodeName)) {
-      return connections.get(nodeName);
-    } else {
-      if (nodeName === NODE_NAME) {
-        connections.set(nodeName, nano(DB_CONNECTION_URL));
-      } else {
-        const node = NODES[nodeName].split(CONNECTION_DELIMETER);
-        const connectionString = node[0] + CONNECTION_DELIMETER + DB_USER +':'+ DB_PASS +'@'+ node[1];
-        connections.set(nodeName, nano(connectionString));
-      }
-      return connections.get(nodeName);
+  if (!nodeName || nodeName === NODE_NAME) {
+    nodeName = 'local';
+    if (!connections.has(nodeName)) connections.set(nodeName, nano(DB_CONNECTION_URL));
+  } else if (nodeName && Object.isString(nodeName) && nodeName in NODES) {
+    if (!connections.has(nodeName)) {
+      const node = NODES[nodeName].split(CONNECTION_DELIMETER);
+      const connectionString = node[0] + CONNECTION_DELIMETER + DB_USER +':'+ DB_PASS +'@'+ node[1];
+      connections.set(nodeName, nano(connectionString));
     }
   }
+  return connections.get(nodeName);
 };
 const connectBucket = (db) => connect().use(db); // return db-bucket connection
 
