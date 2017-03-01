@@ -1,0 +1,66 @@
+require('sugar');
+const Promise = require('bluebird');
+const mime = require('mime-types');
+const JpegTran = require('jpegtran');
+const stream = require('stream');
+const couchdb = require('../utils/couchdb');
+const config = require('../config');
+
+const NODES = config.get('couchbox.nodes') || {};
+const BASE64_HEADER = 'data:image/jpeg;base64,';
+const BASE64_HEADER_SIZE = BASE64_HEADER.length - 1;
+
+function Plugin(method, conf = {}, log) {
+  const name = '_' + (method || 'jpegtran');
+
+  const jpegtran_method = (bucket, req) => (src, props = [], bin = false) => new Promise((resolve, reject) => {
+    if (!src || !props || !Object.isArray(props) || props.length === 0) return reject(new Error('Bad arguments'));
+
+    let fileStream;
+
+    if (Object.isObject(src)) {
+      const { _node, _db, _id, _fname } = src;
+      if (!(_id && Object.isString(_id))) return reject(new Error('Bad src _id'));
+      if (!(_fname && Object.isString(_fname))) return reject(new Error('Bad src _fname'));
+      if (_node && !(Object.isString(_node) && _node in NODES)) return reject(new Error('Bad src _node'));
+      if (_db && !Object.isString(_db)) return reject(new Error('Bad src _db'));
+      const db = _db && Object.isString(_db)
+        ? couchdb.connectNodeBucket(_node, _db)
+        : bucket;
+
+      fileStream = db.attachment.get(_id, _fname);
+
+    } else if (Object.isString(src)) {
+      fileStream = new stream.PassThrough();
+      try {
+        fileStream.end(
+          Buffer.from(src.substring(0, BASE64_HEADER_SIZE) === BASE64_HEADER ? src.substring(BASE64_HEADER_SIZE) : src, 'base64')
+        );
+      } catch (error) {
+        return reject(new Error('Bad src parse: "'+ error.message +'"'));
+      }
+    } else {
+      return reject(new Error('Empty src'));
+    }
+
+    const chunks = [];
+    fileStream.pipe(new JpegTran(props))
+      .on('error', error => {
+        return reject(new Error('Error translating src: "'+ error.message +'"'));
+      })
+      .on('data', chunk => chunks.push(chunk))
+      .on('end', () => resolve(bin ? Buffer.concat(chunks) : Buffer.concat(chunks).toString('base64')));
+  });
+
+  return new Promise(resolve => {
+
+    function make(env) {
+      const { ctx, bucket, params } = env;
+      return jpegtran_method(bucket, params[0]).bind(ctx);
+    }
+
+    resolve({ name, make });
+  });
+}
+
+module.exports = Plugin;
