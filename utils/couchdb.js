@@ -21,6 +21,9 @@ const DB_CONNECTION_URL = DB_CONNECTION + CONNECTION_DELIMETER + DB_USER +':'+ D
 const NODE_NAME = config.get('couchbox.nodename');
 const NODES = config.get('couchbox.nodes') || {};
 
+console.log('NODE_NAME', NODE_NAME);
+console.log('NODES', NODES);
+
 let auth_attempts = 5;
 const connections = new Map();
 
