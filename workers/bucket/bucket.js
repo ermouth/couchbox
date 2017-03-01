@@ -438,6 +438,7 @@ function DB(props = {}) {
       return updateDBState();
     });
 
+
     switch (hook.mode) {
       case 'transitive':
       case 'sequential':

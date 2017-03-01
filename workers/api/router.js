@@ -71,7 +71,7 @@ const makeRoute = (req) => {
   const headers = Object.isObject(req.headers) ? req.headers : {};
   const hostFull = (headers[config.get('api.hostKey')] || headers.host).split(':', 2);
   const host = hostFull[0];
-  const port = hostFull[1] || 80;
+  const port = hostFull[1]|0 || 80;
 
   const peer = headers['x-forwarded-for'] || headers.referer;
 
@@ -252,7 +252,7 @@ function Router(props = {}) {
     let processPromise;
 
     const processRequest = (request) => route.handler(request).then(result => {
-      if (route.bucket && result.docs && result.docs.length) {
+      if (route.bucket && Object.isArray(result.docs) && result.docs.length) {
         return saveResults(route.bucket.getBucket(), result.docs).then(() => {
           log({
             message: 'Saved api results: "' + request.raw_path + '"',
@@ -277,7 +277,7 @@ function Router(props = {}) {
         ]).then(([corsResult, routerResult]) => Object.assign(corsResult, routerResult));
       }
     } else {
-      // send router result
+      // send router result only
       processPromise = makeRequest(req, request, route).then(processRequest);
     }
 

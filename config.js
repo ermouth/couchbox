@@ -16,7 +16,7 @@ const CONFIG_COUCHBOX_API = 'couchbox_api';
 const CONFIG_COUCHBOX_HOOKS = 'couchbox_hooks';
 
 
-const mapInt = (val) => +val;
+const mapInt = (val) => val|0;
 const mapStr = (val) => val;
 const mapBool = (val) => val === true || val === 'true';
 const mapJSON = (val) => Object.isString(val) ? lib.parseJSON(val) : Object.isObject(val) ? val : undefined;
@@ -200,6 +200,28 @@ const defaultConfig = {
     check: checkStr
   },
 
+  'proxy.enabled': {
+    env: 'PROXY',
+    value: false,
+    str: strBool,
+    map: mapBool,
+    check: checkBool
+  },
+  'proxy.port': {
+    env: 'PROXY_PORT',
+    value: 8888,
+    str: strInt,
+    map: mapInt,
+    check: checkNumPlus
+  },
+  'proxy.path': {
+    env: 'PROXY_PATH',
+    value: '/',
+    str: strStr,
+    map: mapStr,
+    check: checkStr
+  },
+
   'api.enabled': {
     env: 'API',
     value: false,
@@ -358,4 +380,5 @@ module.exports.LOG_EVENTS = {
   CONFIG_API: 'config/api',
   CONFIG_ENDPOINTS: 'config/endpoints',
   CONFIG_SOCKET: 'config/socket',
+  CONFIG_PROXY: 'config/proxy',
 };

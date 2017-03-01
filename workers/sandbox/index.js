@@ -13,11 +13,11 @@ const config = require('../../config');
 
 // Log events constants
 const { LOG_ERROR } = Logger.LOG_EVENTS;
-const { CONFIG_API, CONFIG_BUCKET, CONFIG_SOCKET, CONFIG_ENDPOINTS, CONFIG_HOOKS } = config.LOG_EVENTS;
+const { CONFIG_API, CONFIG_BUCKET, CONFIG_SOCKET, CONFIG_PROXY, CONFIG_ENDPOINTS, CONFIG_HOOKS } = config.LOG_EVENTS;
 const { SANDBOX_START, SANDBOX_CLOSE, SANDBOX_CLOSED } = require('./constants').LOG_EVENTS;
 
 // Worker constants
-const { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET, WORKER_TYPE_API, WORKER_WAIT_TIMEOUT } = require('../../utils/worker').Constants;
+const { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET, WORKER_TYPE_API, WORKER_TYPE_PROXY, WORKER_WAIT_TIMEOUT } = require('../../utils/worker').Constants;
 // Bucket monitor constants
 const { BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD } = require('../bucket/constants');
 // REST API worker specific constants
@@ -113,9 +113,15 @@ module.exports = function initMaster(cluster) {
       onConfigFields(conf, [
         ['couchbox.nodename', 'nodename'],
         ['couchbox.nodes', 'nodes'],
+
         ['socket.enabled', 'socket'],
         ['socket.port', 'socket_port'],
         ['socket.path', 'socket_path'],
+
+        ['proxy.enabled', 'proxy'],
+        ['proxy.port', 'proxy_port'],
+        ['proxy.path', 'proxy_path'],
+
         ['api.enabled', 'api'],
         ['api.ports', 'api_ports'],
         ['api.restartDelta', 'api_restart_delta']
@@ -183,8 +189,9 @@ module.exports = function initMaster(cluster) {
   let endpoints = {}; let endpointsHash;
 
   let configBucketHash; // hash of bucket workers config
-  let configSocketHash; // hash of socket workers config
   let configApiHash; // hash of api workers config
+  let configSocketHash; // hash of socket worker config
+  let configProxyHash; // hash of proxy worker config
 
   // Loads config, called repeatedly for monitoring
   // CouchDB cfg changes, and at the end of worker start sequence
@@ -203,6 +210,18 @@ module.exports = function initMaster(cluster) {
       });
       configSocketHash = newConfigSocketHash;
       updateSocketWorkers();
+    }
+
+
+    // Check proxy config
+    const newConfigProxyHash = lib.sdbmCode(['couchbox', 'proxy', 'cors', 'api', 'socket'].map(config.get)); // update configSocketHash by critical fields
+    if (newConfigProxyHash !== configProxyHash) {
+      log({
+        message: 'Updated proxy worker config',
+        event: CONFIG_PROXY
+      });
+      configProxyHash = newConfigProxyHash;
+      updateProxyWorkers();
     }
 
 
@@ -250,6 +269,7 @@ module.exports = function initMaster(cluster) {
       });
     }
     if (updateApi) updateApiWorkers(); // start update api workers
+
 
     // start timeout on next config update if worker is running
     configUpdateTimeout = setTimeout(loadConfig, config.get('system.configTimeout'));
@@ -308,6 +328,20 @@ module.exports = function initMaster(cluster) {
     });
 
     if (aliveWorkers.length === 0) startWorkerSocket();
+    aliveWorkers.length = 0;
+  }
+
+  // Special case, restarts appropriate workers on proxy cfg change
+  function updateProxyWorkers() {
+    if (!config.get('proxy.enabled')) return stopProxyWorkers();
+
+    const aliveWorkers = [];
+    getProxyWorkers().forEach(worker => {
+      if (worker.configHash !== configProxyHash) stopWorker(worker);
+      else aliveWorkers.push(worker);
+    });
+
+    if (aliveWorkers.length === 0) startWorkerProxy();
     aliveWorkers.length = 0;
   }
 
@@ -473,6 +507,45 @@ module.exports = function initMaster(cluster) {
       }
     });
   } // bucket worker stater
+
+
+  // Proxy workers manipulations
+
+  const getProxyWorkers = () => getWorkers().filter(({ forkType }) => forkType === WORKER_TYPE_PROXY); // return proxy workers
+  const stopProxyWorkers = () => getProxyWorkers().forEach(stopWorker); // stop all proxy workers
+
+  function startWorkerProxy() {
+    if ( // don't start worker if
+      isClosing // master closing
+    ) return null;
+
+    const configHash = configProxyHash;
+    const forkType = WORKER_TYPE_PROXY;
+    const workerProps = JSON.stringify({ forkType, params: {} });
+
+    const fork = forkWorker(Object.assign(
+      config.toEnv(), // send current config
+      { workerProps } // send worker properties
+    ));
+    const { pid } = fork.process;
+    setWorker({
+      pid, fork, forkType,
+      configHash,
+      init: false
+    });
+
+    fork.on('exit', removeWorker.fill(pid));
+    fork.on('message', message => {
+      switch (message.msg) {
+        case 'init':
+          setWorkerProp(pid, 'init', true);
+          break;
+        default:
+          break;
+      }
+    });
+
+  } // proxy worker stater
 
 
   // Socket workers manipulations
