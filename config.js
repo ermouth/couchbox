@@ -354,7 +354,7 @@ module.exports.patch = (fieldPath, key, val) => {
   if (!field) return null;
   const value = field.map(val);
   if (field.check(value)) {
-    lib.addField(config, [fieldPath, key].join('.'), value);
+    lib.addField(config, [fieldPath, key], value);
     return true;
   }
   return false;

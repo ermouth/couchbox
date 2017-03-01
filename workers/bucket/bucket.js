@@ -402,15 +402,16 @@ function DB(props = {}) {
         event: HOOK_START
       });
       hook.handler(Object.clone(change.doc, true)) // run hook with cloned doc
-        .then(result => {
-          if (!result && (!result.message || !result.docs)) return Promise.reject(new Error('Bad hook result'));
+        .then((result = {}) => {
           const { message, docs } = result;
-          log({
-            message: 'Hook result: '+ hookKey +' = '+ (message || docs),
-            code: result.code,
-            ref: change.id,
-            event: HOOK_RESULT
-          });
+          if (Object.isString(message)) {
+            log({
+              message: 'Hook result: '+ hookKey +' = '+ message,
+              code: result.code,
+              ref: change.id,
+              event: HOOK_RESULT
+            });
+          }
           if (Object.isArray(docs) && docs.length) { // check hook results
             return saveResults(db, docs).then(() => { // save results
               log({
