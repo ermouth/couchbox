@@ -31,11 +31,22 @@ class EmptyRequestError extends Error {
   }
 }
 
+class BadRequestError extends Error {
+  constructor(error) {
+    const message = 'Bad request' + (error && error.message ? ': "'+ error.message +'"' : '');
+    super(message);
+    this.code = 500;
+    this.reason = message;
+    if (error) this.error = error;
+  }
+}
+
 class RejectHandlerError extends Error {
   constructor(error) {
-    super('Reject handler execution' + (error && error.message ? ': '+ error.message : ''));
+    const message = 'Reject handler execution' + (error && error.message ? ': '+ error.message : '');
+    super(message);
     this.code = 500;
-    this.reason = error && error.message ? error.message : 'plugin rejection';
+    this.reason = message;
     if (error) this.error = error;
   }
 }
@@ -52,6 +63,7 @@ module.exports = {
   SendingError,
   TimeoutError,
   EmptyRequestError,
+  BadRequestError,
   BadReferrerError,
   RejectHandlerError
 };
