@@ -8,7 +8,7 @@ const config = require('../config');
 
 const NODES = config.get('couchbox.nodes') || {};
 const BASE64_HEADER = 'data:image/jpeg;base64,';
-const BASE64_HEADER_SIZE = BASE64_HEADER.length - 1;
+const BASE64_HEADER_SIZE = BASE64_HEADER.length;
 
 function Plugin(method, conf = {}, log) {
   const name = '_' + (method || 'jpegtran');
