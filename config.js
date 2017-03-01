@@ -33,7 +33,7 @@ const mapsIntArr = (splitter) => (val) => {
       ? val.split(splitter).map(mapInt).filter(checkNumPlus)
       : Object.isArray(val) ? val.map(mapInt).filter(checkNumPlus) : []
     : [];
-}
+};
 
 const checkBool = (val) => val === true || val === false;
 const checkNumPlus = (val) => val > 0;
