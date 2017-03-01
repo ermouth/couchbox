@@ -11,6 +11,7 @@ const config = require('../../config');
 const {
   NotFoundError,
   SendingError,
+  BadRequestError,
   BadReferrerError
 } = require('../../utils/errors');
 
@@ -55,9 +56,12 @@ const parseBody = (req) => {
       return Promise.resolve(undefined);
       break;
     default:
-      return new Promise(resolve => {
+      return new Promise((resolve, reject) => {
         const body = [];
-        req.on('data', chunk => body.push(chunk)).on('end', () => resolve(Buffer.concat(body).toString()));
+        req
+          .on('error', error => reject(error))
+          .on('data', chunk => body.push(chunk))
+          .on('end', () => resolve(Buffer.concat(body).toString()));
       });
   }
 };
@@ -155,6 +159,7 @@ function Router(props = {}) {
           event: API_REQUEST_ERROR,
           error
         });
+        throw new BadRequestError(error);
       })
     ])
     .then(([userCtx, body]) => {
