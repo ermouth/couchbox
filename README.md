@@ -186,6 +186,10 @@ With above config, POST-ing to `abc.example.com/cmd/sendmail/all/immediate` will
 call lambda, that presumably sends emails (and we configured it to have an
 access to `this._email` extension to be able to act this way).
 
+Unrecognized requests (no matching rules) by default return `404`. However,
+if config key `couchbox/api_fallback` contains an URL, Couchbox proxies all
+unrecognized requests to the URL given.
+
 ### Request object
 
 The request object is CouchDB-styled, with minor differences. Request object
@@ -220,8 +224,8 @@ update sequence.
 
 ### Result object
 
-Api call must end up calling `resolve(result)` or `reject(result)`. The `result` object
-has quite simple structure:
+Api call must end up calling `resolve(result)` or `reject(result)`. The `result` 
+object has quite simple structure:
 ```javascript
 {
   code:200, // or any http code
@@ -310,6 +314,7 @@ __nodes__ | {"node1":"https://abc.xyz"} | List of node URLs, JSON
 __api__ | true | Api on/off
 __api\_ports__ | 8001,8002 | Number of api workers and ports for them
 __api\_restart\_delta__ | 5000 | Milliseconds between workers restart
+__api\_fallback__ | http://localhost:5984/ | Destination to proxy unrecognized requests
 __socket__ | true | Turns on socket.io
 __socket\_path__ | /_socket | Path socket.io is bound to
 __socket\_port__ | 8000 | Port for socket.io connections
@@ -322,8 +327,8 @@ is a JSON string of a plugin configuration object. For example:
 
 Key | Value
 ---|---
-email | {"host":"mail.abc.xyz", "port":465, "user":"mail@abc.xyz", "pass":"1234"}
-sms | {"key":"ABCD-1234", "from":"abc.xyz"}
+__email__ | {"host":"mail.abc.xyz", "port":465, "user":"mail@abc.xyz", "pass":"1234"}
+__sms__ | {"key":"ABCD-1234", "from":"abc.xyz"}
 
 Plugins receive appropriate config objects when initialized on worker start.
 
