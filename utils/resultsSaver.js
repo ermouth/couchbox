@@ -22,10 +22,9 @@ const saveDoc = (bucket, doc) => {
 }; // save one doc: load old by result params and update
 
 const getOldDoc = (docDB, doc) => new Promise((resolve, reject) => {
-  const id = doc._id;
+  if (!doc._id) return resolve();
   const rev = doc._rev;
-  if (!id && !rev) return resolve();
-  docDB.get(id, rev ? { rev } : {}, (error, result) => {
+  docDB.get(doc._id, rev ? { rev } : {}, (error, result) => {
     if (error) {
       if (error.error === 'not_found' && !rev) return resolve();
       return reject(error);

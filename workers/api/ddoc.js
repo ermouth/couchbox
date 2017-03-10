@@ -56,8 +56,11 @@ function DDoc(props = {}) {
       const apiHandlers = Object.keys(body.api || {}).map(handlerKey => {
         const handlerBody = body.api[handlerKey];
         return makeHandler(bucket, name, handlerKey, handlerBody, handlerProps)
+          .then(result => {
+            if (Object.isObject(result)) return Object.assign(result, { methods: handlerBody.methods });
+            throw new Error('Bad handler compilation');
+          })
           .catch(error => onHandlerError(handlerKey, error))
-          .then(result => Object.assign(result, { methods: handlerBody.methods }));
       });
 
       Promise.all(apiHandlers).then(handlers => {

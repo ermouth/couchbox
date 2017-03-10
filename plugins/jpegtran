@@ -13,7 +13,7 @@ const BASE64_HEADER_SIZE = BASE64_HEADER.length;
 function Plugin(method, conf = {}, log) {
   const name = '_' + (method || 'jpegtran');
 
-  const jpegtran_method = (bucket, req) => (src, props = [], bin = false) => new Promise((resolve, reject) => {
+  const jpegtran_method = (bucket, req) => (src, props = [], mode = 'buffer') => new Promise((resolve, reject) => {
     if (!src || !props || !Object.isArray(props) || props.length === 0) return reject(new Error('Bad arguments'));
 
     let fileStream;
@@ -39,17 +39,21 @@ function Plugin(method, conf = {}, log) {
       } catch (error) {
         return reject(new Error('Bad src parse: "'+ error.message +'"'));
       }
+    } else if (src && Object.isFunction(src)) {
+      fileStream = src;
     } else {
       return reject(new Error('Empty src'));
     }
 
     const chunks = [];
-    fileStream.pipe(new JpegTran(props))
-      .on('error', error => {
-        return reject(new Error('Error translating src: "'+ error.message +'"'));
-      })
-      .on('data', chunk => chunks.push(chunk))
-      .on('end', () => resolve(bin ? Buffer.concat(chunks) : Buffer.concat(chunks).toString('base64')));
+    if (mode === 'stream') {
+      resolve(fileStream.pipe(new JpegTran(props)));
+    } else {
+      fileStream.pipe(new JpegTran(props))
+        .on('error', error => reject(new Error('Error translating src: "'+ error.message +'"')))
+        .on('data', chunk => chunks.push(chunk))
+        .on('end', () => resolve(mode === 'base64' ? Buffer.concat(chunks).toString('base64') : Buffer.concat(chunks)));
+    }
   });
 
   return new Promise(resolve => {

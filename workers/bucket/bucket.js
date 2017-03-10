@@ -7,6 +7,8 @@ const config = require('../../config');
 const DDoc = require('./ddoc');
 
 
+const DEBUG = config.get('debug.enabled');
+
 const {
   BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD,
   CHECK_PROCESSES_TIMEOUT,
@@ -19,10 +21,11 @@ const {
   }
 } = require('./constants');
 
-function DB(props = {}) {
+function Bucket(props = {}) {
   const name = props.name;
-  const logger = new Logger({ prefix: 'DB '+ name, logger: props.logger });
+  const logger = new Logger({ prefix: 'Bucket '+ name, logger: props.logger });
   const log = logger.getLog();
+
 
   const _onOldWorker = props.onOldWorker || function(){}; // Call when current worker is latest and detect in state (_local/bucket) old workers
   const _onStartFeed = props.onStartFeed || function(){}; // Call when start follow feed changes
@@ -36,8 +39,6 @@ function DB(props = {}) {
 
   const ddocs = [];
   const ddocksO = {}; // ddocs id=>index in ddocs
-  const queue = []; // changes queue
-  let inProcess = {}; // changes in process
   let worker_seq = +(props.seq || 0); // worker sequence - by latest ddoc seq
   let last_seq = 0; // sequence of last doc in queue
   let max_seq = 0; // max sequence - if worker is old then worker close on change with this sequence
@@ -45,9 +46,15 @@ function DB(props = {}) {
   let feed;
   let worker_type = BUCKET_WORKER_TYPE_ACTUAL;
 
+  let inProcess = {}; // changes in process
+  const queue = []; // changes queue
+  const hookProcesses = new Map(); // hooks promises
+  const changesStackThrottle = 3; // max parallel changes
+  let changesCounter = 0; // in process changes counter
+
   const hasFeed = () => !!feed && !feed.dead; // return true if worker has feed and feed is alive
-  const hasTasks = () => queue.length > 0 || Object.keys(inProcess).length > 0; // return true if queue has tasks or worker has working processes
-  const isRunning = () => hasFeed() || hasTasks();
+  const hasTasks = () => queue.length > 0; // return true if queue has tasks or worker has working processes
+  const isRunning = () => hasFeed() || hasTasks() || changesCounter > 0;
 
   const setInProcess = (change, hook) => {
     const { seq, doc: { _id, _rev } } = change;
@@ -96,6 +103,7 @@ function DB(props = {}) {
       resolve({});
     });
   }); // load db state from _local/{bucket} document
+
   const updateDBState = (closing) => new Promise((resolve, reject) => getDBState().then(state => {
     if (worker_seq === 0) return resolve(); // if no one ddoc - not save state
     if (closing && worker_type === BUCKET_WORKER_TYPE_OLD) { // if gracefully close old worker - remove it from db state
@@ -122,14 +130,15 @@ function DB(props = {}) {
         resolve(body);
       }
     });
-  })); // patching _local/{bucket} with worker state
+  }));// patching _local/{bucket} with worker state
+  const updateDBStateLazy = updateDBState.debounce(200);
 
   const init = () => {
     getDBState() // load state
       .then(initDDocs) // init ddocs from state or latest in db
       .then(onInitDDocs) // call _onInit
       .then(startInProcessChanges) // start old changes from loaded state
-      .then(() => worker_type === BUCKET_WORKER_TYPE_OLD ? startChanges() : startFeed()) // if worker old - start load changes else subscribe on changes feed
+      .then(subscribeChanges) // if worker old - start load changes else subscribe on changes feed
       .catch(onInitError) // catch errors on initialisation
       .then(processQueue); // start process queue
   }; // init bucket-worker
@@ -141,6 +150,8 @@ function DB(props = {}) {
     });
     close();
   }; // catch errors on initialisation
+
+  const subscribeChanges = () => worker_type === BUCKET_WORKER_TYPE_OLD ? startChanges() : startFeed();
 
   const initDDocs = (state) => {
     if (worker_seq > 0 && !state[worker_seq]) return Promise.reject(new Error('No db watcher by seq: '+ worker_seq));
@@ -211,9 +222,7 @@ function DB(props = {}) {
     db.changes({ since: last_seq, limit, include_docs: true }, (error, changes) => {
       if (error) return reject(error);
       if (changes && changes.results) {
-        changes.results.forEach(change => {
-          if(change && change.seq < max_seq) queue.push(change);
-        });
+        changes.results.forEach(change => change && change.seq < max_seq && onChange(change, false));
       }
       resolve();
     });
@@ -225,7 +234,7 @@ function DB(props = {}) {
     const rev = procItem[CHANGE_DOC_REV];
     db.get(id, { rev }, (error, doc) => {
       if (error) return reject(error);
-      queue.push(newChange(processSeq, id, rev, doc));
+      onChange(newChange(processSeq, id, rev, doc), false);
       return resolve();
     });
   }); // load old process document and push it to queue
@@ -255,152 +264,155 @@ function DB(props = {}) {
     }
   };
 
-  const onEndQueue = () => !hasFeed() && close(); // call after process last item in queue and start close if no feed
+  // call after process last item in queue and start close if no feed
+  const onEndQueue = () => {
+    if (!hasFeed()) close();
+  };
 
   // on change event push it to queue and run process queue
-  const onChange = (change) => {
-    queue.push(change);
-    return processQueue();
+  const onChange = (change, processNow = true) => {
+    const { seq, id } = change;
+
+    // Design document
+    if (/_design\//.test(id)) {
+      const name = id.substring(id.indexOf('/') + 1);
+      if (name && props.ddocs[name]) {
+        log({
+          message: 'Stop on ddoc change: '+ name,
+          event: BUCKET_STOP
+        });
+        worker_type = BUCKET_WORKER_TYPE_OLD;
+        return close();
+      }
+      return processNow ? processQueue() : null;
+    }
+
+    // Document
+    const hooksInProcess = inProcess[seq] ? inProcess[seq][CHANGE_DOC_HOOKS] : [];
+    const hooks = [];
+    let i = 0, i_max = hooksInProcess.length, hook;
+    if (hooksInProcess.length) {
+      // old processes
+      let ddoc, hookName;
+      while (i < i_max) {
+        hookName = hooksInProcess[i++].split('/');
+        if (ddocksO[hookName[0]] >= 0 && (ddoc = ddocs[ddocksO[hookName[0]]]) && (hook = ddoc.getHook(hookName[1]))) {
+          hooks.push(hook);
+        }
+      }
+    } else {
+      // change without old processes
+      if (!last_seq < seq) last_seq = seq;
+      i_max = ddocs.length;
+      let ddocHooks, k, k_max;
+      while (i < i_max) {
+        ddocHooks = ddocs[i++].filter(change);
+        if (k_max = ddocHooks.length) {
+          k = 0;
+          while (k < k_max) if (hook = ddocHooks[k++]) {
+            hooks.push(hook);
+            setInProcess(change, hook.name);
+          }
+        }
+      }
+      updateDBStateLazy();
+    }
+    if (hooks.length) {
+      queue.push([change, hooks]);
+      if (processNow) processQueue();
+    }
   };
 
   // load & remove first task from queue, if doc is ddoc -> run onDDoc else run onDoc
   const processQueue = () => {
-    const change = queue.shift();
-    if (change) {
-      if (/_design\//.test(change.id)) {
-        return onDDoc(change);
-      } else {
-        return onDoc(change).then(processQueue);
-      }
-    }
-    else onEndQueue();
+    if (queue.length === 0) return onEndQueue();
+    if (changesCounter > changesStackThrottle) return Promise.resolve();
+    onQueueChange(queue.shift());
   };
 
-  // if ddoc included in current bucket start closing worker else process next task
-  const onDDoc = (change) => {
-    const ddocName = change.id.substring(change.id.indexOf('/') + 1);
-    if (ddocName && props.ddocs[ddocName]) {
-      log({
-        message: 'Stop on ddoc change: '+ ddocName,
-        event: BUCKET_STOP
-      });
-      worker_type = BUCKET_WORKER_TYPE_OLD;
-      return close();
-    } else {
-      return processQueue();
-    }
-  };
-
-  // check if change is old (in processes from state) run onOldChange else run onNewChange
-  const onDoc = (change) => {
-    const { seq } = change;
-    if (inProcess[seq]) {
-      return onOldChange(inProcess[seq][CHANGE_DOC_HOOKS], change);
-    } else {
-      return onNewChange(change);
-    }
-  };
-
-  // filter hooks by doc, push they in process list, update bucket-worker state and run
-  const onNewChange = (change) => {
-    const { seq } = change;
-
-    if (!last_seq < seq) last_seq = change.seq;
-
-    const hooksAll = ddocs.map(ddoc => ddoc.filter(change)).reduce((a,b) => a.concat(b));
-    if (!hooksAll.length) return updateDBState();
-
-    hooksAll.forEach(hook => setInProcess(change, hook.name));
-    return updateDBState().then(() => Promise.all(hooksAll.map(hook => startHook(change, hook))));
-  };
-
-  // start not completed hooks from process for change
-  const onOldChange = (hooksNames, change) => {
-    const hooksAll = [];
-
-    hooksNames.forEach(hookNameFull => {
-      const hookName = hookNameFull.split('/');
-      const ddoc = ddocksO[hookName[0]] >= 0 ? ddocs[ddocksO[hookName[0]]] : null;
-      if (ddoc) {
-        const hook = ddoc.getHook(hookName[1]);
-        if (hook) hooksAll.push(hook);
-      }
+  const onQueueChange = ([change, hooks]) => {
+    if (!change || !hooks.length) return Promise.resolve();
+    changesCounter++;
+    Promise.each(hooks, hook => startHook(change, hook)).then(() => {
+      changesCounter--;
+      processQueue();
     });
-
-    return hooksAll.length
-      ? Promise.all(hooksAll.map(hook => startHook(change, hook)))
-      : Promise.reject(new Error('Bad hooks'));
   };
 
-  const hookProcesses = new Map();
-  const addProcess = (change, hookName, proc) => {
-    const sequences = hookProcesses.get(change.id) || new Map();
-    const processes = sequences.get(change.seq) || new Map();
-    processes.set(hookName, proc);
-    sequences.set(change.seq, processes);
-    hookProcesses.set(change.id, sequences);
-    return proc.finally(() => {
-      removeProcess(change, hookName);
-    });
+  const addProcess = ({ id, seq }, name, hook) => {
+    const sequences = hookProcesses.get(id) || new Map();
+    const processes = sequences.has(seq) ? sequences.get(seq) : new Map();
+    processes.set(name, hook);
+    sequences.set(seq, processes);
+    hookProcesses.set(id, sequences);
+    return hook;
   };
   const removeProcess = (change, hookName) => {
     const sequences = hookProcesses.get(change.id);
     if (sequences) {
       const processes = sequences.get(change.seq);
-      if (processes) {
-        processes.delete(hookName);
-        if (processes.size === 0) {
-          sequences.delete(change.seq);
-          if (sequences.size === 0) {
-            hookProcesses.delete(change.id);
-          }
+      if (processes && processes.has(hookName)) {
+        if (processes.size === 1) {
+          if (sequences.size === 1) hookProcesses.delete(change.id);
+          else sequences.delete(change.seq);
         }
-      } else {
-        sequences.delete(change.seq);
+        else processes.delete(hookName);
       }
-    } else {
-      hookProcesses.delete(change.id);
     }
   };
-  const getProcesses = (change, hookName, direction = 'down') => {
+  const getDownProcesses = (change, hookName) => {
     const sequences = hookProcesses.get(change.id);
+    if (!(sequences && sequences.size > 0)) return [];
     const res = [];
-    if (sequences && sequences.size) {
-      for (let seq of sequences.keys()) {
-        if (direction === 'down') {
-          if (seq >= change.seq) continue;
-        } else {
-          if (seq <= change.seq) continue;
-        }
-        const processes = sequences.get(seq);
-        if (processes && processes.size && processes.has(hookName)) {
-          res.push(processes.get(hookName));
-        }
-      }
+    let processes, hook;
+    for (let seq of sequences.keys()) {
+      if (seq < change.seq && (processes = sequences.get(seq)) && (hook = processes.get(hookName))) res.push(hook);
     }
     return res;
   };
+  const hasFutureProcess = (change, hookName) => {
+    const sequences = hookProcesses.get(change.id);
+    if (sequences && sequences.size > 0) {
+      let processes;
+      for (let seq of sequences.keys()) {
+        if (seq > change.seq && (processes = sequences.get(seq)) && processes.has(hookName)) return true;
+      }
+    }
+    return false;
+  };
 
   // start hook on change
-  function startHook(change, hook) {
+  const startHook = (change, hook) => {
+    const hook_run_chain = ['hook-run', hook.name, 'seq-'+ change.seq];
+    DEBUG && logger.performance.start(Date.now(), hook_run_chain);
     const hookPromise = () => new Promise((resolve) => {
       const hookKey = '"'+ hook.name +'"'; // + ' doc: ' + change.id + (change.doc && change.doc._rev ? ':'+change.doc._rev : '');
-      if (hook.mode === 'transitive') {
-        const futures = getProcesses(change, hook.name, 'up');
-        if (futures && futures.length) {
-          log({
-            message: 'Skip hook: '+ hookKey,
-            ref: change.id,
-            event: HOOK_SKIP
-          });
-          return resolve();
-        }
+
+      const doneHook = (logEvent) => {
+        if (logEvent) log(logEvent);
+        // in final remove hook-change from processes and update bucket-worker state
+        setOutProcess(change, hook.name);
+        updateDBStateLazy();
+        // clean hook processes
+        removeProcess(change, hook.name);
+        DEBUG && logger.performance.end(Date.now(), hook_run_chain);
+        resolve();
+      };
+
+      if (hook.mode === 'transitive' && hasFutureProcess(change, hook.name)) {
+        return doneHook({
+          message: 'Skip hook: '+ hookKey,
+          ref: change.id,
+          event: HOOK_SKIP
+        });
       }
+
       log({
         message: 'Start hook: '+ hookKey,
         ref: change.id,
         event: HOOK_START
       });
+
       hook.handler(Object.clone(change.doc, true)) // run hook with cloned doc
         .then((result = {}) => {
           const { message, docs } = result;
@@ -413,62 +425,44 @@ function DB(props = {}) {
             });
           }
           if (Object.isArray(docs) && docs.length) { // check hook results
-            return saveResults(db, docs).then(() => { // save results
-              log({
-                message: 'Saved hook results: '+ hookKey,
-                ref: change.id,
-                event: HOOK_SAVE
-              });
-              return Promise.resolve();
-            });
+            return saveResults(db, docs).then(() => doneHook({
+              message: 'Saved hook results: '+ hookKey,
+              ref: change.id,
+              event: HOOK_SAVE
+            }));
+          } else {
+            return doneHook(); // empty results
           }
-          return Promise.resolve(); // empty results
         })
-        .catch(error => {
-          log({
-            message: 'Hook error: ' + hook.name,
-            ref: change.id,
-            event: HOOK_ERROR,
-            error: lib.errorBeautify(error)
-          });
-        })
-        .finally(resolve);
-    }).then(() => {
-      // in final remove hook-change from processes and update bucket-worker state
-      setOutProcess(change, hook.name);
-      return updateDBState();
+        .catch(error => doneHook({
+          message: 'Hook error: ' + hookKey,
+          ref: change.id,
+          event: HOOK_ERROR,
+          error: lib.errorBeautify(error)
+        }))
     });
 
-
-    switch (hook.mode) {
-      case 'transitive':
-      case 'sequential':
-        const deps = getProcesses(change, hook.name);
-        if (deps && deps.length) {
-          return addProcess(change, hook.name, deps.last().then(hookPromise));
-        }
-      case 'parallel':
-      default:
-        return addProcess(change, hook.name, hookPromise());
+    // dependencies for transitive or sequential mode
+    if (hook.mode === 'transitive' || hook.mode === 'sequential') {
+      const dependencies = getDownProcesses(change, hook.name);
+      if (dependencies && dependencies.length) return addProcess(change, hook.name, dependencies.last().then(hookPromise));
     }
-  }
+    // if parallel or empty dependencies
+    return addProcess(change, hook.name, hookPromise());
+  };
 
   const close = () => {
     stopFeed(); // previously stop feed
+    queue.length = 0;
     if (isRunning()) return setTimeout(close, CHECK_PROCESSES_TIMEOUT); // if worker has tasks wait
     log({
       message: 'Close',
       event: BUCKET_CLOSE
     });
-    updateDBState(true).then(() => { // on close
-      _onClose(worker_seq); // call _onClose
-    });
+    updateDBState(true).then(() => _onClose(worker_seq));
   }; // start close if bucket-worker and call _onClose
 
-  return {
-    init, close,
-    isRunning
-  };
+  return { init, close, isRunning };
 }
 
-module.exports = DB;
+module.exports = Bucket;

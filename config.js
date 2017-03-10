@@ -20,11 +20,11 @@ const mapInt = (val) => val|0;
 const mapStr = (val) => val;
 const mapBool = (val) => val === true || val === 'true';
 const mapJSON = (val) => Object.isString(val) ? lib.parseJSON(val) : Object.isObject(val) ? val : undefined;
-const mapsStrArr = (splitter) => (val) => {
+const mapsStrArr = (splitter, mapper = mapStr) => (val) => {
   return val
     ? Object.isString(val)
-      ? val.split(splitter).map(mapStr).filter(checkStr)
-      : Object.isArray(val) ? val.map(mapStr).filter(checkStr) : []
+      ? val.split(splitter).map(mapper).filter(checkStr)
+      : Object.isArray(val) ? val.map(mapper).filter(checkStr) : []
     : [];
 };
 const mapsIntArr = (splitter) => (val) => {
@@ -32,6 +32,13 @@ const mapsIntArr = (splitter) => (val) => {
     ? Object.isString(val)
       ? val.split(splitter).map(mapInt).filter(checkNumPlus)
       : Object.isArray(val) ? val.map(mapInt).filter(checkNumPlus) : []
+    : [];
+};
+const mapArrCustom = (splitter, mapper = mapStr, checker = checkStr) => (val) => {
+  return val
+    ? Object.isString(val)
+      ? val.split(splitter).map(mapper).filter(checker)
+      : Object.isArray(val) ? val.map(mapper).filter(checker) : []
     : [];
 };
 
@@ -43,6 +50,7 @@ const checkIn = (en, val) => val && val in en;
 const checkEnum = (items) => { const en = {}; items.forEach(i => (en[i] = true)); return checkIn.fill(en); };
 const checkNumPlusArr = (val) => Object.isArray(val) && (val.length === 0 || (val.length > 0 && val.filter(checkNumPlus).unique().length === val.length));
 const checkStrArr = (val) => Object.isArray(val) && (val.length === 0 || (val.length > 0 && val.filter(checkStr).unique().length === val.length));
+const checkArrCustom = (checker = checkStr) => (val) => Object.isArray(val) && (val.length === 0 || (val.length > 0 && val.filter(checker).unique().length === val.length));
 
 const strStr = (val) => val;
 const strInt = (val) => val.toString();
@@ -50,11 +58,12 @@ const strBool = (val) => val.toString();
 const strArrStr = (delimiter) => (val) => val.map(strStr).join(delimiter);
 const strArrInt = (delimiter) => (val) => val.map(strInt).join(delimiter);
 const strJSON = (val) => JSON.stringify(val);
+const strArrCustom = (delimiter, stringify = strStr) => (val) => val.map(stringify).join(delimiter);
 
 const defaultConfig = {
   'couchbox.nodename': {
     env: 'NODE_NAME',
-    value: undefined,
+    value: 'lc',
     str: strStr,
     map: mapStr,
     check: checkStr
@@ -65,6 +74,31 @@ const defaultConfig = {
     str: strJSON,
     map: mapJSON,
     check: checkJSON
+  },
+  'debug.enabled': {
+    env: 'DEBUG',
+    value: false,
+    str: strBool,
+    map: mapBool,
+    check: checkBool
+  },
+  'debug.db': {
+    env: 'DEBUG_DB',
+    value: undefined,
+    str: strStr,
+    map: mapStr,
+    check: checkStr
+  },
+  'debug.events': {
+    env: 'DEBUG_EVENTS',
+    value: [],
+    map: mapArrCustom(
+      /,\s*/,
+      (f) => Object.isString(f) ? f.split('/').filter(i => i && i.length && i.trim() !== '*') : Object.isArray(f) ? f : null,
+      (f) => Object.isArray(f) && f.length > 0
+    ),
+    check: checkArrCustom((f) => Object.isArray(f)),
+    str: strArrCustom(',', (f) => f.join('/'))
   },
 
   'system.configTimeout': {
@@ -83,6 +117,13 @@ const defaultConfig = {
     check: checkNumPlus
   },
 
+  'logger.console': {
+    env: 'LOGGER_CONSOLE',
+    value: true,
+    str: strBool,
+    map: mapBool,
+    check: checkBool
+  },
   'logger.db': {
     env: 'LOGGER_DB',
     value: 'log',
@@ -250,6 +291,13 @@ const defaultConfig = {
     map: mapInt,
     check: checkNumPlus
   },
+  'api.fallback': {
+    env: 'API_FALLBACK',
+    value: undefined,
+    str: strStr,
+    map: mapStr,
+    check: checkStr
+  },
 
   'cors.enabled': {
     env: 'CORS',
@@ -268,7 +316,7 @@ const defaultConfig = {
   'cors.headers': {
     env: 'CORS_HEADERS',
     value: [],
-    str: strArrStr(', '),
+    str: strArrStr(','),
     map: mapsStrArr(/,\s*/),
     check: checkStrArr
   },

@@ -7,6 +7,7 @@ const lib = require('./lib');
 const Logger = require('./logger');
 const config = require('../config');
 
+const DEBUG = config.get('debug.enabled');
 
 const { RejectHandlerError, TimeoutError } = require('./errors');
 
@@ -53,6 +54,8 @@ const availableGlobals = Object.assign({}, lambdaGlobals, {
 const availableInLambda = ['require', 'log', 'arguments', 'resolve', 'reject'];
 const lambdaAvailable = Object.keys(availableGlobals).concat(availableInLambda);
 
+
+const emptyFunction = () => undefined;
 
 // Modules makers
 
@@ -125,7 +128,7 @@ const makePlugins = (ctx, methods = [], log) => {
   const methodsList = methods && methods.length > 0 ? methods.compact(true).unique() : [];
   return Promise.all(methodsList.map(pluginLoader(ctx, log))).then(pluginsList => {
     const plugins = {};
-    pluginsList.forEach(plugin => plugin && (plugins[plugin.name] = plugin));
+    for(let i = 0, i_max = pluginsList.length, plugin; i < i_max; i++) if (plugin = pluginsList[i]) plugins[plugin.name] = plugin;
     return plugins;
   });
 };
@@ -177,8 +180,12 @@ const makeContext = (body = {}, log) => {
 };
 
 const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
-  const handlerName = ddoc +'/'+ handlerKey;
   const { ctx = {}, context, requireModule, methods, referrer } = props;
+  if (!body.lambda) return Promise.reject(new Error('No lambda'));
+  if (!context) return Promise.reject(new Error('No context'));
+
+  const handlerName = ddoc +'/'+ handlerKey;
+  const lambdaName = ddoc +'__'+ handlerKey.replace(/[^a-z0-9]+/g, '_');
   const logger = new Logger({
     prefix: 'Handler '+ handlerName,
     logger: props.logger,
@@ -186,20 +193,21 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
   });
   const log = logger.getLog();
 
+  const handler_init_chain = ['handler-init', handlerName];
+  DEBUG && logger.performance.start(Date.now(), handler_init_chain);
 
-  if (!context) return Promise.reject(new Error('No context'));
-  if (!body.lambda) return Promise.reject(new Error('No lambda'));
-
-
-  const lambdaName = ddoc +'__'+ handlerKey.replace(/[^a-z0-9]+/g, '_');
   const lambdaSrc = body.lambda.trim().replace(/^function.*?\(/, 'function '+ lambdaName +'(');
   const timeout = body.timeout && body.timeout > 0 ? body.timeout : (PROCESS_TIMEOUT || HANDLER_DEFAULT_TIMEOUT);
   const validate = body.dubug !== true;
 
+
   const lambda_globals = lib.getGlobals(lambdaSrc);
   if (validate) {
     const validationResult = lib.validateGlobals(lambda_globals, { available: lambdaAvailable });
-    if (validationResult) return Promise.reject(new Error('Lambda validation failed: '+ JSON.stringify(validationResult)));
+    if (validationResult) {
+      DEBUG && logger.performance.end(Date.now(), handler_init_chain);
+      return Promise.reject(new Error('Lambda validation failed: '+ JSON.stringify(validationResult)));
+    }
   }
   const needRequire = lambda_globals.indexOf('require') >= 0;
 
@@ -212,8 +220,9 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
   );
   let lambda;
   try {
-    lambda = vm.runInContext(script, context)
+    lambda = vm.runInContext(script, context);
   } catch (error) {
+    DEBUG && logger.performance.end(Date.now(), handler_init_chain);
     return Promise.reject(new Error('Failed compiling lambda "'+ error.message + '"'));
   }
 
@@ -225,11 +234,17 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
     }
   };
 
-
+  const plugins_init_chain = ['plugins-init', methods.join(',')];
+  DEBUG && logger.performance.start(Date.now(), plugins_init_chain);
   return makePlugins(ctx, methods, log).then(plugins => {
+    DEBUG && logger.performance.end(Date.now(), plugins_init_chain);
 
     function handler() {
-      const params = Array.from(arguments);
+      const params = new Array(arguments.length);
+      for (let args_i = 0, args_max = arguments.length; args_i < args_max; args_i++) params[args_i] = arguments[args_i];
+
+      const handler_run_chain = ['handler-run', handlerName, 'ref-' + referrer ? referrer(params) : 'null'];
+      DEBUG && logger.performance.start(Date.now(), handler_run_chain);
 
       return new Promise((resolve0, reject0) => {
         const reject = (error) => reject0(new RejectHandlerError(error));
@@ -238,25 +253,27 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
             if (prop in target) return target[prop];
             if (prop in plugins) {
               return plugins[prop].make(referrer
-                ? { bucket, ctx, params, reject, ref:referrer(params) }
+                ? { bucket, ctx, params, reject, ref: referrer(params) }
                 : { bucket, ctx, params, reject }
               );
             }
             return target[prop];
           },
           has: (target, prop) => prop in target || prop in plugins,
-          set: () => undefined,
-          defineProperty: () => undefined,
-          deleteProperty: () => undefined
+          set: emptyFunction,
+          defineProperty: emptyFunction,
+          deleteProperty: emptyFunction
         });
 
         const modulesCtx = proxy.proxy;
-        const _require = needRequire ? function(prop) { return requireModule.call(modulesCtx, log, prop) }: null;
-        const onDone = () => proxy.revoke();
+        const _require = needRequire ? prop => requireModule.call(modulesCtx, log, prop) : null;
+        const onDone = () => {
+          proxy.revoke();
+          DEBUG && logger.performance.end(Date.now(), handler_run_chain);
+        };
 
         try {
-          return lambda.call(modulesCtx, _require, log, params)
-            .timeout(timeout)
+          return lambda.call(modulesCtx, _require, log, params).timeout(timeout)
             .catch(errorHandler).then(resolve0).catch(reject).finally(onDone);
         } catch(error) {
           log({
@@ -270,6 +287,7 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
       });
     }
 
+    DEBUG && logger.performance.end(Date.now(), handler_init_chain);
     return { handlerKey, timeout, handler };
   });
 };

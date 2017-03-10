@@ -3,7 +3,9 @@ const util = require('util');
 const EventEmitter = require('events');
 const lib = require('./lib');
 const Logger = require('./logger');
+const config = require('../config');
 
+const DEBUG = config.get('debug.enabled');
 
 // Constants
 const WORKER_HANDLE_EXIT = 'WORKER_HANDLE_EXIT';
@@ -27,6 +29,7 @@ const WORKER_ERROR = 'worker/error';
 
 
 function Worker(cluster, props = {}) {
+  const worker = this;
   EventEmitter.call(this);
   const emitter = this;
 
@@ -94,10 +97,10 @@ function Worker(cluster, props = {}) {
   }
 
   function close() {
-    logger.saveForced()
+    logger.save(true)
       .catch(error => log({ message:'Error save log', event: LOG_ERROR, error }))
       .finally(() => {
-        logger.goOffline();
+        logger.offline();
         process.exit();
       });
   }

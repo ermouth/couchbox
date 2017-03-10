@@ -24,16 +24,18 @@ const NODES = config.get('couchbox.nodes') || {};
 let auth_attempts = 5;
 const connections = new Map();
 
+const nanoConnect = (url) => nano({ url, requestDefaults: { pool: { maxSockets: 256 } } });
+
 // return db connection
 const connect = (nodeName = NODE_NAME) => {
   if (!nodeName || nodeName === NODE_NAME) {
     nodeName = 'local';
-    if (!connections.has(nodeName)) connections.set(nodeName, nano(DB_CONNECTION_URL));
+    if (!connections.has(nodeName)) connections.set(nodeName, nanoConnect(DB_CONNECTION_URL));
   } else if (nodeName && Object.isString(nodeName) && nodeName in NODES) {
     if (!connections.has(nodeName)) {
       const node = NODES[nodeName].split(CONNECTION_DELIMETER);
       const connectionString = node[0] + CONNECTION_DELIMETER + DB_USER +':'+ DB_PASS +'@'+ node[1];
-      connections.set(nodeName, nano(connectionString));
+      connections.set(nodeName, nanoConnect(connectionString));
     }
   }
   return connections.get(nodeName);
@@ -51,7 +53,7 @@ const auth = () => new Promise((resolve, reject) => {
   const oldCookie = config.get('couchdb.cookie');
   if (oldCookie) return resolve(oldCookie);
   if (!auth_attempts) return reject(new Error('End last auth attempt'));
-  nano(DB_URL).auth(DB_USER, DB_PASS, function (error, body, headers) {
+  nanoConnect(DB_URL).auth(DB_USER, DB_PASS, function (error, body, headers) {
     if (error) return reject(error);
     let cookie;
     if (headers && headers['set-cookie'] && headers['set-cookie'][0]) {

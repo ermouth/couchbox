@@ -11,6 +11,8 @@ const Logger = require('../../utils/logger');
 const couchdb = require('../../utils/couchdb');
 const config = require('../../config');
 
+const DEBUG = config.get('debug.enabled');
+
 // Log events constants
 const { LOG_ERROR } = Logger.LOG_EVENTS;
 const { CONFIG_API, CONFIG_BUCKET, CONFIG_SOCKET, CONFIG_PROXY, CONFIG_ENDPOINTS, CONFIG_HOOKS } = config.LOG_EVENTS;
@@ -34,12 +36,9 @@ const {
 
 // Master worker
 module.exports = function initMaster(cluster) {
+  const sandbox = this;
   const logger = new Logger({ prefix: 'Master '+ process.pid });
   const log = logger.getLog();
-  log({
-    message: 'Started',
-    event: SANDBOX_START
-  });
 
   // map of current workers
   const workers = new Map();
@@ -94,15 +93,15 @@ module.exports = function initMaster(cluster) {
 
     for (let pid of workers.keys()) sendMessage(pid, 'exit'); // send close for all workers
 
-    logger.saveForced() // start save log forced
-      .catch(error => log({ message: 'Close', event: LOG_ERROR, error }))
-      .finally(() => { logger.goOffline(); });
+    logger.save(true) // start save log forced
+      .catch(error => log({ message: 'Close error: "'+ error.message +'"', event: LOG_ERROR, error }))
+      .finally(logger.offline);
   }
 
   // Init proc signals listeners
   process.on('SIGINT', onClose); // on close command
   process.on('SIGTERM', onClose);
-  process.on('exit', () => { log({ message: 'Closed', event: SANDBOX_CLOSED }); }); // on master closed
+  process.on('exit', () => log({ message: 'Closed', event: SANDBOX_CLOSED })); // on master closed
 
 
   // Config, maps CouchDB config vars
@@ -114,6 +113,10 @@ module.exports = function initMaster(cluster) {
         ['couchbox.nodename', 'nodename'],
         ['couchbox.nodes', 'nodes'],
 
+        ['debug.enabled', 'debug'],
+        ['debug.db', 'debug_db'],
+        ['debug.events', 'debug_events'],
+
         ['socket.enabled', 'socket'],
         ['socket.port', 'socket_port'],
         ['socket.path', 'socket_path'],
@@ -124,7 +127,8 @@ module.exports = function initMaster(cluster) {
 
         ['api.enabled', 'api'],
         ['api.ports', 'api_ports'],
-        ['api.restartDelta', 'api_restart_delta']
+        ['api.restartDelta', 'api_restart_delta'],
+        ['api.fallback', 'fallback']
       ]);
     },
     'cors': (conf = {}) => {
@@ -195,85 +199,89 @@ module.exports = function initMaster(cluster) {
 
   // Loads config, called repeatedly for monitoring
   // CouchDB cfg changes, and at the end of worker start sequence
-  const loadConfig = () => couchdb.loadConfig().then(newConf => {
-    // if worker is not running - don't update config and start config update timeout
+  const loadConfig = () => {
     if (isClosing) return null;
-    Object.keys(newConf).forEach(confKey => configMap[confKey] && configMap[confKey](newConf[confKey]));
+
+    couchdb.loadConfig().then(newConf => {
+      // if worker is not running - don't update config and start config update timeout
+      if (isClosing) return null;
+
+      Object.keys(newConf).forEach(confKey => configMap[confKey] && configMap[confKey](newConf[confKey]));
+
+      // Check socket config
+      const newConfigSocketHash = lib.sdbmCode(['couchbox', 'socket', 'redis'].map(config.get)); // update configSocketHash by critical fields
+      if (newConfigSocketHash !== configSocketHash) {
+        log({
+          message: 'Updated socket worker config',
+          event: CONFIG_SOCKET
+        });
+        configSocketHash = newConfigSocketHash;
+        updateSocketWorkers();
+      }
 
 
-    // Check socket config
-    const newConfigSocketHash = lib.sdbmCode(['couchbox', 'socket', 'redis'].map(config.get)); // update configSocketHash by critical fields
-    if (newConfigSocketHash !== configSocketHash) {
-      log({
-        message: 'Updated socket worker config',
-        event: CONFIG_SOCKET
-      });
-      configSocketHash = newConfigSocketHash;
-      updateSocketWorkers();
-    }
+      // Check proxy config
+      const newConfigProxyHash = lib.sdbmCode(['couchbox', 'proxy', 'cors', 'api', 'socket'].map(config.get)); // update configSocketHash by critical fields
+      if (newConfigProxyHash !== configProxyHash) {
+        configProxyHash = newConfigProxyHash;
+        log({
+          message: 'Updated proxy worker config',
+          event: CONFIG_PROXY
+        });
+        updateProxyWorkers();
+      }
 
 
-    // Check proxy config
-    const newConfigProxyHash = lib.sdbmCode(['couchbox', 'proxy', 'cors', 'api', 'socket'].map(config.get)); // update configSocketHash by critical fields
-    if (newConfigProxyHash !== configProxyHash) {
-      log({
-        message: 'Updated proxy worker config',
-        event: CONFIG_PROXY
-      });
-      configProxyHash = newConfigProxyHash;
-      updateProxyWorkers();
-    }
+      // Check bucket worker and hooks config
+      let updateBuckets = false;
+      const newConfigBucketHash = lib.sdbmCode(['couchbox', 'plugins', 'couchdb', 'hooks', 'redis'].map(config.get)); // update configBucketHash by critical fields
+      if (configBucketHash !== newConfigBucketHash) {
+        configBucketHash = newConfigBucketHash;
+        updateBuckets = true;
+        log({
+          message: 'Updated bucket worker config',
+          event: CONFIG_BUCKET
+        });
+      }
+      const newHooksHash = lib.sdbmCode(hooks);
+      if (hooksHash !== newHooksHash) {
+        hooksHash = newHooksHash;
+        updateBuckets = true;
+        log({
+          message: 'Updated hooks config',
+          event: CONFIG_HOOKS
+        });
+      }
+      if (updateBuckets) updateBucketWorkers(); // start update bucket workers
 
 
-    // Check bucket worker and hooks config
-    let updateBuckets = false;
-    const newConfigBucketHash = lib.sdbmCode(['couchbox', 'plugins', 'couchdb', 'hooks', 'redis'].map(config.get)); // update configBucketHash by critical fields
-    if (configBucketHash !== newConfigBucketHash) {
-      configBucketHash = newConfigBucketHash;
-      updateBuckets = true;
-      log({
-        message: 'Updated bucket worker config',
-        event: CONFIG_BUCKET
-      });
-    }
-    const newHooksHash = lib.sdbmCode(hooks);
-    if (hooksHash !== newHooksHash) {
-      hooksHash = newHooksHash;
-      updateBuckets = true;
-      log({
-        message: 'Updated hooks config',
-        event: CONFIG_HOOKS
-      });
-    }
-    if (updateBuckets) updateBucketWorkers(); // start update bucket workers
+      // Check api worker and endpoints config
+      let updateApi = false;
+      const newConfigApiHash = lib.sdbmCode(['couchbox', 'plugins', 'couchdb', 'redis', 'cors', 'api'].map(config.get)); // update configBucketHash by critical fields
+      if (configApiHash !== newConfigApiHash) {
+        configApiHash = newConfigApiHash;
+        updateApi = true;
+        log({
+          message: 'Updated api worker config',
+          event: CONFIG_API
+        });
+      }
+      const newEndpointsHash = lib.sdbmCode(endpoints);
+      if (endpointsHash !== newEndpointsHash) {
+        endpointsHash = newEndpointsHash;
+        updateApi = true;
+        log({
+          message: 'Updated endpoints config',
+          event: CONFIG_ENDPOINTS
+        });
+      }
+      if (updateApi) updateApiWorkers(); // start update api workers
 
 
-    // Check api worker and endpoints config
-    let updateApi = false;
-    const newConfigApiHash = lib.sdbmCode(['couchbox', 'plugins', 'couchdb', 'redis', 'cors', 'api'].map(config.get)); // update configBucketHash by critical fields
-    if (configApiHash !== newConfigApiHash) {
-      configApiHash = newConfigApiHash;
-      updateApi = true;
-      log({
-        message: 'Updated api worker config',
-        event: CONFIG_API
-      });
-    }
-    const newEndpointsHash = lib.sdbmCode(endpoints);
-    if (endpointsHash !== newEndpointsHash) {
-      endpointsHash = newEndpointsHash;
-      updateApi = true;
-      log({
-        message: 'Updated endpoints config',
-        event: CONFIG_ENDPOINTS
-      });
-    }
-    if (updateApi) updateApiWorkers(); // start update api workers
-
-
-    // start timeout on next config update if worker is running
-    configUpdateTimeout = setTimeout(loadConfig, config.get('system.configTimeout'));
-  }); // load and process couchdb config
+      // start timeout on next config update if worker is running
+      configUpdateTimeout = setTimeout(loadConfig, config.get('system.configTimeout'));
+    });
+  }; // load and process couchdb config
 
   // On cfg change detects workers|hooks touched by changes
   // and restarts re-instantiate outdated workers
@@ -637,4 +645,9 @@ module.exports = function initMaster(cluster) {
 
   // Init
   loadConfig();
+
+  log({
+    message: 'Started',
+    event: SANDBOX_START
+  });
 };

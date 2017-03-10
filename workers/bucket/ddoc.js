@@ -19,6 +19,7 @@ function DDoc(bucket, bucketName, props = {}) {
 
   const hooks = new Map();
   const filters = [];
+  let filters_size = 0;
 
   let id;
   let rev = props.rev;
@@ -80,6 +81,8 @@ function DDoc(bucket, bucketName, props = {}) {
             return key;
           }).sort().forEach(k => filters.push(k));
 
+          filters_size = filters.length;
+
           log({
             message: 'Started ddoc: '+ name,
             event: DDOC_INIT,
@@ -97,21 +100,19 @@ function DDoc(bucket, bucketName, props = {}) {
 
   const filter = (change) => {
     const res = [];
-    filters.forEach(key => {
-      const { filter, hook } = hooks.get(key);
-      let filterRes = false;
+    let i = 0, val, fiter_key;
+    while (i < filters_size) {
+      val = hooks.get(fiter_key = filters[i++]);
       try {
-        filterRes = filter(change.doc);
+        if (val && val.filter(change.doc)) res.push(val.hook);
       } catch (e) {
-        filterRes = false;
         log({
-          message: 'Error on filter: '+ name +'/'+ key,
+          message: 'Error on filter: '+ name +'/'+ fiter_key,
           event: DDOC_ERROR,
           error
         });
       }
-      if (filterRes) res.push(hook);
-    });
+    }
     return res;
   };
 

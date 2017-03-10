@@ -200,10 +200,20 @@ function Router(props = {}) {
     const headers = result.headers || API_DEFAULT_HEADERS;
 
     if (result.stream && result.stream.pipe) {
-      res.writeHead(code, headers);
-      result.stream.pipe(res);
+      // Stream
+      res.writeHead(code, Object.assign(headers, { 'X-Accel-Buffering': 'no' })); // disable nginx cache for stream
+      result.stream.pipe(res).on('error', error => {
+        log({
+          message: 'Error pipe result.stream',
+          event: API_REQUEST_ERROR,
+          error
+        });
+        return sendResult(res, makeError(new SendingError(error)));
+      });
     } else {
+      // Body
       if (result.json) {
+        // JSON sugar
         headers['Content-Type'] = 'application/json';
         try {
           result.body = JSON.stringify(result.json);
@@ -216,6 +226,7 @@ function Router(props = {}) {
           return sendResult(res, makeError(new SendingError(error)));
         }
       }
+
       res.writeHead(code, headers);
       if (result.body !== undefined) {
         try {
@@ -240,6 +251,7 @@ function Router(props = {}) {
       });
     }
   };
+
 
   function onRequest(req, res) {
     const send = result => sendResult(res, result);
