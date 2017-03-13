@@ -26,22 +26,25 @@ function DDoc(props = {}) {
 
       const id = body._id;
       const rev = body._rev;
-
       let timeout = 0;
 
-      const handlerFilter = (handler) => {
-        if (handler) {
-          if (timeout < handler.timeout) timeout = handler.timeout;
-          return true;
-        }
-      };
       const onHandlerError = (handlerKey, error) => {
         log({
           message: 'Error init api lambda: '+ handlerKey,
           event: API_ERROR,
           error
         });
-        return null;
+      };
+      const onHandlerResult = ({ methods }, handler) => {
+       if (handler && Object.isObject(handler)) {
+         return Object.assign(handler, { methods });
+       }
+      };
+      const handlerFilter = (handler) => {
+        if (handler) {
+          if (timeout < handler.timeout) timeout = handler.timeout;
+          return true;
+        }
       };
 
       log({
@@ -53,20 +56,24 @@ function DDoc(props = {}) {
       const context = makeContext(body, log);
 
       const handlerProps = Object.assign({ logger, logEvent: API_LOG, errorEvent: API_ERROR, methods, referrer }, context);
-      const apiHandlers = Object.keys(body.api || {}).map(handlerKey => {
+
+      const handlerMaker = (handlerKey) => {
         const handlerBody = body.api[handlerKey];
         return makeHandler(bucket, name, handlerKey, handlerBody, handlerProps)
-          .then(result => {
-            if (Object.isObject(result)) return Object.assign(result, { methods: handlerBody.methods });
-            throw new Error('Bad handler compilation');
-          })
-          .catch(error => onHandlerError(handlerKey, error))
-      });
+          .then(result => onHandlerResult(handlerBody, result))
+          .catch(error => onHandlerError(handlerKey, error));
+      };
 
-      Promise.all(apiHandlers).then(handlers => {
-        const api = handlers.filter(handlerFilter);
-        return resolve({ name, id, rev, domain, endpoint, methods, api, timeout: timeout || API_DEFAULT_TIMEOUT });
-      });
+      Promise.all(Object.keys(body.api || {}).map(handlerMaker)).then(handlers => resolve({
+        name,
+        id,
+        rev,
+        domain,
+        endpoint,
+        methods,
+        api: handlers.filter(handlerFilter),
+        timeout: timeout || API_DEFAULT_TIMEOUT
+      }));
     });
   });
 }

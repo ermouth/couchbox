@@ -135,7 +135,11 @@ const makePlugins = (ctx, methods = [], log) => {
 
 const makeContext = (body = {}, log) => {
   const ctx = {};
-  Object.keys(body).forEach(key => (key && key[0] !== '_' && !CONTEXT_DENY[key]) && (ctx[key] = body[key]));
+  {
+    const bodyKeys = Object.keys(body);
+    let i = bodyKeys.length, key;
+    while (i--) if ((key = bodyKeys[i]) && key[0] !== '_' && !CONTEXT_DENY[key]) ctx[key] = body[key];
+  }
 
   const context = new vm.createContext(lambdaGlobals);
 
@@ -248,7 +252,7 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
 
       return new Promise((resolve0, reject0) => {
         const reject = (error) => reject0(new RejectHandlerError(error));
-        const proxy = Proxy.revocable(ctx, {
+        const { proxy, revoke } = Proxy.revocable(ctx, {
           get: (target, prop) => {
             if (prop in target) return target[prop];
             if (prop in plugins) {
@@ -264,17 +268,16 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
           defineProperty: emptyFunction,
           deleteProperty: emptyFunction
         });
-
-        const modulesCtx = proxy.proxy;
-        const _require = needRequire ? prop => requireModule.call(modulesCtx, log, prop) : null;
-        const onDone = () => {
-          proxy.revoke();
+        const done = () => {
+          revoke();
           DEBUG && logger.performance.end(Date.now(), handler_run_chain);
         };
 
+        const _require = needRequire ? prop => requireModule.call(proxy, log, prop) : null;
+
         try {
-          return lambda.call(modulesCtx, _require, log, params).timeout(timeout)
-            .catch(errorHandler).then(resolve0).catch(reject).finally(onDone);
+          return lambda.call(proxy, _require, log, params).timeout(timeout)
+            .catch(errorHandler).then(resolve0).catch(reject).finally(done);
         } catch(error) {
           log({
             message: 'Error running lambda handler: '+ handlerName,
@@ -282,7 +285,7 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
             error
           });
         }
-        onDone();
+        done();
         return reject(new Error('Bad handler'));
       });
     }

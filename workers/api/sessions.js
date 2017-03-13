@@ -54,7 +54,8 @@ function Sessions(props = {}) {
     if (users.has(name)) {
       const user = users.get(name);
       if (user) {
-        user.sessions.forEach(removeSession);
+        let i = user.sessions.length;
+        while (i--) removeSession(user.sessions[i]);
         users.delete(name);
       }
     }
@@ -85,7 +86,8 @@ function Sessions(props = {}) {
           });
         } else {
           user.userCtx = userCtx;
-          user.sessions.forEach(removeSession);
+          let i = user.sessions.length;
+          while (i--) removeSession(user.sessions[i]);
           user.sessions = [sid];
         }
       }

@@ -222,7 +222,8 @@ function Bucket(props = {}) {
     db.changes({ since: last_seq, limit, include_docs: true }, (error, changes) => {
       if (error) return reject(error);
       if (changes && changes.results) {
-        changes.results.forEach(change => change && change.seq < max_seq && onChange(change, false));
+        let i = changes.results.length, change;
+        while (i--) if ((change = changes.results[i]) && change.seq < max_seq) onChange(change, false);
       }
       resolve();
     });

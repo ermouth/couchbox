@@ -98,35 +98,35 @@ function API(props = {}) {
     _running = true;
 
     const tmp = parseEndpointsParam(props.endpoints);
-     Promise.all(Object.keys(tmp).map(name => {
-       const endpoints = tmp[name];
-       const bucket = new Bucket({ logger, name });
-       return bucket.init(endpoints).then(res => {
-         if (timeout < res.timeout) timeout = res.timeout;
-         bucket.onUpdate((needStop) => needStop && close());
-         return res.handlers;
-       });
-     })).then(handlers => {
-       handlers.flatten().forEach(({ domain, endpoint, handlerKey, methods, handler, bucket }) => {
-         const path = handlerKey;
-         try {
-           router.addRoute(domain, endpoint, path, methods, handler, bucket);
-         } catch (error) {
-           log({
-             message: 'Error on route creation: "'+ [domain, '/', endpoint, path].join('') + '"',
-             event: API_ROUTE_ERROR,
-             error
-           });
-         }
-       });
-       server.listen(API_PORT, function () {
-         log({
-           message: 'Start api listen requests on port: '+ API_PORT,
-           event: API_START
-         });
-         _onInit({ timeout });
-       });
-     });
+    Promise.all(Object.keys(tmp).map(name => {
+      const endpoints = tmp[name];
+      const bucket = new Bucket({ logger, name });
+      return bucket.init(endpoints).then(res => {
+        if (timeout < res.timeout) timeout = res.timeout;
+        bucket.onUpdate((needStop) => needStop && close());
+        return res.handlers;
+      });
+    })).then(handlers => {
+      handlers.flatten().forEach(({ domain, endpoint, handlerKey, methods, handler, bucket }) => {
+        const path = handlerKey;
+        try {
+          router.addRoute(domain, endpoint, path, methods, handler, bucket);
+        } catch (error) {
+          log({
+            message: 'Error on route creation: "'+ [domain, '/', endpoint, path].join('') + '"',
+            event: API_ROUTE_ERROR,
+            error
+          });
+        }
+      });
+      server.listen(API_PORT, function () {
+        log({
+          message: 'Start api listen requests on port: '+ API_PORT,
+          event: API_START
+        });
+        _onInit({ timeout });
+      });
+    });
   };
 
   const end = (forced) => {
