@@ -39,7 +39,7 @@ function Plugin(method, conf = {}, log) {
       } catch (error) {
         return reject(new Error('Bad src parse: "'+ error.message +'"'));
       }
-    } else if (src && Object.isFunction(src)) {
+    } else if (src instanceof stream.Stream) {
       fileStream = src;
     } else {
       return reject(new Error('Empty src'));
