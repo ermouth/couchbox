@@ -525,6 +525,7 @@ module.exports = function initMaster(cluster) {
   function startWorkerProxy() {
     if ( // don't start worker if
       isClosing // master closing
+      || !config.get('proxy.enabled') // proxy turned off
     ) return null;
 
     const configHash = configProxyHash;
@@ -564,6 +565,7 @@ module.exports = function initMaster(cluster) {
   function startWorkerSocket() {
     if ( // don't start worker if
       isClosing // master closing
+      || !config.get('socket.enabled') // socket turned off
     ) return null;
 
     const configHash = configSocketHash;
@@ -604,6 +606,7 @@ module.exports = function initMaster(cluster) {
   function startWorkerApi(port) {
     if ( // don't start worker if
       isClosing // master closing
+      || !config.get('api.enabled') // api turned off
       || (!(port && port > 0)) // no port
       || getApiWorkersByPort(port).length > 0 // exist worker with same port
     ) return null;
