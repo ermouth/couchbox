@@ -53,16 +53,7 @@ function DDoc(bucket, bucketName, props = {}) {
             });
           }
           if (filter) {
-            const onHandlerError = (error) => {
-              log({
-                message: 'Error init hook lambda: '+ key,
-                event: HOOK_ERROR,
-                error
-              });
-              return null;
-            };
-            const handlerProps = Object.assign({ logger, logEvent: HOOK_LOG, errorEvent: HOOK_ERROR, methods, referrer }, context);
-            return makeHandler(bucket, name, key, hookParams, handlerProps).catch(onHandlerError)
+            return makeHandler(bucket, name, key, hookParams, Object.assign({ logger, logEvent: HOOK_LOG, errorEvent: HOOK_ERROR, methods, referrer }, context))
               .then(handler => {
                 if (handler && handler.handler) {
                   const hook = {
@@ -72,7 +63,12 @@ function DDoc(bucket, bucketName, props = {}) {
                   };
                   return { key, filter, hook };
                 }
-              });
+              })
+              .catch((error) => log({
+                message: 'Error init hook lambda: '+ key,
+                event: HOOK_ERROR,
+                error
+              }));
           }
           else return Promise.resolve();
         })).then(handlers => {

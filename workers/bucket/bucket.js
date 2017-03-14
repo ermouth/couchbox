@@ -9,6 +9,7 @@ const DDoc = require('./ddoc');
 
 
 const DEBUG = config.get('debug.enabled');
+const ID_REV_SEPARATOR = '*';
 
 const {
   BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD,
@@ -18,7 +19,7 @@ const {
     BUCKET_CHANGES, BUCKET_FEED, BUCKET_FEED_STOP,
     BUCKET_STOP, BUCKET_CLOSE, BUCKET_ERROR,
     DDOC_ERROR,
-    HOOK_START, HOOK_SAVE, HOOK_RESULT, HOOK_SKIP, HOOK_ERROR
+    HOOK_START, HOOK_SAVE, HOOK_RESULT, HOOK_SKIP, HOOK_ERROR, CHANGE_ERROR
   }
 } = require('./constants');
 
@@ -36,15 +37,14 @@ function Bucket(props = {}) {
 
   const db = couchdb.connectBucket(name);
 
-  const bucketStateKey = 'couchbox_bucket_'+ name;
-  const workerStatePrefix = bucketStateKey +'_worker_';
 
   const ddocs = [];
   const ddocs_index = {}; // ddocs id=>index in ddocs
+  let ddocs_info = [];
+
   let worker_seq = +(props.seq || 0); // worker sequence - by latest ddoc seq
   let last_seq = 0; // sequence of last doc in queue
   let max_seq = 0; // max sequence - if worker is old then worker close on change with this sequence
-  let ddocsInfo = [];
   let feed;
   let worker_type = BUCKET_WORKER_TYPE_ACTUAL;
 
@@ -58,26 +58,24 @@ function Bucket(props = {}) {
   const hasTasks = () => queue.length > 0; // return true if queue has tasks or worker has working processes
   const isRunning = () => hasFeed() || hasTasks() || changesCounter > 0;
 
-  const setInProcess = (change, hook) => {
-    const { seq, doc: { _id, _rev } } = change;
-    if (seq in inProcess) {
-      if (!~inProcess[seq][CHANGE_DOC_HOOKS].indexOf(hook)) inProcess[seq][CHANGE_DOC_HOOKS].push(hook);
-    } else {
-      inProcess[seq] = [];
-      inProcess[seq][CHANGE_DOC_ID] = _id;
-      inProcess[seq][CHANGE_DOC_REV] = _rev;
-      inProcess[seq][CHANGE_DOC_HOOKS] = [ hook ];
-    }
-  }; // add change with hooks list in process list
-  const setOutProcess = (change, hook) => {
-    const { seq } = change;
-    if (seq in inProcess) {
-      inProcess[seq][CHANGE_DOC_HOOKS] = inProcess[seq][CHANGE_DOC_HOOKS].remove(hook);
-      if (inProcess[seq][CHANGE_DOC_HOOKS].length === 0) delete inProcess[seq];
-    }
-  }; // remove hook from process list by change, if hook is last in change - remove change from processes
 
-  const defBucketState= [];
+  const setWorkerInfo = (workerState, type) => {
+    last_seq = workerState.last_seq;
+    worker_type = type;
+    if (Object.isObject(workerState.inProcess)) inProcess = workerState.inProcess;
+  }; // set worker info loaded from state
+  const getWorkerInfo = () => ({
+    ddocs: ddocs_info,
+    last_seq,
+    inProcess: Object.keys(inProcess)
+  }); // generate Object with worker state
+
+
+  const bucketStateKey = 'COUCHBOX__BUCKET__'+ name;
+  const getWorkerStateKey = () => bucketStateKey +'__WORKER__'+ worker_seq;
+  const getChangeStateKey = (seq) => getWorkerStateKey() + '__SEQ__' + seq;
+  const getHookStateKey = (seq) => getChangeStateKey(seq) + '__HOOKS';
+
   const getBucketState = () => new Promise((resolve, reject) => {
     redisClient.get(bucketStateKey, (error, data) => {
       if (error) {
@@ -88,7 +86,7 @@ function Bucket(props = {}) {
         });
         return reject(error);
       }
-      resolve(data ? JSON.parse(data) : defBucketState);
+      resolve(data ? JSON.parse(data) : []);
     });
   });
   const setBucketState = (closing) => {
@@ -117,10 +115,9 @@ function Bucket(props = {}) {
     }));
   };
 
-  const defWorkerState = {};
   const getWorkerState = () => new Promise((resolve, reject) => {
-    if (worker_seq === 0) return Promise.resolve(defWorkerState);
-    let workerStateKey = workerStatePrefix + worker_seq;
+    if (worker_seq === 0) return Promise.resolve({});
+    const workerStateKey = getWorkerStateKey();
 
     redisClient.get(workerStateKey, (error, data) => {
       if (error) {
@@ -131,35 +128,56 @@ function Bucket(props = {}) {
         });
         return reject(error);
       }
-      resolve(data ? JSON.parse(data) : defWorkerState);
+      if (data) {
+        try {
+          data = JSON.parse(data);
+        } catch (error) {
+          log({
+            message: 'Error on parse local worker state: '+ workerStateKey,
+            event: BUCKET_ERROR,
+            error
+          });
+          return reject(error);
+        }
+
+        const workerState = Object.reject(data, 'inProcess');
+        workerState.inProcess = {};
+
+        if (data && data.inProcess && data.inProcess.length > 0) {
+          const redisMulti = [];
+          data.inProcess.map(seq => {
+            redisMulti.push(['get', getChangeStateKey(seq)]);
+            redisMulti.push(['smembers', getHookStateKey(seq)]);
+          });
+          return redisClient.multi(redisMulti).exec((error, results) => {
+            if (error) {
+              log({
+                message: 'Error load local worker state sequences: '+ workerStateKey,
+                event: BUCKET_ERROR,
+                error
+              });
+              return reject(error);
+            }
+            for (let i = 0, max = results.length; i < max;) {
+              const [id,rev] = results[i++].split(ID_REV_SEPARATOR);
+              const hooks = results[i++];
+              const seq = data.inProcess[i/2 -1];
+              workerState.inProcess[seq] = [id, rev, hooks];
+            }
+            return resolve(workerState);
+          });
+        }
+        return resolve(workerState);
+      }
+      resolve({});
     });
   });
-
-  let workerStateSaving = false;
-  let workerStateFutureSaving = false;
-  const setWorkerState = (closing, lazy = false) => new Promise((resolve0, reject) => {
+  const setWorkerState = (closing) => new Promise((resolve, reject) => {
+    if (worker_seq === 0) return resolve();
+    const workerStateKey = getWorkerStateKey();
     const state = getWorkerInfo();
-    if (worker_seq === 0) return resolve0(state);
-    if (lazy && workerStateSaving) {
-      workerStateFutureSaving = true;
-      return Promise.resolve(state);
-    }
-    workerStateSaving = true;
 
-    let workerStateKey = workerStatePrefix + worker_seq;
-    const resolve = () => {
-      workerStateSaving = false;
-      if (lazy && workerStateFutureSaving) {
-        setWorkerState(closing).then((state) => {
-          workerStateFutureSaving = false;
-          resolve0(state);
-        });
-      } else {
-        resolve0(state);
-      }
-    };
-
-    if (closing && worker_type === BUCKET_WORKER_TYPE_OLD && Object.keys(inProcess).length === 0) {
+    if (closing && worker_type === BUCKET_WORKER_TYPE_OLD && state.inProcess.length === 0) {
       redisClient.del(workerStateKey, (error) => {
         if (error) {
           log({
@@ -186,16 +204,111 @@ function Bucket(props = {}) {
     }
   });
 
-  const setWorkerInfo = (worker, type) => {
-    last_seq = worker.last_seq;
-    inProcess = worker.inProcess;
-    worker_type = type;
-  }; // set worker info loaded from state
-  const getWorkerInfo = () => ({
-    ddocs: ddocsInfo,
-    last_seq,
-    inProcess
-  }); // generate Object with worker state
+  const setChangeState = (seq, id, rev) => new Promise((resolve, reject) => {
+    redisClient.set(getChangeStateKey(seq), id + ID_REV_SEPARATOR +rev, (error) => {
+      if (error) return reject(error);
+      resolve();
+    });
+  });
+  const unsetChangeState = (seq) => new Promise((resolve, reject) => {
+    redisClient.del(getChangeStateKey(seq), (error) => {
+      if (error) return reject(error);
+      resolve();
+    });
+  });
+
+  const setChangeHooksState = (seq, hook) => new Promise((resolve, reject) => {
+    redisClient.sadd(getHookStateKey(seq), hook, (error) => {
+      if (error) return reject(error);
+      resolve();
+    });
+  });
+  const unsetChangeHooksState = (seq, hook) => new Promise((resolve, reject) => {
+    redisClient.srem(getHookStateKey(seq), hook, (error) => {
+      if (error) return reject(error);
+      resolve();
+    });
+  });
+
+
+  // add change with hooks list in process list
+  const setInProcess = (change, hook) => {
+    const { seq, doc: { _id, _rev } } = change;
+    if (seq in inProcess) {
+      if (!~inProcess[seq][CHANGE_DOC_HOOKS].indexOf(hook)) {
+        inProcess[seq][CHANGE_DOC_HOOKS].push(hook);
+        return setChangeHooksState(seq, hook);
+      }
+    }
+    inProcess[seq] = [];
+    inProcess[seq][CHANGE_DOC_ID] = _id;
+    inProcess[seq][CHANGE_DOC_REV] = _rev;
+    inProcess[seq][CHANGE_DOC_HOOKS] = [ hook ];
+    return Promise.all([
+      setChangeHooksState(seq, hook),
+      setChangeState(seq, _id, _rev),
+      setWorkerState()
+    ]);
+  };
+  // remove hook from process list by change, if hook is last in change - remove change from processes
+  const setOutProcess = (change, hook) => {
+    const { seq } = change;
+    if (seq in inProcess) {
+      const queue = [];
+      inProcess[seq][CHANGE_DOC_HOOKS] = inProcess[seq][CHANGE_DOC_HOOKS].remove(hook);
+      queue.push(unsetChangeHooksState(seq, hook));
+      if (inProcess[seq][CHANGE_DOC_HOOKS].length === 0) {
+        delete inProcess[seq];
+        queue.push(unsetChangeState(seq));
+        queue.push(setWorkerState());
+      }
+      return Promise.all(queue);
+    }
+    return Promise.resolve();
+  };
+
+  const addProcess = ({ id, seq }, name, hook) => {
+    const sequences = hookProcesses.get(id) || new Map();
+    const processes = sequences.has(seq) ? sequences.get(seq) : new Map();
+    processes.set(name, hook);
+    sequences.set(seq, processes);
+    hookProcesses.set(id, sequences);
+    return hook;
+  };
+  const removeProcess = ({ id, seq }, hookName) => {
+    const sequences = hookProcesses.get(id);
+    if (sequences) {
+      const processes = sequences.get(seq);
+      if (processes && processes.has(hookName)) {
+        if (processes.size === 1) {
+          if (sequences.size === 1) hookProcesses.delete(id);
+          else sequences.delete(seq);
+        }
+        else processes.delete(hookName);
+      }
+    }
+  };
+  const getPreviousProcess = ({ id, seq }, hookName) => {
+    const sequences = hookProcesses.get(id);
+    if (!(sequences && sequences.size > 0)) return [];
+    let processes, hook, last;
+    for (let proc_seq of sequences.keys()) {
+      if (proc_seq < seq && (processes = sequences.get(proc_seq)) && (hook = processes.get(hookName))) last = hook;
+      else break;
+    }
+    return last;
+  };
+  const hasFutureProcess = ({ id, seq }, hookName) => {
+    const sequences = hookProcesses.get(id);
+    if (sequences && sequences.size > 0) {
+      let processes;
+      for (let proc_seq of sequences.keys()) {
+        if (proc_seq > seq && (processes = sequences.get(proc_seq)) && processes.has(hookName)) return true;
+      }
+    }
+    return false;
+  };
+
 
   const init = () => {
     getBucketState() // load state
@@ -272,7 +385,7 @@ function Bucket(props = {}) {
       .finally(resolve);
   }); // create & load ddoc
   const onInitDDocs = () => {
-    ddocsInfo = ddocs.map((ddoc, index) => {
+    ddocs_info = ddocs.map((ddoc, index) => {
       ddocs_index[ddoc.name] = index;
       return ddoc.getInfo();
     });
@@ -297,7 +410,7 @@ function Bucket(props = {}) {
   }); // load changes since last_seq with limit (max_seq - last_seq) and skip changes with seq greater then max_seq => push changes in queue
   const startInProcessChanges = () => Promise.each(Object.keys(inProcess).sort((a, b) => a - b), addProcessToQueue); // sort old processes and call addProcessToQueue
   const addProcessToQueue = (processSeq) => new Promise((resolve, reject) => {
-    const [ id, rev ]= inProcess[processSeq];
+    const [ id, rev ] = inProcess[processSeq];
     db.get(id, { rev }, (error, doc) => {
       if (error) return reject(error);
       onChange(newChange(processSeq, id, rev, doc));
@@ -357,6 +470,8 @@ function Bucket(props = {}) {
     let i = 0, i_max;
     let hook;
 
+    const savePromises = [];
+
     // Document
     if (seq in inProcess) {
       // Old change
@@ -370,9 +485,6 @@ function Bucket(props = {}) {
             hooks.push(hook);
           }
         }
-      } else {
-        // clean empty change
-        delete inProcess[seq];
       }
     } else {
       // New change
@@ -385,7 +497,7 @@ function Bucket(props = {}) {
             k = 0;
             while (k < k_max) if (hook = ddocHooks[k++]) {
               hooks.push(hook);
-              setInProcess(change, hook.name);
+              savePromises.push(setInProcess(change, hook.name));
             }
           }
         }
@@ -393,8 +505,10 @@ function Bucket(props = {}) {
     }
 
     if (hooks.length) {
-      queue.push([change, hooks]);
-      if (processNow) processQueue();
+      Promise.all(savePromises).then(() => {
+        queue.push([change, hooks]);
+        if (processNow) processQueue();
+      });
     }
   };
 
@@ -405,61 +519,24 @@ function Bucket(props = {}) {
       const [change, hooks] = queue.shift();
       if (change && hooks) {
         changesCounter++;
-        Promise.each(hooks, hook => startHook(change, hook)).then(() => {
-          changesCounter--;
-          processQueue();
-        });
+        Promise.each(hooks, hook => startHook(change, hook))
+          .catch(error => log({
+            message: 'Change hooks error: '+ change.seq,
+            ref: change.id,
+            event: CHANGE_ERROR,
+            error: lib.errorBeautify(error)
+          }))
+          .then(() => {
+            changesCounter--;
+            processQueue();
+          });
       }
     }
-  };
-
-  const addProcess = ({ id, seq }, name, hook) => {
-    const sequences = hookProcesses.get(id) || new Map();
-    const processes = sequences.has(seq) ? sequences.get(seq) : new Map();
-    processes.set(name, hook);
-    sequences.set(seq, processes);
-    hookProcesses.set(id, sequences);
-    return hook;
-  };
-  const removeProcess = ({ id, seq }, hookName) => {
-    const sequences = hookProcesses.get(id);
-    if (sequences) {
-      const processes = sequences.get(seq);
-      if (processes && processes.has(hookName)) {
-        if (processes.size === 1) {
-          if (sequences.size === 1) hookProcesses.delete(id);
-          else sequences.delete(seq);
-        }
-        else processes.delete(hookName);
-      }
-    }
-  };
-  const getPreviousProcess = ({ id, seq }, hookName) => {
-    const sequences = hookProcesses.get(id);
-    if (!(sequences && sequences.size > 0)) return [];
-    let processes, hook, last;
-    for (let proc_seq of sequences.keys()) {
-      if (proc_seq < seq && (processes = sequences.get(proc_seq)) && (hook = processes.get(hookName))) last = hook;
-      else break;
-    }
-    return last;
-  };
-  const hasFutureProcess = ({ id, seq }, hookName) => {
-    const sequences = hookProcesses.get(id);
-    if (sequences && sequences.size > 0) {
-      let processes;
-      for (let proc_seq of sequences.keys()) {
-        if (proc_seq > seq && (processes = sequences.get(proc_seq)) && processes.has(hookName)) return true;
-      }
-    }
-    return false;
   };
 
   // start hook on change
   const startHook = (change, hook) => {
     const hookName = hook.name;
-    const hook_run_chain = ['hook-run', hookName, 'seq-'+ change.seq];
-    DEBUG && logger.performance.start(Date.now(), hook_run_chain);
 
     const hookPromise = () => {
       if (hook.mode === 'transitive' && hasFutureProcess(change, hookName)) {
@@ -477,31 +554,25 @@ function Bucket(props = {}) {
         event: HOOK_START
       });
 
-      return hook.handler(Object.clone(change.doc, true)) // run hook with cloned doc
-        .then((result = {}) => {
-          const { message, docs } = result;
-          if (Object.isString(message)) {
-            log({
-              message: 'Hook result: '+ hookName +' = '+ message,
-              code: result.code,
-              ref: change.id,
-              event: HOOK_RESULT
-            });
-          }
-          if (Object.isArray(docs) && docs.length > 0) { // check hook results
-            return saveResults(db, docs).then(() => log({
-              message: 'Saved hook results: '+ hookName,
-              ref: change.id,
-              event: HOOK_SAVE
-            }));
-          }
-        })
-        .catch(error => log({
-          message: 'Hook error: '+ hookName,
-          ref: change.id,
-          event: HOOK_ERROR,
-          error: lib.errorBeautify(error)
-        }));
+      // run hook with cloned doc
+      return hook.handler(Object.clone(change.doc, true)).then((result = {}) => {
+        const { message, docs } = result;
+        if (Object.isString(message)) {
+          log({
+            message: 'Hook result: '+ hookName +' = '+ message,
+            code: result.code,
+            ref: change.id,
+            event: HOOK_RESULT
+          });
+        }
+        if (Object.isArray(docs) && docs.length > 0) { // check hook results
+          return saveResults(db, docs).then(() => log({
+            message: 'Saved hook results: '+ hookName,
+            ref: change.id,
+            event: HOOK_SAVE
+          }));
+        }
+      });
     };
 
     let hookProcess;
@@ -513,14 +584,19 @@ function Bucket(props = {}) {
     // if parallel or empty dependencies
     if (!hookProcess) hookProcess = addProcess(change, hookName, hookPromise());
 
-    return hookProcess.then(() => {
-      // in final remove hook-change from processes
-      removeProcess(change, hookName);
-      setOutProcess(change, hookName);
-      // update bucket-worker state
-      setWorkerState(false, true);
-      DEBUG && logger.performance.end(Date.now(), hook_run_chain);
-    });
+    return hookProcess
+      .catch(error => log({
+        message: 'Hook error: '+ hookName,
+        ref: change.id,
+        event: HOOK_ERROR,
+        error: lib.errorBeautify(error)
+      }))
+      .then(() => {
+        // in final remove hook-change from processes
+        removeProcess(change, hookName);
+        // update bucket-worker state
+        return setOutProcess(change, hookName);
+      });
   };
 
   const close = () => {

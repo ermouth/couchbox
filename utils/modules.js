@@ -184,12 +184,13 @@ const makeContext = (body = {}, log) => {
 };
 
 const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
+
   const { ctx = {}, context, requireModule, methods, referrer } = props;
-  if (!body.lambda) return Promise.reject(new Error('No lambda'));
+  if (!(body && body.lambda)) return Promise.reject(new Error('No lambda'));
   if (!context) return Promise.reject(new Error('No context'));
 
-  const handlerName = ddoc +'/'+ handlerKey;
-  const lambdaName = ddoc +'__'+ handlerKey.replace(/[^a-z0-9]+/g, '_');
+  const handlerName = ddoc.replace(/[^a-z0-9]+/g, '_') +'/'+ handlerKey.replace(/[^a-z0-9]+/g, '_');
+  const lambdaName = ddoc.replace(/[^a-z0-9]+/g, '_') +'__'+ handlerKey.replace(/[^a-z0-9]+/g, '_');
   const logger = new Logger({
     prefix: 'Handler '+ handlerName,
     logger: props.logger,
@@ -197,19 +198,14 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
   });
   const log = logger.getLog();
 
-  const handler_init_chain = ['handler-init', handlerName];
-  DEBUG && logger.performance.start(Date.now(), handler_init_chain);
-
   const lambdaSrc = body.lambda.trim().replace(/^function.*?\(/, 'function '+ lambdaName +'(');
   const timeout = body.timeout && body.timeout > 0 ? body.timeout : (PROCESS_TIMEOUT || HANDLER_DEFAULT_TIMEOUT);
   const validate = body.dubug !== true;
-
 
   const lambda_globals = lib.getGlobals(lambdaSrc);
   if (validate) {
     const validationResult = lib.validateGlobals(lambda_globals, { available: lambdaAvailable });
     if (validationResult) {
-      DEBUG && logger.performance.end(Date.now(), handler_init_chain);
       return Promise.reject(new Error('Lambda validation failed: '+ JSON.stringify(validationResult)));
     }
   }
@@ -226,31 +222,15 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
   try {
     lambda = vm.runInContext(script, context);
   } catch (error) {
-    DEBUG && logger.performance.end(Date.now(), handler_init_chain);
     return Promise.reject(new Error('Failed compiling lambda "'+ error.message + '"'));
   }
 
-  const errorHandler = (error) => {
-    if (error instanceof Promise.TimeoutError) {
-      throw new TimeoutError(error);
-    } else {
-      throw error;
-    }
-  };
-
-  const plugins_init_chain = ['plugins-init', methods.join(',')];
-  DEBUG && logger.performance.start(Date.now(), plugins_init_chain);
-  return makePlugins(ctx, methods, log).then(plugins => {
-    DEBUG && logger.performance.end(Date.now(), plugins_init_chain);
-
+  function makeLambda(plugins) {
     function handler() {
       const params = new Array(arguments.length);
       for (let args_i = 0, args_max = arguments.length; args_i < args_max; args_i++) params[args_i] = arguments[args_i];
 
-      const handler_run_chain = ['handler-run', handlerName, 'ref-' + referrer ? referrer(params) : 'null'];
-      DEBUG && logger.performance.start(Date.now(), handler_run_chain);
-
-      return new Promise((resolve0, reject0) => {
+      return new Promise((resolve, reject0) => {
         const reject = (error) => reject0(new RejectHandlerError(error));
         const { proxy, revoke } = Proxy.revocable(ctx, {
           get: (target, prop) => {
@@ -268,31 +248,29 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
           defineProperty: emptyFunction,
           deleteProperty: emptyFunction
         });
-        const done = () => {
-          revoke();
-          DEBUG && logger.performance.end(Date.now(), handler_run_chain);
-        };
-
-        const _require = needRequire ? prop => requireModule.call(proxy, log, prop) : null;
 
         try {
-          return lambda.call(proxy, _require, log, params).timeout(timeout)
-            .catch(errorHandler).then(resolve0).catch(reject).finally(done);
+          return lambda.call(proxy, needRequire ? prop => requireModule.call(proxy, log, prop) : null, log, params)
+            .timeout(timeout)
+            .then(resolve)
+            .catch((error) => reject((error instanceof Promise.TimeoutError) ? new TimeoutError(error) : error))
+            .finally(revoke);
         } catch(error) {
           log({
-            message: 'Error running lambda handler: '+ handlerName,
+            message: 'Error call lambda handler: '+ handlerName,
             event: props.errorEvent || HANDLER_ERROR,
             error
           });
+          revoke();
+          return reject(new Error('Bad handler'));
         }
-        done();
-        return reject(new Error('Bad handler'));
       });
     }
 
-    DEBUG && logger.performance.end(Date.now(), handler_init_chain);
     return { handlerKey, timeout, handler };
-  });
+  }
+
+  return makePlugins(ctx, methods, log).then(makeLambda);
 };
 
 

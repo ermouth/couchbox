@@ -290,7 +290,7 @@ module.exports = function initMaster(cluster) {
     const dbs_keys = [];
 
     Object.keys(hooks).forEach((dbdocKey) => {
-      const dbdoc = dbdocKey.split(/\\|\|/);
+      const dbdoc = dbdocKey.trim().split(/\\|\|/);
       const db = dbdoc[0];
       const ddoc = dbdoc[1];
       if (!dbsTmp[db]) dbsTmp[db] = { ddocs: {}, configHash: configBucketHash };

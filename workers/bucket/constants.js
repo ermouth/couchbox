@@ -27,6 +27,8 @@ module.exports = {
 
     FILTER_ERROR: 'filter/error',
 
+    CHANGE_ERROR: 'change/error',
+
     HOOK_START: 'hook/start',
     HOOK_RESULT: 'hook/result',
     HOOK_SKIP: 'hook/skip',
