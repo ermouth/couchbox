@@ -29,7 +29,6 @@ section in `.hooks` object. For example:
   hooks:{
     emailQueue:{
       timeout: 10000,
-      max:100,
       mode: 'transitive',
       lambda: function (doc) {
         var doc = doc;
@@ -56,8 +55,7 @@ A hook object itself has 4 properties:
 
 * `.timeout`, number in milliseconds, optional
 * `.lambda`, required, JS code of the hook,
-* `.mode`, defines an [order of doc revs processing](#hooks-modes),
-* `.max`, number of max hooks running simultaneously.
+* `.mode`, defines an [order of doc revs processing](#hooks-modes).
 
 Lambda function receives a doc as an argument and must call `resolve()` or `reject()`
 function in `.timeout` timeframe, or it is assumed rejected. Lambda is not allowed
@@ -318,6 +316,7 @@ __api\_fallback__ | http://localhost:5984/ | Destination to proxy unrecognized r
 __socket__ | true | Turns on socket.io
 __socket\_path__ | /_socket | Path socket.io is bound to
 __socket\_port__ | 8000 | Port for socket.io connections
+__max_parallel_changes__ | 16 | Maximum changes ticks processed simultaneously
 
 ### \[couchbox\_plugins\]
 
