@@ -98,7 +98,7 @@ function API(props = {}) {
     _running = true;
 
     const tmp = parseEndpointsParam(props.endpoints);
-    Promise.all(Object.keys(tmp).map(name => {
+    Promise.map(Object.keys(tmp), (name) => {
       const endpoints = tmp[name];
       const bucket = new Bucket({ logger, name });
       return bucket.init(endpoints).then(res => {
@@ -106,7 +106,7 @@ function API(props = {}) {
         bucket.onUpdate((needStop) => needStop && close());
         return res.handlers;
       });
-    })).then(handlers => {
+    }).then(handlers => {
       handlers.flatten().forEach(({ domain, endpoint, handlerKey, methods, handler, bucket }) => {
         const path = handlerKey;
         try {
@@ -150,10 +150,7 @@ function API(props = {}) {
     forced ? end(forced) : setTimeout(end, API_CLOSE_DELAY);
   };
 
-  return {
-    init, close,
-    isRunning
-  };
+  return { init, close, isRunning };
 }
 
 module.exports = API;

@@ -21,6 +21,7 @@ function Bucket(props = {}) {
   const ddocs = new Set();
   let timeout = 0;
   let seq = 0;
+  let feed;
 
   const getSeq = () => seq;
   const getBucket = () => bucket;
@@ -29,7 +30,7 @@ function Bucket(props = {}) {
     let keys;
     const handlers = [];
     if (!(endpoints && Object.isObject(endpoints) && (keys = Object.keys(endpoints)) && keys.length)) return reject(new Error('Bad endpoints'));
-    Promise.all(keys.map(key => {
+    Promise.map(keys, (key) => {
       const { ddoc, endpoint, domain, methods } = endpoints[key];
       const ddocId = '_design/' + ddoc;
       if (!ddocs.has(ddocId)) ddocs.add(ddocId);
@@ -40,7 +41,7 @@ function Bucket(props = {}) {
           error
         });
       });
-    })).catch(error => {
+    }).catch(error => {
       log({
         message: 'Error init Bucket: '+ name,
         event: BUCKET_ERROR,
@@ -74,7 +75,6 @@ function Bucket(props = {}) {
     });
   });
 
-  let feed;
   const onUpdate = (callback) => {
     if (!callback) return null;
     if (feed) return null;
@@ -89,17 +89,12 @@ function Bucket(props = {}) {
     feed.follow();
   };
 
-
-  const close = () => new Promise((resolve, reject) => {
+  const close = () =>  {
     if (feed) feed.stop();
-    resolve();
-  });
-
-  return {
-    name,
-    onUpdate,
-    init, close
+    return Promise.resolve();
   };
+
+  return { name, init, close, onUpdate };
 }
 
 module.exports = Bucket;

@@ -112,6 +112,7 @@ module.exports = function initMaster(cluster) {
       onConfigFields(conf, [
         ['couchbox.nodename', 'nodename'],
         ['couchbox.nodes', 'nodes'],
+        ['couchbox.max_parallel_changes', 'max_parallel_changes'],
 
         ['debug.enabled', 'debug'],
         ['debug.db', 'debug_db'],

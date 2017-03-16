@@ -10,9 +10,6 @@ module.exports = {
   },
 
   CHECK_PROCESSES_TIMEOUT: 120,
-  CHANGE_DOC_ID: 0,
-  CHANGE_DOC_REV: 1,
-  CHANGE_DOC_HOOKS: 2,
 
   LOG_EVENTS: {
     BUCKET_FEED: 'bucket/feed',

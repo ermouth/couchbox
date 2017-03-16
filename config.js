@@ -75,6 +75,14 @@ const defaultConfig = {
     map: mapJSON,
     check: checkJSON
   },
+  'couchbox.max_parallel_changes': {
+    env: 'MAX_PARALLEL_CHANGES',
+    value: 16,
+    str: strInt,
+    map: mapInt,
+    check: checkNumPlus
+  },
+
   'debug.enabled': {
     env: 'DEBUG',
     value: false,

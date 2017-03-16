@@ -126,6 +126,10 @@ const makeAuthHeaders = (userCtx) => {
   return headers;
 }; // return HTTP header for virtual auth by userCtx
 
+const getDDoc = (bucket, name, params = {}) => new Promise((resolve, reject) => {
+  bucket.get('_design/'+ name, params, (error, body) => error ? reject(error) : resolve(body));
+});
+
 module.exports = {
   auth,
   loadConfig,
@@ -134,6 +138,7 @@ module.exports = {
   connectNodeBucket,
   makeAuthHeaders,
   getBasicSession, getCookieSession,
+  getDDoc,
   Constants: {
     DB_URL
   }
