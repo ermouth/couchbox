@@ -28,7 +28,7 @@ function DDoc(bucket, bucketName, props = {}) {
     const referrer = ([doc]) => bucketName +'/'+ doc._id +'/'+ doc._rev;
     const context = makeContext(body, log);
 
-    const makeHook = (key, filterSrc, hookParams = {}) => {
+    const makeHook = (key, filterSrc, hookParams) => {
       if (!(Object.isString(filterSrc) && Object.isObject(hookParams))) return Promise.resolve();
       let filter;
       try {
@@ -46,12 +46,15 @@ function DDoc(bucket, bucketName, props = {}) {
         return makeHandler(bucket, name, key, hookParams, hookProps)
           .then(handler => {
             if (handler && handler.handler) {
-              const hook = {
-                name: name +'/'+ key,
-                mode: hookParams.mode,
-                handler: handler.handler
+              return {
+                key,
+                filter,
+                hook: {
+                  name: name +'/'+ key,
+                  mode: hookParams.mode,
+                  handler: handler.handler
+                }
               };
-              return { key, filter, hook };
             }
           })
           .catch((error) => log({
