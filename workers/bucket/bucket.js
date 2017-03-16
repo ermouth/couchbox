@@ -152,9 +152,7 @@ function Bucket(props = {}) {
         for (let i = 0, max = results.length; i < max; i++) {
           const change = sequences[i];
           const hooks = new Set();
-          for (let k = 0, k_max = results[i].length; k < k_max; k++) {
-            hooks.add(results[i][k])
-          }
+          results[i].sort().forEach(hookKey => hooks.add(hookKey));
           sequencesQueue.push(change);
           sequencesHooks.set(change[0], hooks);
         }
@@ -510,13 +508,19 @@ function Bucket(props = {}) {
 
     changesCounter++;
     (doc ? Promise.resolve(doc) : loadDoc(id, rev))
-      .then(doc => Promise.mapSeries(sequencesHooks.get(seq), (hookKey) => startHook(seq, id, rev, doc, hookKey)))
-      .catch(error => log({
-        message: 'Change hooks error: '+ seq,
-        ref: id,
-        event: CHANGE_ERROR,
-        error: lib.errorBeautify(error)
-      }))
+      .then(doc => {
+        const hooksKeys = sequencesHooks.get(seq);
+        if (hooksKeys && hooksKeys.size > 0) return Promise.mapSeries(hooksKeys, (hookKey) => startHook(seq, id, rev, doc, hookKey));
+        return Promise.resolve();
+      })
+      .catch(error => {
+        log({
+          message: 'Change hooks error: '+ seq,
+          ref: id,
+          event: CHANGE_ERROR,
+          error: lib.errorBeautify(error)
+        });
+      })
       .then(() => {
         changesCounter--;
         processQueue();
@@ -580,11 +584,14 @@ function Bucket(props = {}) {
     return addProcess(seq, id, rev, hookKey, hookPromise());
   };
 
+  let _closing = false;
   const close = () => {
     stopFeed(); // previously stop feed
     sequencesQueue.length = 0;
     sequencesHooks.clear();
     if (isRunning()) return setTimeout(close, CHECK_PROCESSES_TIMEOUT); // if worker has tasks wait
+    if (_closing) return null;
+    _closing = true;
     log({
       message: 'Close',
       event: BUCKET_CLOSE
