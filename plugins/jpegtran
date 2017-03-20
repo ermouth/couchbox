@@ -13,7 +13,7 @@ const BASE64_HEADER_SIZE = BASE64_HEADER.length;
 function Plugin(method, conf = {}, log) {
   const name = '_' + (method || 'jpegtran');
 
-  const jpegtran_method = (bucket, req) => (src, props = [], mode = 'buffer') => new Promise((resolve, reject) => {
+  const jpegtran_method = (bucket) => (src, props = [], mode = 'buffer') => new Promise((resolve, reject) => {
     if (!src || !props || !Object.isArray(props) || props.length === 0) return reject(new Error('Bad arguments'));
 
     let fileStream;
@@ -59,8 +59,8 @@ function Plugin(method, conf = {}, log) {
   return new Promise(resolve => {
 
     function make(env) {
-      const { ctx, bucket, params } = env;
-      return jpegtran_method(bucket, params[0]).bind(ctx);
+      const { ctx, bucket } = env;
+      return jpegtran_method(bucket).bind(ctx);
     }
 
     resolve({ name, make });
