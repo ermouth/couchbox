@@ -234,9 +234,17 @@ const orderStatuses = {
   6: 'Авторизация отклонена'
 };
 
-const makeRequest = (action) => (props) => API_URL + action + '.do?' + queryString.stringify(props);
-const onRequest = (action) => (reqUrl) => {
-  return fetch(reqUrl, { method: 'POST' }).then(res => res.json())
+function Plugin(method, conf = {}, log) {
+  const name = '_' + (method || 'bank');
+
+  const BANK_LOGIN = conf.login;
+  const BANK_PASSWORD = conf.pass;
+
+  (conf.languages && conf.languages.length > 0 ? conf.languages : DEFAULT_LANGS).forEach(lang => languages.add(lang));
+  (conf.currencies && conf.currencies.length > 0 ? conf.currencies : DEFAULT_CURRENCIES).forEach(cur => currencies.add(cur));
+
+  const makeRequest = (action) => (props) => API_URL + action + '.do?' + queryString.stringify(props);
+  const onRequest = (action) => (reqUrl) => fetch(reqUrl, { method: 'POST' }).then(res => res.json())
     .catch(error => {
       throw new Error('Request error: "'+ error.message +'"');
     })
@@ -247,10 +255,10 @@ const onRequest = (action) => (reqUrl) => {
       // TODO: work with errors
       if ('errorCode' in json || 'errorMessage' in json || 'ErrorCode' in json || 'ErrorMessage' in json) {
         const errorCode =  json.errorCode >= 0
-            ? json.errorCode
-            : json.ErrorCode >= 0
-              ? json.ErrorCode
-              : 0;
+          ? json.errorCode
+          : json.ErrorCode >= 0
+            ? json.ErrorCode
+            : 0;
         if (errorCode > 0) {
           throw new Error( json.errorMessage || json.ErrorMessage || errorCodes[action + errorCode] || 'Bad request' );
         }
@@ -265,18 +273,14 @@ const onRequest = (action) => (reqUrl) => {
       }
       return json;
     })
-};
-
-
-function Plugin(method, conf = {}, log) {
-  const name = '_' + (method || 'bank');
-
-  const BANK_LOGIN = conf.login;
-  const BANK_PASSWORD = conf.pass;
-
-  (conf.languages && conf.languages.length > 0 ? conf.languages : DEFAULT_LANGS).forEach(lang => languages.add(lang));
-  (conf.currencies && conf.currencies.length > 0 ? conf.currencies : DEFAULT_CURRENCIES).forEach(cur => currencies.add(cur));
-
+    .catch(error => {
+      log({
+        message: 'Error on bank_'+ action,
+        error,
+        event: 'bank_'+ action + '/error'
+      });
+      throw error;
+    });
 
   // Запрос регистрации заказа
   const bank_register = (props = {}, ref) => {
@@ -363,7 +367,7 @@ function Plugin(method, conf = {}, log) {
       check_language(language)
     ]).then(([ userName, password, orderId, language ]) => ({ userName, password, orderId, language }))
       .then(makeRequest('getOrderStatus'))
-      .then(onRequest('getOrderStatus'));
+      .then(onRequest('getOrderStatus'))
   };
 
 
