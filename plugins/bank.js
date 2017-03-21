@@ -239,12 +239,13 @@ function Plugin(method, conf = {}, log) {
 
   const BANK_LOGIN = conf.login;
   const BANK_PASSWORD = conf.pass;
+  const BANK_TIMEOUT = conf.timeout || 5000;
 
   (conf.languages && conf.languages.length > 0 ? conf.languages : DEFAULT_LANGS).forEach(lang => languages.add(lang));
   (conf.currencies && conf.currencies.length > 0 ? conf.currencies : DEFAULT_CURRENCIES).forEach(cur => currencies.add(cur));
 
   const makeRequest = (action) => (props) => API_URL + action + '.do?' + queryString.stringify(props);
-  const onRequest = (action) => (reqUrl) => fetch(reqUrl, { method: 'POST' }).then(res => res.json())
+  const onRequest = (action) => (reqUrl) => fetch(reqUrl, { method: 'POST', timeout: BANK_TIMEOUT }).then(res => res.json())
     .catch(error => {
       throw new Error('Request error: "'+ error.message +'"');
     })
