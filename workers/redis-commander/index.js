@@ -16,11 +16,6 @@ module.exports = function initWorker(cluster, props = {}) {
   const { logger } = worker;
   const log = logger.getLog();
 
-  log({
-    message: 'Started with '+ Object.keys(props).map(key => (key +'='+ JSON.stringify(props[key]).replace(/"/g, ''))).join(' '),
-    event: WORKER_START
-  });
-
   worker.emitter.on(WORKER_HANDLE_UNHANDLED_ERROR, (error) => {
     log({
       message: 'UnhandledError proxy',
@@ -34,27 +29,24 @@ module.exports = function initWorker(cluster, props = {}) {
   const redisConfig = config.get('redis');
   const commanderConfig = config.get('redis.redis_commander');
 
-  const procPath = path.normalize(__dirname + '/../../node_modules/redis-commander/bin/redis-commander.js');
-  const args = {
-    'redis-host': redisConfig.ip || 'localhost',
-    'redis-port': redisConfig.port || '6379',
-    'redis-password': redisConfig.password || '',
-    'port': commanderConfig.port || '8081',
-    'http-auth-username': commanderConfig.user,
-    'http-auth-password': commanderConfig.pass,
-  };
+  const args = [
+    // js to execute
+    path.normalize(__dirname + '/../../node_modules/redis-commander/bin/redis-commander.js'),
+    // process arguments
+    '--redis-host', redisConfig.ip || 'localhost',
+    '--redis-port', redisConfig.port || '6379',
+    '--redis-password', redisConfig.password || '',
+    '--port', commanderConfig.port || '8081',
+    '--http-auth-username', commanderConfig.user,
+    '--http-auth-password', commanderConfig.pass
+  ];
 
-  const procArgs = [procPath];
-  Object.keys(args).forEach(key => {
-    procArgs.push('--'+ key);
-    procArgs.push(args[key].toString());
+  const env = Object.assign(Object.create(process.env), {
+    'HOME': __dirname,
+    'USERPROFILE': __dirname
   });
 
-
-  const env = Object.create( process.env );
-  env['HOME'] = env['USERPROFILE'] = __dirname;
-
-  const commander = spawn('node', procArgs, { env });
+  const commander = spawn('node', args, { env });
 
   commander.stdout.on('data', data => {
     const message = data.toString().trim();
@@ -84,5 +76,10 @@ module.exports = function initWorker(cluster, props = {}) {
       event: WORKER_EXIT
     });
     commander.stdin.end();
+  });
+
+  log({
+    message: 'Started with '+ Object.keys(props).map(key => (key +'='+ JSON.stringify(props[key]).replace(/"/g, ''))).join(' '),
+    event: WORKER_START
   });
 };
