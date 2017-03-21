@@ -244,6 +244,7 @@ const onRequest = (action) => (reqUrl) => {
       if (!Object.isObject(json)) {
         throw new Error('Bad result');
       }
+      // TODO: work with errors
       if ('errorCode' in json || 'errorMessage' in json || 'ErrorCode' in json || 'ErrorMessage' in json) {
         const errorCode =  json.errorCode >= 0
             ? json.errorCode

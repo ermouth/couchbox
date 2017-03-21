@@ -15,11 +15,11 @@ const DEBUG = config.get('debug.enabled');
 
 // Log events constants
 const { LOG_ERROR } = Logger.LOG_EVENTS;
-const { CONFIG_API, CONFIG_BUCKET, CONFIG_SOCKET, CONFIG_PROXY, CONFIG_ENDPOINTS, CONFIG_HOOKS } = config.LOG_EVENTS;
+const { CONFIG_API, CONFIG_BUCKET, CONFIG_SOCKET, CONFIG_PROXY, CONFIG_REDIS_COMMANDER, CONFIG_ENDPOINTS, CONFIG_HOOKS } = config.LOG_EVENTS;
 const { SANDBOX_START, SANDBOX_CLOSE, SANDBOX_CLOSED } = require('./constants').LOG_EVENTS;
 
 // Worker constants
-const { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET, WORKER_TYPE_API, WORKER_TYPE_PROXY, WORKER_WAIT_TIMEOUT } = require('../../utils/worker').Constants;
+const { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET, WORKER_TYPE_API, WORKER_TYPE_PROXY, WORKER_TYPE_REDIS_COMMANDER, WORKER_WAIT_TIMEOUT } = require('../../utils/worker').Constants;
 // Bucket monitor constants
 const { BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD } = require('../bucket/constants');
 // REST API worker specific constants
@@ -115,6 +115,11 @@ module.exports = function initMaster(cluster) {
         ['couchbox.max_parallel_changes', 'max_parallel_changes'],
         ['couchbox.cold_start', 'cold_start'],
 
+        ['redis.ip', 'redis_ip'],
+        ['redis.port', 'redis_port'],
+        ['redis.password', 'redis_password'],
+        ['redis.redis_commander', 'redis_commander'],
+
         ['debug.enabled', 'debug'],
         ['debug.db', 'debug_db'],
         ['debug.events', 'debug_events'],
@@ -198,6 +203,7 @@ module.exports = function initMaster(cluster) {
   let configApiHash; // hash of api workers config
   let configSocketHash; // hash of socket worker config
   let configProxyHash; // hash of proxy worker config
+  let configRedisCommanderHash; // hash of redis-commander worker config
 
   // Loads config, called repeatedly for monitoring
   // CouchDB cfg changes, and at the end of worker start sequence
@@ -208,7 +214,21 @@ module.exports = function initMaster(cluster) {
       // if worker is not running - don't update config and start config update timeout
       if (isClosing) return null;
 
+      // Map config
       Object.keys(newConf).forEach(confKey => configMap[confKey] && configMap[confKey](newConf[confKey]));
+
+
+      // Check redis-commander config
+      const newConfigRedisCommanderHash = lib.sdbmCode(['couchbox', 'redis'].map(config.get)); // update configSocketHash by critical fields
+      if (newConfigRedisCommanderHash !== configRedisCommanderHash) {
+        configRedisCommanderHash = newConfigRedisCommanderHash;
+        log({
+          message: 'Updated redis-commander worker config',
+          event: CONFIG_REDIS_COMMANDER
+        });
+        updateRedisCommanderWorkers();
+      }
+
 
       // Check socket config
       const newConfigSocketHash = lib.sdbmCode(['couchbox', 'socket', 'redis'].map(config.get)); // update configSocketHash by critical fields
@@ -329,7 +349,7 @@ module.exports = function initMaster(cluster) {
 
   // Special case, restarts appropriate workers on socket.io cfg change
   function updateSocketWorkers() {
-    if (!config.get('socket.enabled')) return stopSocketWorkers();
+    if (!isValidConfigSocket()) return stopSocketWorkers();
 
     const aliveWorkers = [];
     getSocketWorkers().forEach(worker => {
@@ -343,7 +363,7 @@ module.exports = function initMaster(cluster) {
 
   // Special case, restarts appropriate workers on proxy cfg change
   function updateProxyWorkers() {
-    if (!config.get('proxy.enabled')) return stopProxyWorkers();
+    if (!isValidConfigProxy()) return stopProxyWorkers();
 
     const aliveWorkers = [];
     getProxyWorkers().forEach(worker => {
@@ -355,10 +375,24 @@ module.exports = function initMaster(cluster) {
     aliveWorkers.length = 0;
   }
 
+  // Special case, restarts appropriate workers on redis cfg change
+  function updateRedisCommanderWorkers() {
+    if (!isValidConfigRedisCommander()) return stopRedisCommanderWorkers();
+
+    const aliveWorkers = [];
+    getRedisCommanderWorkers().forEach(worker => {
+      if (worker.configHash !== configRedisCommanderHash) stopWorker(worker);
+      else aliveWorkers.push(worker);
+    });
+
+    if (aliveWorkers.length === 0) startWorkerRedisCommander();
+    aliveWorkers.length = 0;
+  }
+
   // Special case for REST API worker farm,
   // they all are identical
   function updateApiWorkers() {
-    if (!config.get('api.enabled')) return stopApiWorkers();
+    if (!isValidConfigApi()) return stopApiWorkers();
 
     const aliveWorkers = {};
     getApiWorkers().forEach(worker => {
@@ -524,10 +558,14 @@ module.exports = function initMaster(cluster) {
   const getProxyWorkers = () => getWorkers().filter(({ forkType }) => forkType === WORKER_TYPE_PROXY); // return proxy workers
   const stopProxyWorkers = () => getProxyWorkers().forEach(stopWorker); // stop all proxy workers
 
+  const isValidConfigProxy = () => {
+    const conf = config.get('proxy');
+    return conf && conf.enabled && conf.port > 0 && conf.path && conf.path.length > 0;
+  };
   function startWorkerProxy() {
     if ( // don't start worker if
       isClosing // master closing
-      || !config.get('proxy.enabled') // proxy turned off
+      || !isValidConfigProxy() // proxy turned off
     ) return null;
 
     const configHash = configProxyHash;
@@ -559,15 +597,67 @@ module.exports = function initMaster(cluster) {
   } // proxy worker stater
 
 
+  // Redis-Commander workers manipulations
+
+  const getRedisCommanderWorkers = () => getWorkers().filter(({ forkType }) => forkType === WORKER_TYPE_REDIS_COMMANDER); // return proxy workers
+  const stopRedisCommanderWorkers = () => getRedisCommanderWorkers().forEach(stopWorker); // stop all proxy workers
+
+  const isValidConfigRedisCommander = () => {
+    const conf = config.get('redis.redis_commander');
+    return (
+      conf && conf.active && conf.port > 0 &&
+      Object.isString(conf.user) && conf.user.length > 0 &&
+      Object.isString(conf.pass) && conf.pass.length > 0
+    );
+  };
+  function startWorkerRedisCommander() {
+    if ( // don't start worker if
+      isClosing // master closing
+      || !isValidConfigRedisCommander() // proxy turned off
+    ) return null;
+
+    const configHash = configRedisCommanderHash;
+    const forkType = WORKER_TYPE_REDIS_COMMANDER;
+    const workerProps = JSON.stringify({ forkType, params: {} });
+
+    const fork = forkWorker(Object.assign(
+      config.toEnv(), // send current config
+      { workerProps } // send worker properties
+    ));
+    const { pid } = fork.process;
+    setWorker({
+      pid, fork, forkType,
+      configHash,
+      init: false
+    });
+
+    fork.on('exit', removeWorker.fill(pid));
+    fork.on('message', message => {
+      switch (message.msg) {
+        case 'init':
+          setWorkerProp(pid, 'init', true);
+          break;
+        default:
+          break;
+      }
+    });
+
+  } // redis-commander worker stater
+
+
   // Socket workers manipulations
 
   const getSocketWorkers = () => getWorkers().filter(({ forkType }) => forkType === WORKER_TYPE_SOCKET); // return socket workers
   const stopSocketWorkers = () => getSocketWorkers().forEach(stopWorker); // stop all socket workers
 
+  const isValidConfigSocket = () => {
+    const conf = config.get('socket');
+    return conf && conf.enabled && conf.port > 0 && conf.path && conf.path.length > 0;
+  };
   function startWorkerSocket() {
     if ( // don't start worker if
       isClosing // master closing
-      || !config.get('socket.enabled') // socket turned off
+      || !isValidConfigSocket() // socket turned off
     ) return null;
 
     const configHash = configSocketHash;
@@ -605,10 +695,14 @@ module.exports = function initMaster(cluster) {
   const getApiWorkersByPort = (port) => getApiWorkers().filter((worker) => worker.port === port); // return api workers by port
   const stopApiWorkers = () => getApiWorkers().forEach(stopWorker); // stop all api workers
 
+  const isValidConfigApi = () => {
+    const conf = config.get('api');
+    return conf && conf.enabled && conf.ports && conf.ports.length > 0 && conf.restartDelta > 0;
+  };
   function startWorkerApi(port) {
     if ( // don't start worker if
       isClosing // master closing
-      || !config.get('api.enabled') // api turned off
+      || !isValidConfigApi() // api turned off
       || (!(port && port > 0)) // no port
       || getApiWorkersByPort(port).length > 0 // exist worker with same port
     ) return null;

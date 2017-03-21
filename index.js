@@ -4,7 +4,9 @@ if (cluster.isMaster) {
   // init master
   require('./workers/sandbox')(cluster);
 } else {
-  const { Constants: { WORKER_TYPE_BUCKET, WORKER_TYPE_API, WORKER_TYPE_SOCKET, WORKER_TYPE_PROXY } } = require('./utils/worker');
+  const { Constants: {
+    WORKER_TYPE_BUCKET, WORKER_TYPE_API, WORKER_TYPE_SOCKET, WORKER_TYPE_PROXY, WORKER_TYPE_REDIS_COMMANDER
+  } } = require('./utils/worker');
   // init props
   let workerProps;
   try {
@@ -24,6 +26,8 @@ if (cluster.isMaster) {
         return require('./workers/api')(cluster, workerProps);
       case WORKER_TYPE_PROXY:
         return require('./workers/proxy')(cluster, workerProps);
+      case WORKER_TYPE_REDIS_COMMANDER:
+        return require('./workers/redis-commander')(cluster, workerProps);
       default:
         process.exit();
     }

@@ -233,6 +233,28 @@ const defaultConfig = {
     map: mapInt,
     check: checkNumPlus
   },
+  'redis.user': {
+    env: 'REDIS_USER',
+    value: '',
+    str: strStr,
+    map: mapStr,
+    check: checkStr
+  },
+  'redis.password': {
+    env: 'REDIS_PASSWORD',
+    value: '',
+    str: strStr,
+    map: mapStr,
+    check: checkStr
+  },
+  'redis.redis_commander': {
+    env: 'REDIS_COMMANDER',
+    value: null,
+    str: strJSON,
+    map: mapJSON,
+    check: checkJSON
+  },
+
 
   'socket.enabled': {
     env: 'SOCKET',
@@ -444,4 +466,5 @@ module.exports.LOG_EVENTS = {
   CONFIG_ENDPOINTS: 'config/endpoints',
   CONFIG_SOCKET: 'config/socket',
   CONFIG_PROXY: 'config/proxy',
+  CONFIG_REDIS_COMMANDER: 'config/redis-commander',
 };
