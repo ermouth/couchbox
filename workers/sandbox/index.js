@@ -113,6 +113,7 @@ module.exports = function initMaster(cluster) {
         ['couchbox.nodename', 'nodename'],
         ['couchbox.nodes', 'nodes'],
         ['couchbox.max_parallel_changes', 'max_parallel_changes'],
+        ['couchbox.cold_start', 'cold_start'],
 
         ['debug.enabled', 'debug'],
         ['debug.db', 'debug_db'],

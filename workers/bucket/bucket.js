@@ -11,6 +11,7 @@ const DDoc = require('./ddoc');
 const DEBUG = config.get('debug.enabled');
 const CHANGE_PROPS_SEPARATOR = '*';
 const MAX_PARALLEL_CHANGES = config.get('couchbox.max_parallel_changes');
+const COLD_START = config.get('couchbox.cold_start');
 
 const {
   BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD,
@@ -50,6 +51,7 @@ function Bucket(props = {}) {
   let max_seq = 0; // max sequence - if worker is old then worker close on change with this sequence
   let feed;
   let worker_type = BUCKET_WORKER_TYPE_ACTUAL;
+  let db_info;
 
   let changesCounter = 0; // in process changes counter
 
@@ -64,6 +66,20 @@ function Bucket(props = {}) {
   const stateKey_changes = () => stateKey_worker() + ':CHANGES';
   const stateKey_change_hooks = (seq) => stateKey_worker() + ':SEQ:' + seq;
 
+  const getBucketInfo = () => new Promise((resolve, reject) => {
+    db.info((error, info) => {
+      if (error) {
+        log({
+          message: 'Error on load bucket info',
+          event: BUCKET_ERROR,
+          error
+        });
+        return reject(error);
+      }
+      db_info = info;
+      return resolve(info);
+    });
+  });
   const getBucketState = () => new Promise((resolve, reject) => {
     redisClient.get(stateKey_bucket, (error, data) => {
       if (error) {
@@ -341,10 +357,10 @@ function Bucket(props = {}) {
 
   // init bucket-worker
   const init = () => {
-    getBucketState() // load state
+    getBucketInfo()
+      .then(getBucketState) // load state
       .then(initDDocs) // init ddocs from state or latest in db
       .then(onInitDDocs) // call _onInit
-      // .then(startInProcessChanges) // start old changes from loaded state
       .then(subscribeChanges) // if worker old - start load changes else subscribe on changes feed
       .catch(onInitError) // catch errors on initialisation
       .then(processQueue); // start process queue
@@ -386,8 +402,7 @@ function Bucket(props = {}) {
         if (workerIndex >= 0) {
           return getWorkerState().then(() => worker_type = BUCKET_WORKER_TYPE_ACTUAL);
         }
-      })
-      .then(() => last_seq = last_seq || (worker_seq ? worker_seq : 'now'));
+      });
   };
   const initDDoc = (data) => {
     const { name, rev } = data;
@@ -399,7 +414,7 @@ function Bucket(props = {}) {
     return DDoc(db, props.name, { name, rev, methods, logger })
       .then(({ seq, rev, handlers }) => {
         if (worker_seq < seq) worker_seq = seq;
-        _ddocs.push({ name, rev, methods });
+        _ddocs.push({ name, rev, methods, seq });
 
         handlers.forEach(({ key, filter, hook }) => {
           key = name +'/'+ key;
@@ -416,11 +431,20 @@ function Bucket(props = {}) {
       });
   };
   const onInitDDocs = () => {
-    _onInit({ seq: worker_seq, type: worker_type });
-    return Promise.all([
+    const tasks = [];
+    if (!last_seq) {
+      if (COLD_START === 'now' && worker_type === BUCKET_WORKER_TYPE_ACTUAL && db_info && db_info.update_seq > 0) {
+        tasks.push(setLastSeqState(db_info.update_seq));
+      } else {
+        tasks.push(setLastSeqState(worker_seq));
+      }
+    }
+    return Promise.all(tasks.concat([
       updateBucketState(),
       updateWorkerState()
-    ]);
+    ])).then(() => {
+      _onInit({ seq: worker_seq, type: worker_type });
+    });
   };
 
   // start load not in process changes

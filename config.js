@@ -82,6 +82,13 @@ const defaultConfig = {
     map: mapInt,
     check: checkNumPlus
   },
+  'couchbox.cold_start': {
+    env: 'COLD_START',
+    value: 'normal',
+    str: strStr,
+    map: mapStr,
+    check: checkEnum(['normal', 'now'])
+  },
 
   'debug.enabled': {
     env: 'DEBUG',
