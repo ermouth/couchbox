@@ -67,50 +67,50 @@ const auth = () => new Promise((resolve, reject) => {
   });
 }); // authenticate in db by credentials in config and update auth cookie in config
 
-const getConfig = (cookie) => new Promise((resolve, reject) => {
-  if (!cookie) cookie = config.get('couchdb.cookie');
-  return fetch(DB_URL +'/_config', {
+// load couchdb _config, auth by cookie in param or in config
+const getConfig = (cookie) => fetch(DB_URL +'/_config', {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/json; charset=utf-8',
-      cookie
+      cookie: cookie ? cookie : config.get('couchdb.cookie')
     }
-  }).then(res => res.json()).then(json => {
+  })
+  .then(res => res.json())
+  .then(json => {
     if (!json || json.error) {
       if (json && json.error === 'unauthorized') {
         config.clean('couchdb.cookie');
         return loadConfig();
       }
-      return reject(new Error('Bad config'));
+      throw new Error('Bad config');
     }
     return json;
-  })
-  .then(resolve)
-}); // load couchdb _config, auth by cookie in param or in config
+  });
 
-const getBasicSession = (Authorization) => new Promise(resolve => {
-  fetch(DB_URL +'/_session', {
+const getBasicSession = (Authorization) => fetch(DB_URL +'/_session', {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/json; charset=utf-8',
       Authorization
     }
-  }).then(res => res.json()).then(json => json && json.ok ? json.userCtx : undefined).then(resolve)
-    .catch(error => { resolve(undefined) });
-});
-const getCookieSession = (cookie) => new Promise(resolve => {
-  return fetch(DB_URL +'/_session', {
+  })
+  .then(res => res.json())
+  .then(json => json && json.ok ? json.userCtx : undefined)
+  .catch(() => undefined);
+
+const getCookieSession = (cookie) => fetch(DB_URL +'/_session', {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/json; charset=utf-8',
       cookie
     }
-  }).then(res => res.json()).then(json => json && json.ok ? json.userCtx : undefined).then(resolve)
-    .catch(error => { resolve(undefined) });
-});
+  })
+  .then(res => res.json())
+  .then(json => json && json.ok ? json.userCtx : undefined)
+  .catch(() => undefined);
 
 const loadConfig = () => config.get('couchdb.cookie') ? getConfig() : auth().then(getConfig); // start load coundb _config, if no auth cookie - previously authenticate in couchdb
 

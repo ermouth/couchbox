@@ -249,91 +249,10 @@ const defaultConfig = {
   },
   'redis.redis_commander': {
     env: 'REDIS_COMMANDER',
-    value: null,
+    value: { active:false, port:8881, user:'test', pass:'pass' },
     str: strJSON,
     map: mapJSON,
     check: checkJSON
-  },
-
-
-  'socket.enabled': {
-    env: 'SOCKET',
-    value: false,
-    str: strBool,
-    map: mapBool,
-    check: checkBool
-  },
-  'socket.port': {
-    env: 'SOCKET_PORT',
-    value: 8000,
-    str: strInt,
-    map: mapInt,
-    check: checkNumPlus
-  },
-  'socket.path': {
-    env: 'SOCKET_PATH',
-    value: '/_socket',
-    str: strStr,
-    map: mapStr,
-    check: checkStr
-  },
-
-  'proxy.enabled': {
-    env: 'PROXY',
-    value: false,
-    str: strBool,
-    map: mapBool,
-    check: checkBool
-  },
-  'proxy.port': {
-    env: 'PROXY_PORT',
-    value: 8888,
-    str: strInt,
-    map: mapInt,
-    check: checkNumPlus
-  },
-  'proxy.path': {
-    env: 'PROXY_PATH',
-    value: '/',
-    str: strStr,
-    map: mapStr,
-    check: checkStr
-  },
-
-  'api.enabled': {
-    env: 'API',
-    value: false,
-    str: strBool,
-    map: mapBool,
-    check: checkBool
-  },
-  'api.ports': {
-    env: 'API_PORTS',
-    value: [],
-    str: strArrInt(','),
-    map: mapsIntArr(/,\s*/),
-    check: checkNumPlusArr
-  },
-  'api.hostKey': {
-    env: 'API_HOST_KEY',
-    value: 'Host',
-    str: strStr,
-    map: mapStr,
-    check: checkStr
-  },
-  'api.restartDelta': {
-    env: 'API_RESTART_DELTA',
-    value: 5000,
-    str: strInt,
-    map: mapInt,
-    check: checkNumPlus
-  },
-  'api.fallback': {
-    env: 'API_FALLBACK',
-    value: undefined,
-    str: strStr,
-    map: mapStr,
-    check: checkStr
   },
 
   'cors.enabled': {
@@ -370,6 +289,30 @@ const defaultConfig = {
     str: strArrStr(', '),
     map: mapsStrArr(/,\s*/),
     check: checkStrArr
+  },
+
+  'api': {
+    env: 'API',
+    value: {"active":false,"ports":[8001],"restart_delta":5000, "hostKey":"Host"},
+    str: strJSON,
+    map: mapJSON,
+    check: checkJSON
+  },
+
+  'proxy': {
+    env: 'PROXY',
+    value: { active: false, port:8888, path:'/' },
+    str: strJSON,
+    map: mapJSON,
+    check: checkJSON
+  },
+
+  'socket': {
+    env: 'SOCKET',
+    value: { active: false, port:8000, path:'/_socket' },
+    str: strJSON,
+    map: mapJSON,
+    check: checkJSON
   },
 
   'plugins': {

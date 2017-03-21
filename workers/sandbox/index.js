@@ -120,22 +120,13 @@ module.exports = function initMaster(cluster) {
         ['redis.password', 'redis_password'],
         ['redis.redis_commander', 'redis_commander'],
 
+        ['api', 'api'],
+        ['socket', 'socket'],
+        ['proxy', 'proxy'],
+
         ['debug.enabled', 'debug'],
         ['debug.db', 'debug_db'],
-        ['debug.events', 'debug_events'],
-
-        ['socket.enabled', 'socket'],
-        ['socket.port', 'socket_port'],
-        ['socket.path', 'socket_path'],
-
-        ['proxy.enabled', 'proxy'],
-        ['proxy.port', 'proxy_port'],
-        ['proxy.path', 'proxy_path'],
-
-        ['api.enabled', 'api'],
-        ['api.ports', 'api_ports'],
-        ['api.restartDelta', 'api_restart_delta'],
-        ['api.fallback', 'fallback']
+        ['debug.events', 'debug_events']
       ]);
     },
     'cors': (conf = {}) => {
@@ -403,7 +394,7 @@ module.exports = function initMaster(cluster) {
             log('Kill api worker by timeout: '+ worker.pid);
             worker.fork.destroy();
           }
-        }, (worker.timeout || API_DEFAULT_TIMEOUT) + config.get('api.restartDelta'));
+        }, (worker.timeout || API_DEFAULT_TIMEOUT) + config.get('api.restart_delta'));
       }
       else aliveWorkers[worker.port] = true;
     });
@@ -560,7 +551,7 @@ module.exports = function initMaster(cluster) {
 
   const isValidConfigProxy = () => {
     const conf = config.get('proxy');
-    return conf && conf.enabled && conf.port > 0 && conf.path && conf.path.length > 0;
+    return conf && conf.active && conf.port > 0 && conf.path && conf.path.length > 0;
   };
   function startWorkerProxy() {
     if ( // don't start worker if
@@ -652,7 +643,7 @@ module.exports = function initMaster(cluster) {
 
   const isValidConfigSocket = () => {
     const conf = config.get('socket');
-    return conf && conf.enabled && conf.port > 0 && conf.path && conf.path.length > 0;
+    return conf && conf.active && conf.port > 0 && conf.path && conf.path.length > 0;
   };
   function startWorkerSocket() {
     if ( // don't start worker if
@@ -697,7 +688,7 @@ module.exports = function initMaster(cluster) {
 
   const isValidConfigApi = () => {
     const conf = config.get('api');
-    return conf && conf.enabled && conf.ports && conf.ports.length > 0 && conf.restartDelta > 0;
+    return conf && conf.active && Object.isArray(conf.ports) && conf.ports.length > 0 && conf.ports.filter(p => p > 0).length === conf.ports.length && conf.restart_delta > 0;
   };
   function startWorkerApi(port) {
     if ( // don't start worker if
