@@ -264,11 +264,15 @@ function Router(props = {}) {
     let processPromise;
 
     const processRequest = (request) => route.handler(request).then(result => {
-      if (route.bucket && Object.isArray(result.docs) && result.docs.length) {
+      if (route.bucket && Object.isArray(result.docs) && result.docs.length > 0) {
         return saveResults(route.bucket.getBucket(), result.docs).then(() => {
           log({
             message: 'Saved api results: "' + request.raw_path + '"',
-            ref: request.raw_path,
+            ref: [
+              request.peer,
+              (request.userCtx && name in request.userCtx && request.userCtx.name.length > 0 ? request.userCtx.name.length : '_'),
+              request.headers['user-agent']
+            ].join(' '),
             event: API_SAVE
           });
           return result;
