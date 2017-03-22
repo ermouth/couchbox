@@ -87,7 +87,7 @@ module.exports = function initWorker(cluster, props = {}) {
       message: 'On worker exit, forced: '+ (forced === true ? 'true' : 'false'),
       event: WORKER_EXIT
     });
-    commander.stdin.end();
+    commander.kill();
   });
 
   log({
