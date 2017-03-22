@@ -77,6 +77,7 @@ function Worker(cluster, props = {}) {
         event: WORKER_ERROR,
         error
       });
+      console.error(error);
     }
   }
 

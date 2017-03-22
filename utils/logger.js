@@ -103,8 +103,7 @@ function LoggerBody(prefix) {
     const node = config.get('couchbox.nodename') || NODE_NAME;
     const stamp = Date.now();
     const _id = lib.uuid(stamp);
-    // console.log({ _id, events, type, node, stamp });
-    // return process.nextTick(() => resolve());
+
     (bucket || db_log || db_debug).insert({ _id, events, type, node, stamp }, (error) => {
       if (error) {
         log(JSON.stringify({ error }), [prefix]);
