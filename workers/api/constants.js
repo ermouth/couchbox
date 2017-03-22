@@ -10,6 +10,11 @@ const CORS_ORIGINS = {}; config.get('cors.origins').forEach(host => host && (COR
 const CORS_METHODS = config.get('cors.methods').join(', ');
 const CORS_HEADES = config.get('cors.headers').join(', ');
 
+const API_REFERRER_PARSER = (req) => [
+  req.peer && req.peer.length > 0 ? req.peer : '_',
+  (req.userCtx && 'name' in req.userCtx && req.userCtx.name.length > 0 ? req.userCtx.name : '_'),
+  req.headers && req.headers['user-agent'] && req.headers['user-agent'].length > 0 ? req.headers['user-agent'] : '_'
+].join(' ');
 
 module.exports = {
   NODE_NAME,
@@ -35,6 +40,7 @@ module.exports = {
     PUT: true,
     DELETE: true
   },
+  API_REFERRER_PARSER,
 
   LOG_EVENTS: {
     BUCKET_ERROR: 'bucket/error',

@@ -22,6 +22,7 @@ const {
   API_DEFAULT_HEADERS,
   API_DEFAULT_METHODS,
   API_AVAILABLE_METHODS,
+  API_REFERRER_PARSER,
   CORS,
   CORS_CREDENTIALS,
   CORS_ORIGINS,
@@ -264,15 +265,12 @@ function Router(props = {}) {
     let processPromise;
 
     const processRequest = (request) => route.handler(request).then(result => {
+      console.log('ref', API_REFERRER_PARSER(request));
       if (route.bucket && Object.isArray(result.docs) && result.docs.length > 0) {
         return saveResults(route.bucket.getBucket(), result.docs).then(() => {
           log({
             message: 'Saved api results: "' + request.raw_path + '"',
-            ref: [
-              request.peer,
-              (request.userCtx && name in request.userCtx && request.userCtx.name.length > 0 ? request.userCtx.name.length : '_'),
-              request.headers['user-agent']
-            ].join(' '),
+            ref: API_REFERRER_PARSER(request),
             event: API_SAVE
           });
           return result;

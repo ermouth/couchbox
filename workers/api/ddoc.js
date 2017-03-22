@@ -7,6 +7,7 @@ const config = require('../../config');
 
 const {
   API_DEFAULT_TIMEOUT,
+  API_REFERRER_PARSER,
   LOG_EVENTS: {
     DDOC_INIT, API_LOG, API_ERROR
   }
@@ -50,7 +51,7 @@ function DDoc(props = {}) {
       event: DDOC_INIT
     });
 
-    const referrer = ([request]) => request.raw_path;
+    const referrer = ([request]) => API_REFERRER_PARSER(request);
     const context = makeContext(body, log);
 
     const handlerProps = Object.assign({ logger, logEvent: API_LOG, errorEvent: API_ERROR, methods, referrer }, context);
