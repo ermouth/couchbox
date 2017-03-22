@@ -28,5 +28,5 @@ COPY ./package.json /usr/app/package.json
 RUN npm install
 
 VOLUME ["/usr/app/src"]
-EXPOSE 8000 8001 8002 8003
+EXPOSE 8888
 CMD [ "npm", "start" ]
