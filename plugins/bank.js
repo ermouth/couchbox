@@ -421,7 +421,7 @@ function Plugin(method, conf = {}, log) {
 
 
   // Расширенный запрос состояния заказа
-  const bank_getOrderStatusExtended = (action = 'getOrderStatusExtended', props, ref) => new Promise((resolve, reject) => {
+  const bank_getOrderStatusExtended = (action = 'getOrderStatusExtended', props, ref) => {
     const {
       userName,     // ! Логин магазина, полученный при подключении
       password,     // ! Пароль магазина, полученный при подключении
@@ -440,7 +440,7 @@ function Plugin(method, conf = {}, log) {
       .then(makeRequest(action, ref))
       .then(onRequest(action))
       .then(checkResult(['orderStatus', 'orderNumber', 'amount', 'actionCode']));
-  });
+  };
 
 
   // Запрос статистики по платежам за период
