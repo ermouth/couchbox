@@ -177,7 +177,9 @@ const check_merchants = (val) => {
 };
 const check_searchByCreatedDate = (val = false) => Promise.resolve(!!val);
 
-
+const errorCodeKey = 'errorCode';
+const errorCodeMessageKey = 'errorCodeMessage';
+const errorMessageKey = 'errorMessage';
 const errorCodes = {
   'register0': 'Обработка запроса прошла без системных ошибок',
   'register1': 'Заказ с таким номером уже зарегистрирован в системе',
@@ -224,6 +226,8 @@ const errorCodes = {
   'refund7': 'Системная ошибка',
 };
 
+const orderStatusKey = 'orderStatus';
+const orderStatusMessageKey = 'orderStatusMessage';
 const orderStatuses = {
   0: 'Заказ зарегистрирован, но не оплачен',
   1: 'Предавторизованная сумма захолдирована (для двухстадийных платежей)',
@@ -244,47 +248,89 @@ function Plugin(method, conf = {}, log) {
   (conf.languages && conf.languages.length > 0 ? conf.languages : DEFAULT_LANGS).forEach(lang => languages.add(lang));
   (conf.currencies && conf.currencies.length > 0 ? conf.currencies : DEFAULT_CURRENCIES).forEach(cur => currencies.add(cur));
 
-  const makeRequest = (action) => (props) => API_URL + action + '.do?' + queryString.stringify(props);
+  const makeRequest = (action, ref) => (props) => {
+    log({
+      message: 'Bank request "'+ action +'" with params "'+ JSON.stringify(Object.reject(props, ['userName', 'password'])) +'"',
+      event: 'bank_'+ action + '/request',
+      ref
+    });
+    return API_URL + action + '.do?' + queryString.stringify(props);
+  };
   const onRequest = (action) => (reqUrl) => fetch(reqUrl, { method: 'POST', timeout: BANK_TIMEOUT }).then(res => res.json())
     .catch(error => {
       throw new Error('Request error: "'+ error.message +'"');
     })
     .then(json => {
-      if (!Object.isObject(json)) {
-        throw new Error('Bad result');
-      }
-      // TODO: work with errors
-      if ('errorCode' in json || 'errorMessage' in json || 'ErrorCode' in json || 'ErrorMessage' in json) {
-        const errorCode =  json.errorCode >= 0
-          ? json.errorCode
-          : json.ErrorCode >= 0
-            ? json.ErrorCode
-            : 0;
-        if (errorCode > 0) {
-          throw new Error( json.errorMessage || json.ErrorMessage || errorCodes[action + errorCode] || 'Bad request' );
+      if (!Object.isObject(json)) throw new Error('Bad result');
+
+      const addProp = (key, val, prefix) => {
+        if (prefix) {
+          key = prefix + key;
+        } else {
+          prefix = key.match(/^_+/);
+          if (Object.isArray(prefix) && prefix[0]) prefix = prefix[0];
+          else prefix = '';
+          key = prefix + key.camelize(false);
         }
+
+        if (key in result) addProp(key, val, '_');
+        else result[key] = val;
+      };
+
+      const keys = Object.keys(json);
+      const result = {};
+      let index = keys.length, key;
+      while (index--) {
+        key = keys[index];
+        addProp(key, json[key]);
       }
-      if ('OrderStatus' in json || 'orderStatus' in json) {
-        const statusCode = json.OrderStatus >= 0
-          ? json.OrderStatus
-          : json.orderStatus >= 0
-            ? json.orderStatus
-            : 0;
-        json._OrderStatus = orderStatuses[statusCode];
+
+      // find and set order status message
+      if (orderStatusKey in result && result[orderStatusKey] in orderStatuses) {
+        addProp(orderStatusMessageKey, orderStatuses[result[orderStatusKey]]);
       }
-      return json;
-    })
-    .catch(error => {
-      log({
-        message: 'Error on bank_'+ action,
-        error,
-        event: 'bank_'+ action + '/error'
-      });
-      throw error;
+
+      // find and set order error message
+      if (errorCodeKey in result && (action + result[errorCodeKey]) in errorCodes) {
+        addProp(errorCodeMessageKey, errorCodes[action + result[errorCodeKey]]);
+      }
+
+      return result;
     });
+  const checkResult = (required_props) => (result) => {
+    let index = required_props.length;
+    while (index--) {
+      if (!(required_props[index] in result)) {
+        throw new Error(result[errorMessageKey] || result[errorCodeMessageKey] || ('Error with status: '+ result[errorCodeKey]))
+      }
+    }
+    return result;
+  };
+  const checkError = (codes) => (result) => {
+    if (codes.indexOf(result[errorCodeKey]|0) >= 0) return result;
+    throw new Error(result[errorMessageKey] || result[errorCodeMessageKey] || ('Error with status: '+ result[errorCodeKey]));
+  };
+
+  const onResult = (action, ref) => (result) => {
+    log({
+      message: 'Bank request "'+ action +'" result '+ JSON.stringify(result),
+      event: 'bank_'+ action + '/result',
+      ref
+    });
+    return result;
+  };
+  const onError = (action, ref) => (error) => {
+    log({
+      message: 'Error Bank request "'+ action +'"',
+      event: 'bank_'+ action + '/error',
+      error,
+      ref
+    });
+    throw error;
+  };
 
   // Запрос регистрации заказа
-  const bank_register = (props = {}, ref) => {
+  const bank_register = (action = 'register', props = {}, ref) => {
     const {
       userName,           // ! Логин магазина, полученный при подключении
       password,           // ! Пароль магазина, полученный при подключении
@@ -347,13 +393,14 @@ function Plugin(method, conf = {}, log) {
       userName, password, orderNumber, amount, currency, returnUrl, failUrl, description, language, pageView,
       clientId, merchantLogin, jsonParams, sessionTimeoutSecs, expirationDate, bindingId
     }))
-      .then(makeRequest('register'))
-      .then(onRequest('register'));
+      .then(makeRequest(action, ref))
+      .then(onRequest(action))
+      .then(checkResult(['orderId', 'formUrl']));
   };
 
 
   // Запрос состояния заказа
-  const bank_getOrderStatus = (props, ref) => {
+  const bank_getOrderStatus = (action = 'getOrderStatus', props, ref) => {
     const {
       userName, // ! Логин магазина, полученный при подключении
       password, // ! Пароль магазина, полученный при подключении
@@ -367,13 +414,14 @@ function Plugin(method, conf = {}, log) {
       check_orderId(orderId),
       check_language(language)
     ]).then(([ userName, password, orderId, language ]) => ({ userName, password, orderId, language }))
-      .then(makeRequest('getOrderStatus'))
-      .then(onRequest('getOrderStatus'))
+      .then(makeRequest(action, ref))
+      .then(onRequest(action))
+      .then(checkResult(['orderStatus', 'orderNumber', 'amount']));
   };
 
 
   // Расширенный запрос состояния заказа
-  const bank_getOrderStatusExtended = (props, ref) => new Promise((resolve, reject) => {
+  const bank_getOrderStatusExtended = (action = 'getOrderStatusExtended', props, ref) => new Promise((resolve, reject) => {
     const {
       userName,     // ! Логин магазина, полученный при подключении
       password,     // ! Пароль магазина, полученный при подключении
@@ -389,13 +437,14 @@ function Plugin(method, conf = {}, log) {
       check_orderNumber(orderNumber),
       check_language(language)
     ]).then(([ userName, password, orderId, orderNumber, language ]) => ({ userName, password, orderId, orderNumber, language }))
-      .then(makeRequest('getOrderStatusExtended'))
-      .then(onRequest('getOrderStatusExtended'));
+      .then(makeRequest(action, ref))
+      .then(onRequest(action))
+      .then(checkResult(['orderStatus', 'orderNumber', 'amount', 'actionCode']));
   });
 
 
   // Запрос статистики по платежам за период
-  const bank_getLastOrdersForMerchants = (props, ref) => {
+  const bank_getLastOrdersForMerchants = (action = 'getLastOrdersForMerchants', props, ref) => {
     const {
       userName,           // ! Логин магазина, полученный при подключении
       password,           // ! Пароль магазина, полученный при подключении
@@ -431,13 +480,14 @@ function Plugin(method, conf = {}, log) {
     ]) => ({
       userName, password, language, page, size, from, to, transactionStates, merchants, searchByCreatedDate
     }))
-      .then(makeRequest('getLastOrdersForMerchants'))
-      .then(onRequest('getLastOrdersForMerchants'));
+      .then(makeRequest(action, ref))
+      .then(onRequest(action))
+      .then(checkResult(['orderStatuses', 'totalCount']));
   };
 
 
   // Запрос возврата средств оплаты заказа
-  const bank_refund = (props, ref) => {
+  const bank_refund = (action = 'refund', props, ref) => {
     const {
       userName, // ! Логин магазина, полученный при подключении
       password, // ! Пароль магазина, полученный при подключении
@@ -451,29 +501,36 @@ function Plugin(method, conf = {}, log) {
       check_orderId(orderId),
       check_amount(amount)
     ]).then(([ userName, password, orderId, amount ]) => ({ userName, password, orderId, amount }))
-      .then(makeRequest('refund'))
-      .then(onRequest('refund'));
+      .then(makeRequest(action, ref))
+      .then(onRequest(action))
+      .then(checkError([0]));
   };
 
 
   const call_bank = (ref) => (action, props = {}) => {
-    if (!(props && Object.isObject(props)) && action !== 'statuses') return Promise.reject(new Error('Bad props'));
-    switch (action) {
-      case 'register':
-        return bank_register(props, ref);
-      case 'getOrderStatus':
-        return bank_getOrderStatus(props, ref);
-      case 'getOrderStatusExtended':
-        return bank_getOrderStatusExtended(props, ref);
-      case 'getLastOrdersForMerchants':
-        return bank_getLastOrdersForMerchants(props, ref);
-      case 'refund':
-        return bank_refund(props, ref);
-      case 'statuses':
-        return Promise.resolve(Object.clone(orderStatuses));
-      default:
-        return Promise.reject(new Error('Bad method'));
+    if (props && Object.isObject(props)) {
+      let task;
+      switch (action) {
+        case 'register':
+          task = bank_register(action, props, ref);
+          break;
+        case 'getOrderStatus':
+          task = bank_getOrderStatus(action, props, ref);
+          break;
+        case 'getOrderStatusExtended':
+          task = bank_getOrderStatusExtended(action, props, ref);
+          break;
+        case 'getLastOrdersForMerchants':
+          task = bank_getLastOrdersForMerchants(action, props, ref);
+          break;
+        case 'refund':
+          task = bank_refund(action, props, ref);
+          break;
+      }
+      if (task) return task.then(onResult(action, ref)).catch(onError(action, ref));
     }
+    if (action === 'statuses') return Promise.resolve(Object.clone(orderStatuses));
+    return Promise.reject(new Error('Bad method'));
   };
 
 
