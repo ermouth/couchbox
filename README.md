@@ -11,7 +11,8 @@ Couchbox tracks changes in both CouchDB config and ddocs, and seamlessly restart
 appropriate workers.
 
 Unlike CouchDB, Couchbox only tracks ddocs explicitly listed in configs,
-and each ddoc has own set of available aux methods, also defined in CouchDB config.
+and each ddoc has own set of available aux methods, also defined in CouchDB config. 
+To manage feed states properly, Couchbox requires [Redis](#redis).
 
 Couchbox is intended for CouchDB 1.5–1.6.1.
 
@@ -294,6 +295,20 @@ function Plugin(methodName, conf = {}, log) {
 module.exports = Plugin;
 ```
 
+[] TODO: list of built-in plugins
+
+## Redis
+
+Couchbox uses Redis to store intermediate results, feed states and so on. We’ve tried
+to use CouchDB `_local/docs` for the task, but speed required is order of magnitude
+higher than CouchDB is able to provide. So – Redis.
+
+Redis as a component also backs built-in `_cache` plugin.
+
+Couchbox includes [Redis-commander](https://github.com/joeferner/redis-commander) 
+as a component, so Redis buckets are accessible and editable through web interface. 
+Redis-commander looks pretty much like native CouchDB Futon.
+
 ## Configs
 
 Couchbox is configured using native CouchDB config. Couchbox config lives in 
@@ -302,21 +317,29 @@ CouchDB config.
 
 ### \[couchbox\]
 
-General configuration of Couchbox supervisor. Also holds config of socket.io since
+General configuration of Couchbox supervisor. Also holds config for socket.io since
 socket.io connections pass through supervisor.
 
 __Key__ | Sample value | Meaning
 --------|--------------|----------------------
 __nodename__ | node1 | Shortcut name of current node
-__nodes__ | {"node1":"https://abc.xyz"} | List of node URLs, JSON
+__nodes__ | {node1,node2} | List of nodes, JSON; nodenames as keys, URLs as values
+__max_parallel_changes__ | 16 | Maximum changes ticks processed simultaneously
 __api__ | true | Api on/off
 __api\_ports__ | 8001,8002 | Number of api workers and ports for them
 __api\_restart\_delta__ | 5000 | Milliseconds between workers restart
-__api\_fallback__ | http://localhost:5984/ | Destination to proxy unrecognized requests
+__proxy__ | {active,port,path,fallback} | Proxy settings, JSON
 __socket__ | true | Turns on socket.io
 __socket\_path__ | /_socket | Path socket.io is bound to
 __socket\_port__ | 8000 | Port for socket.io connections
-__max_parallel_changes__ | 16 | Maximum changes ticks processed simultaneously
+__redis\_ip__ | localhost | Redis domain or IP address
+__redis\_port__ | 6379 | Redis port
+__redis\_password__ | pwd | Redis password, if any
+__redis\_commander__ | {active,port,user,pass} | Redis commander config, JSON
+
+The above JSON notation like `{active,port,user,pass}` is an abrrev. The real value
+should be a valid JSON string like `{"active":true,"port":8888,"user":"x","pass":"y"}`.
+
 
 ### \[couchbox\_plugins\]
 
