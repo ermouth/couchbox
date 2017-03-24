@@ -25,7 +25,7 @@ function DDoc(bucket, bucketName, props = {}) {
     rev = body._rev;
     seq = body._local_seq;
 
-    const referrer = ([doc]) => bucketName +'/'+ doc._id +'/'+ doc._rev;
+    const referrer = ([doc]) => bucketName +'/'+ seq +'/'+ doc._id;
     const context = makeContext(body, log);
 
     const makeHook = (key, filterSrc, hookParams) => {

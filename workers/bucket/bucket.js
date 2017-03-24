@@ -269,7 +269,7 @@ function Bucket(props = {}) {
     return hookPromise
       .catch(error => log({
         message: 'Hook error: '+ hookName,
-        ref: id,
+        ref: name +'/'+ seq +'/'+ id,
         event: HOOK_ERROR,
         error: lib.errorBeautify(error)
       }))
@@ -540,7 +540,7 @@ function Bucket(props = {}) {
       .catch(error => {
         log({
           message: 'Change hooks error: '+ seq,
-          ref: id,
+          ref: name +'/'+ seq +'/'+ id,
           event: CHANGE_ERROR,
           error: lib.errorBeautify(error)
         });
@@ -566,7 +566,7 @@ function Bucket(props = {}) {
       if (hook.mode === 'transitive' && hasFutureProcess(id, seq, hookKey)) {
         log({
           message: 'Skip hook: '+ hookKey,
-          ref: id,
+          ref: name +'/'+ seq +'/'+ id,
           event: HOOK_SKIP
         });
         return Promise.resolve();
@@ -574,7 +574,7 @@ function Bucket(props = {}) {
 
       log({
         message: 'Start hook: '+ hookKey,
-        ref: id,
+        ref: name +'/'+ seq +'/'+ id,
         event: HOOK_START
       });
 
@@ -585,14 +585,14 @@ function Bucket(props = {}) {
           log({
             message: 'Hook result: '+ hookKey +' = '+ message,
             code: result.code,
-            ref: id,
+            ref: name +'/'+ seq +'/'+ id,
             event: HOOK_RESULT
           });
         }
         if (Object.isArray(docs) && docs.length > 0) { // check hook results
           return saveResults(db, docs).then(() => log({
             message: 'Saved hook results: '+ hookKey,
-            ref: id,
+            ref: name +'/'+ seq +'/'+ id,
             event: HOOK_SAVE
           }));
         }
