@@ -176,7 +176,10 @@ const makeContext = (body = {}, log) => {
     const modulesCtx = this;
     module = module || {};
     const newModule = resolveModule(property.split('/'), module.parent, modulesCtx);
-    if (!(newModule.id in module_cache)) compileModule(property, newModule);
+    if (!(newModule.id in module_cache)) {
+      console.log('compileModule', property);
+      compileModule(property, newModule);
+    }
     return makeModule.call(modulesCtx, log, property, newModule, log);
   }
 
