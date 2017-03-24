@@ -279,10 +279,7 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
           return lambda.call(proxy, _require, (prop) => _include.call(proxy, log, prop), log, params)
             .timeout(timeout)
             .then(resolve)
-            .catch((error) => {
-              console.error(error);
-              reject((error instanceof Promise.TimeoutError) ? new TimeoutError(error) : error)
-            })
+            .catch((error) => reject((error instanceof Promise.TimeoutError) ? new TimeoutError(error) : error))
             .finally(revoke);
         } catch(error) {
           log({
