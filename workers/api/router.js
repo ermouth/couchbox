@@ -203,7 +203,9 @@ function Router(props = {}) {
 
     if (result.stream && result.stream.pipe) {
       // Stream
-      res.writeHead(code, Object.assign(headers, { 'X-Accel-Buffering': 'no' })); // disable nginx cache for stream
+      headers[PAGE_GENERATION_PROP] = Date.now() - req.headers[PAGE_GENERATION_PROP];
+      headers['X-Accel-Buffering'] = 'no';
+      res.writeHead(code, headers); // disable nginx cache for stream
       result.stream.pipe(res).on('error', error => {
         log({
           message: 'Error pipe result.stream',
