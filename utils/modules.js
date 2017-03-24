@@ -179,12 +179,34 @@ const makeContext = (contextName = 'modulesContext', body = {}, log) => {
     return makeModule.call(modulesCtx, log, property, newModule, log);
   }
 
-  return { context, ctx, requireModule };
+  function _require(property, module) {
+    module = module || {};
+    const _module = resolveModule(property.split('/'), module.parent, ctx);
+    const { id } = _module;
+    if (!module_cache.hasOwnProperty(id)) {
+      module_cache[id] = {};
+      const module_name = contextName.replace(/[^A-z0-9]+/g, '_') +'__'+ property.replace(/[^A-z0-9]+/g, '_');
+      const module_script = '(function module_'+ module_name +'(module, exports, require, log){ '+ _module.current +' })';
+      try {
+        vm.runInContext(module_script, context).call(ctx, _module, _module.exports, (prop) => _require(prop, _module), log);
+      } catch(error) {
+        log({
+          message: 'Error during require: ' + property,
+          event: MODULE_ERROR,
+          error
+        });
+      }
+      module_cache[id] = _module.exports;
+    }
+    return module_cache[id];
+  }
+
+  return { context, ctx, _require };
 };
 
 const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
 
-  const { ctx = {}, context, requireModule, methods, referrer } = props;
+  const { ctx = {}, context, requireModule, _require, methods, referrer } = props;
   if (!(body && body.lambda)) return Promise.reject(new Error('No lambda'));
   if (!context) return Promise.reject(new Error('No context'));
 
@@ -251,13 +273,16 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
           deleteProperty: emptyFunction
         });
 
-        const _require = prop => requireModule.call(proxy, log, prop);
+        // const require0 = prop => _require.call(proxy, log, prop);
 
         try {
           return lambda.call(proxy, _require, log, params)
             .timeout(timeout)
             .then(resolve)
-            .catch((error) => reject((error instanceof Promise.TimeoutError) ? new TimeoutError(error) : error))
+            .catch((error) => {
+              console.error(error);
+              reject((error instanceof Promise.TimeoutError) ? new TimeoutError(error) : error)
+            })
             .finally(revoke);
         } catch(error) {
           log({
