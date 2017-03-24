@@ -34,7 +34,7 @@ const {
 } = require('./constants');
 
 const ROOT_PATH = '/';
-const PAGE_GENERATION_PROP = 'x-page-gen';
+const PAGE_GENERATION_PROP = 'X-Page-Generation';
 
 const corsHeads = (request) => {
   const headers = API_DEFAULT_HEADERS;
