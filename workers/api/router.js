@@ -34,6 +34,7 @@ const {
 } = require('./constants');
 
 const ROOT_PATH = '/';
+const PAGE_GENERATION_PROP = 'x-page-gen';
 
 const corsHeads = (request) => {
   const headers = API_DEFAULT_HEADERS;
@@ -196,7 +197,7 @@ function Router(props = {}) {
     return { code, json };
   };
 
-  const sendResult = (res, result = {}) => {
+  const sendResult = (req, res, result = {}) => {
     const code = result.code || API_DEFAULT_CODE;
     const headers = result.headers || API_DEFAULT_HEADERS;
 
@@ -228,6 +229,7 @@ function Router(props = {}) {
         }
       }
 
+      headers[PAGE_GENERATION_PROP] = Date.now() - req.headers[PAGE_GENERATION_PROP];
       res.writeHead(code, headers);
       if (result.body !== undefined) {
         try {
@@ -255,8 +257,9 @@ function Router(props = {}) {
 
 
   function onRequest(req, res) {
-    const send = result => sendResult(res, result);
-    const sendError = error => sendResult(res, makeError(error));
+    req.headers[PAGE_GENERATION_PROP] = Date.now();
+    const send = result => sendResult(req, res, result);
+    const sendError = error => sendResult(req, res, makeError(error));
 
     const request = makeRoute(req);
     const route = getRoute(request.host, request.path, request.method);
