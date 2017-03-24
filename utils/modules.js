@@ -228,7 +228,10 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
   function makeLambda(plugins) {
     function handler() {
       const params = new Array(arguments.length);
-      for (let args_i = 0, args_max = arguments.length; args_i < args_max; args_i++) params[args_i] = arguments[args_i];
+      {
+        let arg_i = arguments.length;
+        while (arg_i--) params[arg_i] = arguments[arg_i];
+      }
 
       return new Promise((resolve, reject0) => {
         const reject = (error) => reject0(new RejectHandlerError(error));
@@ -249,8 +252,10 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
           deleteProperty: emptyFunction
         });
 
+        const _require = needRequire ? prop => requireModule.call(proxy, log, prop) : null;
+
         try {
-          return lambda.call(proxy, needRequire ? prop => requireModule.call(proxy, log, prop) : null, log, params)
+          return lambda.call(proxy, _require, log, params)
             .timeout(timeout)
             .then(resolve)
             .catch((error) => reject((error instanceof Promise.TimeoutError) ? new TimeoutError(error) : error))
