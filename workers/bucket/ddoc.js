@@ -26,7 +26,7 @@ function DDoc(bucket, bucketName, props = {}) {
     seq = body._local_seq;
 
     const referrer = ([doc]) => bucketName +'/'+ seq +'/'+ doc._id;
-    const context = makeContext(body, log);
+    const context = makeContext(name, body, log);
 
     const makeHook = (key, filterSrc, hookParams) => {
       if (!(Object.isString(filterSrc) && Object.isObject(hookParams))) return Promise.resolve();

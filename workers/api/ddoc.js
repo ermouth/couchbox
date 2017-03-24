@@ -52,7 +52,7 @@ function DDoc(props = {}) {
     });
 
     const referrer = ([request]) => API_REFERRER_PARSER(request);
-    const context = makeContext(body, log);
+    const context = makeContext(name, body, log);
 
     const handlerProps = Object.assign(
       { logger, logEvent: API_LOG, errorEvent: API_ERROR, methods, referrer },

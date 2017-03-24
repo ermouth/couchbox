@@ -133,7 +133,7 @@ const makePlugins = (ctx, methods = [], log) => {
   });
 };
 
-const makeContext = (body = {}, log) => {
+const makeContext = (contextName = 'modulesContext', body = {}, log) => {
   const ctx = {};
   {
     const bodyKeys = Object.keys(body);
@@ -157,7 +157,6 @@ const makeContext = (body = {}, log) => {
       });
     }
   }
-
   function makeModule(log, property, module) {
     const modulesCtx = this;
     try {
@@ -176,10 +175,7 @@ const makeContext = (body = {}, log) => {
     const modulesCtx = this;
     module = module || {};
     const newModule = resolveModule(property.split('/'), module.parent, modulesCtx);
-    if (!(newModule.id in module_cache)) {
-      console.log('compileModule', property);
-      compileModule(property, newModule);
-    }
+    if (!(newModule.id in module_cache)) compileModule(property, newModule);
     return makeModule.call(modulesCtx, log, property, newModule, log);
   }
 
@@ -212,7 +208,6 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
       return Promise.reject(new Error('Lambda validation failed: '+ JSON.stringify(validationResult)));
     }
   }
-  const needRequire = lambda_globals.indexOf('require') >= 0;
 
   const script = (
     '(function runner__'+ lambdaName +'(require, log, params){' +
@@ -221,6 +216,7 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
       ');' +
     '})'
   );
+
   let lambda;
   try {
     lambda = vm.runInContext(script, context);
@@ -255,7 +251,7 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
           deleteProperty: emptyFunction
         });
 
-        const _require = needRequire ? prop => requireModule.call(proxy, log, prop) : null;
+        const _require = prop => requireModule.call(proxy, log, prop);
 
         try {
           return lambda.call(proxy, _require, log, params)
