@@ -213,9 +213,10 @@ module.exports = function initMaster(cluster) {
       // Map config
       Object.keys(newConf).forEach(confKey => configMap[confKey] && configMap[confKey](newConf[confKey]));
 
+      const defaults = ['couchbox', 'debug'];
 
       // Check redis-commander config
-      const newConfigRedisCommanderHash = lib.sdbmCode(['couchbox', 'redis'].map(config.get)); // update configSocketHash by critical fields
+      const newConfigRedisCommanderHash = lib.sdbmCode(defaults.concat(['redis']).map(config.get)); // update configSocketHash by critical fields
       if (newConfigRedisCommanderHash !== configRedisCommanderHash) {
         configRedisCommanderHash = newConfigRedisCommanderHash;
         log({
@@ -227,7 +228,7 @@ module.exports = function initMaster(cluster) {
 
 
       // Check socket config
-      const newConfigSocketHash = lib.sdbmCode(['couchbox', 'socket', 'redis'].map(config.get)); // update configSocketHash by critical fields
+      const newConfigSocketHash = lib.sdbmCode(defaults.concat(['redis', 'socket']).map(config.get)); // update configSocketHash by critical fields
       if (newConfigSocketHash !== configSocketHash) {
         log({
           message: 'Updated socket worker config',
@@ -239,7 +240,7 @@ module.exports = function initMaster(cluster) {
 
 
       // Check proxy config
-      const newConfigProxyHash = lib.sdbmCode(['couchbox', 'proxy', 'cors', 'api', 'socket'].map(config.get)); // update configSocketHash by critical fields
+      const newConfigProxyHash = lib.sdbmCode(defaults.concat(['proxy', 'cors', 'api', 'socket']).map(config.get)); // update configSocketHash by critical fields
       if (newConfigProxyHash !== configProxyHash) {
         configProxyHash = newConfigProxyHash;
         log({
@@ -252,7 +253,7 @@ module.exports = function initMaster(cluster) {
 
       // Check bucket worker and hooks config
       let updateBuckets = false;
-      const newConfigBucketHash = lib.sdbmCode(['couchbox', 'plugins', 'couchdb', 'hooks', 'redis'].map(config.get)); // update configBucketHash by critical fields
+      const newConfigBucketHash = lib.sdbmCode(defaults.concat(['couchdb', 'redis', 'plugins', 'hooks']).map(config.get)); // update configBucketHash by critical fields
       if (configBucketHash !== newConfigBucketHash) {
         configBucketHash = newConfigBucketHash;
         updateBuckets = true;
@@ -275,7 +276,7 @@ module.exports = function initMaster(cluster) {
 
       // Check api worker and endpoints config
       let updateApi = false;
-      const newConfigApiHash = lib.sdbmCode(['couchbox', 'plugins', 'couchdb', 'redis', 'cors', 'api'].map(config.get)); // update configBucketHash by critical fields
+      const newConfigApiHash = lib.sdbmCode(defaults.concat(['couchdb', 'redis', 'plugins', 'cors', 'api']).map(config.get)); // update configBucketHash by critical fields
       if (configApiHash !== newConfigApiHash) {
         configApiHash = newConfigApiHash;
         updateApi = true;

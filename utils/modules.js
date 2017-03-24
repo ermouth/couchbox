@@ -36,9 +36,10 @@ const couchGlobals = {
   isArray: Object.isArray,
   toJSON: JSON.stringify,
 };
-const customGlobals = {
-  Promise
-};
+const customGlobals = { Promise };
+
+if (DEBUG) customGlobals.console = console;
+
 const lambdaGlobals = Object.assign({}, nodeGlobals, couchGlobals, customGlobals);
 const availableGlobals = Object.assign({}, lambdaGlobals, {
   undefined,
@@ -51,7 +52,7 @@ const availableGlobals = Object.assign({}, lambdaGlobals, {
   Math, JSON,
   decodeURI, decodeURIComponent, encodeURI, encodeURIComponent, escape, unescape, parseInt, parseFloat
 });
-const availableInLambda = ['require', 'log', 'arguments', 'resolve', 'reject'];
+const availableInLambda = ['require', 'include', 'log', 'arguments', 'resolve', 'reject'];
 const lambdaAvailable = Object.keys(availableGlobals).concat(availableInLambda);
 
 
@@ -61,7 +62,7 @@ const emptyFunction = () => undefined;
 
 function resolveModule(path, mod = {}, root) {
   const { current, parent, id } = mod;
-  if (path.length == 0) {
+  if (path.length === 0) {
     if (typeof current !== 'string') {
       throw new Error('Invalid require path: Must require a JavaScript string, not: '+ (typeof current));
     }
@@ -142,71 +143,72 @@ const makeContext = (contextName = 'modulesContext', body = {}, log) => {
   }
 
   const context = new vm.createContext(lambdaGlobals);
+  const contextId = contextName.replace(/[^A-z0-9]+/g, '_');
 
-  const module_cache = {};
+  const require_module_cache = {};
+  const include_module_cache = {};
 
-  function compileModule(property, module) {
-    const script = '(function (module, exports, require, log) { ' + module.current + '\n })';
+  function compileIncludeModule(property, module) {
+    const module_name = 'include_module__'+ contextId +'__'+ property.replace(/[^A-z0-9]+/g, '_');
+    const module_script = '(function '+ module_name +'(module, exports, require, include, log) { ' + module.current + ' })';
     try {
-      module_cache[module.id] = vm.runInContext(script, context);
+      include_module_cache[module.id] = vm.runInContext(module_script, context);
     } catch (error) {
       log({
-        message: 'Error compiling require property: ' + property,
+        message: 'Error compiling include property: ' + property,
         event: MODULE_ERROR,
         error
       });
     }
   }
-  function makeModule(log, property, module) {
-    const modulesCtx = this;
+
+  function compileRequireModule(property, module) {
+    const module_name = 'require_module__'+ contextId +'__'+ property.replace(/[^A-z0-9]+/g, '_');
+    const module_script = '(function '+ module_name +'(module, exports, require, log) { ' + module.current + ' })';
     try {
-      module_cache[module.id].call(modulesCtx, module, module.exports, (property) => requireModule.call(modulesCtx, log, property, module), log);
-    } catch (error) {
+      vm.runInContext(module_script, context).call(ctx, module, module.exports, (prop) => _require(prop, module), log);
+    } catch(error) {
       log({
         message: 'Error during require: ' + property,
         event: MODULE_ERROR,
         error
       });
     }
-    return module.exports;
+    require_module_cache[module.id] = module.exports;
   }
 
-  function requireModule(log, property, module) {
+  function _include(log, property, module) {
     const modulesCtx = this;
     module = module || {};
-    const newModule = resolveModule(property.split('/'), module.parent, modulesCtx);
-    if (!(newModule.id in module_cache)) compileModule(property, newModule);
-    return makeModule.call(modulesCtx, log, property, newModule, log);
+    const module_include = resolveModule(property.split('/'), module.parent, modulesCtx);
+    if (!include_module_cache.hasOwnProperty(module_include)) compileIncludeModule(property, module_include);
+
+    try {
+      include_module_cache[module_include.id].call(modulesCtx, module_include, module_include.exports, _require, (prop) => _include.call(modulesCtx, log, prop, module_include), log);
+    } catch (error) {
+      log({
+        message: 'Error during include: ' + property,
+        event: MODULE_ERROR,
+        error
+      });
+    }
+
+    return module_include.exports;
   }
 
   function _require(property, module) {
     module = module || {};
-    const _module = resolveModule(property.split('/'), module.parent, ctx);
-    const { id } = _module;
-    if (!module_cache.hasOwnProperty(id)) {
-      module_cache[id] = {};
-      const module_name = contextName.replace(/[^A-z0-9]+/g, '_') +'__'+ property.replace(/[^A-z0-9]+/g, '_');
-      const module_script = '(function module_'+ module_name +'(module, exports, require, log){ '+ _module.current +' })';
-      try {
-        vm.runInContext(module_script, context).call(ctx, _module, _module.exports, (prop) => _require(prop, _module), log);
-      } catch(error) {
-        log({
-          message: 'Error during require: ' + property,
-          event: MODULE_ERROR,
-          error
-        });
-      }
-      module_cache[id] = _module.exports;
-    }
-    return module_cache[id];
+    const module_require = resolveModule(property.split('/'), module.parent, ctx);
+    if (!require_module_cache.hasOwnProperty(module_require.id)) compileRequireModule(property, module_require);
+    return require_module_cache[module_require.id];
   }
 
-  return { context, ctx, _require };
+  return { context, ctx, _include, _require };
 };
 
 const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
 
-  const { ctx = {}, context, requireModule, _require, methods, referrer } = props;
+  const { ctx = {}, context, _include, _require, methods, referrer } = props;
   if (!(body && body.lambda)) return Promise.reject(new Error('No lambda'));
   if (!context) return Promise.reject(new Error('No context'));
 
@@ -232,7 +234,7 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
   }
 
   const script = (
-    '(function runner__'+ lambdaName +'(require, log, params){' +
+    '(function runner__'+ lambdaName +'(require, include, log, params){' +
       'return new Promise(' +
         '(resolve, reject) => { (' + lambdaSrc + ').apply(this, params); }' +
       ');' +
@@ -273,10 +275,8 @@ const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
           deleteProperty: emptyFunction
         });
 
-        // const require0 = prop => _require.call(proxy, log, prop);
-
         try {
-          return lambda.call(proxy, _require, log, params)
+          return lambda.call(proxy, _require, (prop) => _include.call(proxy, log, prop), log, params)
             .timeout(timeout)
             .then(resolve)
             .catch((error) => {
