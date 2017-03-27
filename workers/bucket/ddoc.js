@@ -7,7 +7,7 @@ const { makeContext, makeHandler } = require('../../utils/modules');
 const config = require('../../config');
 
 
-const { DDOC_INIT, DDOC_ERROR, FILTER_ERROR, HOOK_ERROR, HOOK_LOG } = require('./constants').LOG_EVENTS;
+const { DDOC_INIT, BUILD_ERROR, HOOK_ERROR, HOOK_LOG } = require('./constants').LOG_EVENTS;
 
 function DDoc(bucket, bucketName, props = {}) {
   const { name, methods } = props;
@@ -36,7 +36,7 @@ function DDoc(bucket, bucketName, props = {}) {
       } catch (error) {
         log({
           message: 'Error compile filter: '+ key,
-          event: FILTER_ERROR,
+          event: BUILD_ERROR,
           error
         });
       }
@@ -59,7 +59,7 @@ function DDoc(bucket, bucketName, props = {}) {
           })
           .catch((error) => log({
             message: 'Error init hook lambda: '+ key,
-            event: HOOK_ERROR,
+            event: BUILD_ERROR,
             error
           }));
       }

@@ -61,9 +61,9 @@ const parseBody = (req) => {
       return new Promise((resolve, reject) => {
         const body = [];
         req
-          .on('error', error => reject(error))
           .on('data', chunk => body.push(chunk))
-          .on('end', () => resolve(Buffer.concat(body).toString()));
+          .on('end', () => resolve(Buffer.concat(body).toString()))
+          .on('error', error => reject(error));
       });
   }
 };

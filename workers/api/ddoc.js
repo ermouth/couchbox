@@ -9,7 +9,7 @@ const {
   API_DEFAULT_TIMEOUT,
   API_REFERRER_PARSER,
   LOG_EVENTS: {
-    DDOC_INIT, API_LOG, API_ERROR
+    DDOC_INIT, API_LOG, API_ERROR, BUILD_ERROR
   }
 } = require('./constants');
 
@@ -30,7 +30,7 @@ function DDoc(props = {}) {
     const onHandlerError = (handlerKey, error) => {
       log({
         message: 'Error init api lambda: '+ handlerKey,
-        event: API_ERROR,
+        event: BUILD_ERROR,
         error
       });
     };

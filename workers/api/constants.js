@@ -45,10 +45,11 @@ module.exports = {
   API_REFERRER_PARSER,
 
   LOG_EVENTS: {
+    BUILD_ERROR: 'build/error',
+
     BUCKET_ERROR: 'bucket/error',
 
     DDOC_INIT: 'ddoc/init',
-    DDOC_ERROR: 'ddoc/error',
 
     API_START: 'api/start',
     API_STOP: 'api/stop',
@@ -57,8 +58,6 @@ module.exports = {
     API_SESSION_ERROR: 'api/sessionError',
     API_REQUEST_ERROR: 'api/requestError',
     API_REQUEST_REJECT: 'api/requestReject',
-    API_HANDLER_LOG: 'api/handlerLog',
-    API_HANDLER_ERROR: 'api/handlerError',
     API_ROUTE_ERROR: 'api/routeError',
     API_LOG: 'api/log',
   }

@@ -7,7 +7,7 @@ const config = require('../../config');
 const {
   API_DEFAULT_TIMEOUT,
   LOG_EVENTS: {
-    BUCKET_ERROR, DDOC_ERROR
+    BUCKET_ERROR, BUILD_ERROR
   }
 } = require('./constants');
 
@@ -37,7 +37,7 @@ function Bucket(props = {}) {
       return DDoc({ logger, bucket, name: ddoc, domain, endpoint, methods }).catch(error => {
         log({
           message: 'Error init DDoc: '+ ddoc,
-          event: DDOC_ERROR,
+          event: BUILD_ERROR,
           error
         });
       });

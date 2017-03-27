@@ -17,9 +17,10 @@ const {
   BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD,
   CHECK_PROCESSES_TIMEOUT,
   LOG_EVENTS: {
+    BUILD_ERROR,
     BUCKET_CHANGES, BUCKET_FEED, BUCKET_FEED_STOP,
     BUCKET_STOP, BUCKET_CLOSE, BUCKET_ERROR,
-    DDOC_ERROR,
+    FILTER_ERROR,
     HOOK_START, HOOK_SAVE, HOOK_RESULT, HOOK_SKIP, HOOK_ERROR, CHANGE_ERROR
   }
 } = require('./constants');
@@ -425,7 +426,7 @@ function Bucket(props = {}) {
       .catch(error => {
         log({
           message: 'Error on init ddoc: '+ name,
-          event: DDOC_ERROR,
+          event: BUILD_ERROR,
           error
         });
       });
@@ -517,7 +518,15 @@ function Bucket(props = {}) {
 
     const tasks = [ setLastSeqState(+seq) ];
     for (let [hookKey, filter] of _filters) {
-      if (filter(change.doc)) tasks.push(setInProcess(change, hookKey));
+      try  {
+        if (filter(change.doc)) tasks.push(setInProcess(change, hookKey));
+      } catch (error) {
+        log({
+          message: 'Error on filter change: '+ hookKey,
+          event: FILTER_ERROR,
+          error
+        });
+      }
     }
     return Promise.all(tasks).then(() => processNow && processQueue());
   };

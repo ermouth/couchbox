@@ -12,6 +12,8 @@ module.exports = {
   CHECK_PROCESSES_TIMEOUT: 120,
 
   LOG_EVENTS: {
+    BUILD_ERROR: 'build/error',
+
     BUCKET_FEED: 'bucket/feed',
     BUCKET_FEED_STOP: 'bucket/feedStop',
     BUCKET_CHANGES: 'bucket/changes',
@@ -20,7 +22,6 @@ module.exports = {
     BUCKET_ERROR: 'bucket/error',
 
     DDOC_INIT: 'ddoc/init',
-    DDOC_ERROR: 'ddoc/error',
 
     FILTER_ERROR: 'filter/error',
 
@@ -31,6 +32,6 @@ module.exports = {
     HOOK_SKIP: 'hook/skip',
     HOOK_SAVE: 'hook/save',
     HOOK_LOG: 'hook/log',
-    HOOK_ERROR: 'hook/error',
+    HOOK_ERROR: 'hook/error'
   }
 };
