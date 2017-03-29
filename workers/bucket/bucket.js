@@ -291,7 +291,7 @@ function Bucket(props = {}) {
   };
   const getPreviousProcess = (id, seq, hookName) => {
     const sequences = hookProcesses.get(id);
-    if (!(sequences && sequences.size > 0)) return [];
+    if (!(sequences && sequences.size > 0)) return null;
     let processes, hook, last;
     for (let proc_seq of sequences.keys()) {
       if (proc_seq < seq && (processes = sequences.get(proc_seq)) && (hook = processes.get(hookName))) last = hook;
