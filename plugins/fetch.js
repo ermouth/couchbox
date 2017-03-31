@@ -39,7 +39,7 @@ function Plugin(method, conf = {}, log) {
     nodesDomains[getUrlDomain(u)] = true;
   });
 
-  const fetch_method = (ref) => function (params) {
+  const fetch_method = (ref) => function () {
     const options = Object.isObject(arguments[0]) ? arguments[0] : {};
     let url = Object.isString(arguments[0]) ? arguments[0] : options.url;
 

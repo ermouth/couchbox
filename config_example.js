@@ -28,6 +28,7 @@ module.exports = {
   couchbox_plugins: {
     bank: '{"login":"","pass":"","currencies":["RUB","USD","EUR"],"languages":["ru","en","uk","be"], "timeout":5000}',
     email: '{"from":"","service":"Yandex","host":"smtp.yandex.ru","port":465,"secure":true,"user":"", "pass":""}',
-    sms: '{"key":"", "from":""}'
+    sms: '{"key":"", "from":""}',
+    kkm: '{"url":"http://localhost:5893","login":"Admin","password":"","timeout":30,"requestTimeout":10000,"company":"Couchbox","cashier":"Couchbox software","tax":-1}'
   }
 };
