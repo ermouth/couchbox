@@ -8,6 +8,8 @@ Plugins are configured on init with an object, parsed from JSON string,
 taken from CouchDB config. Plugin named `xyz.js` imlements `this._xyz`
 and receives config from the key `couchbox_plugins/xyz`.
 
+----
+
 ## bucket
 
 Object `this._bucket` provides read access to a bucket the lambda lives in,
@@ -33,6 +35,8 @@ Returns Promise, fulfilled with CouchDB response object.
 
 Wrapper for Nano [db.view](https://github.com/dscape/nano#dbviewdesignname-viewname-params-callback) 
 method. Returns Promise, fulfilled with CouchDB response object.
+
+----
 
 ## fetch
 
