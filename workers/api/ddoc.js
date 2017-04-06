@@ -9,14 +9,15 @@ const {
   API_DEFAULT_TIMEOUT,
   API_REFERRER_PARSER,
   LOG_EVENTS: {
-    DDOC_INIT, API_LOG, API_ERROR, BUILD_ERROR
+    DDOC_INIT, API_LOG, API_ERROR, API_LAMBDA_ERROR
   }
 } = require('./constants');
 
-function DDoc(props = {}) {
-  const { bucket, name, domain, endpoint, methods } = props;
+function DDoc(bucket, bucketName, props = {}) {
+  const { name, domain, endpoint, methods } = props;
   const logger = new Logger({
-    prefix: 'DDoc '+ name,
+    prefix: 'DDoc',
+    scope: '_'+ bucketName +'/'+ name,
     logger: props.logger
   });
   const log = logger.getLog();
@@ -30,8 +31,9 @@ function DDoc(props = {}) {
     const onHandlerError = (handlerKey, error) => {
       log({
         message: 'Error init api lambda: '+ handlerKey,
-        event: BUILD_ERROR,
-        error
+        event: API_LAMBDA_ERROR,
+        error,
+        type: 'fatal'
       });
     };
     const onHandlerResult = ({ methods }, handler) => {
@@ -61,7 +63,7 @@ function DDoc(props = {}) {
 
     const handlerMaker = (handlerKey) => {
       const handlerBody = body.api[handlerKey];
-      return makeHandler(bucket, name, handlerKey, handlerBody, handlerProps)
+      return makeHandler(bucketName, bucket, name, handlerKey, handlerBody, handlerProps)
         .then(result => onHandlerResult(handlerBody, result))
         .catch(error => onHandlerError(handlerKey, error));
     };

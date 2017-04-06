@@ -9,7 +9,7 @@ const { WORKER_HANDLE_EXIT, WORKER_HANDLE_UNHANDLED_ERROR } = Worker.Constants;
 const { WORKER_START, WORKER_EXIT, WORKER_CLOSE, WORKER_ERROR } = Worker.LOG_EVENTS;
 
 module.exports = function initWorker(cluster, props = {}) {
-  const worker = new Worker(cluster, { name: 'Proxy worker' });
+  const worker = new Worker(cluster, { name: 'Proxy' });
   const { logger } = worker;
   const log = logger.getLog();
 
@@ -17,8 +17,9 @@ module.exports = function initWorker(cluster, props = {}) {
     const error = new Error('Not valid proxy config');
     log({
       message: 'Error: '+ error.message,
+      event: WORKER_ERROR,
       error,
-      event: WORKER_ERROR
+      type: 'fatal'
     });
     return worker.close();
   }

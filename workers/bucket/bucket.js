@@ -8,7 +8,7 @@ const config = require('../../config');
 const DDoc = require('./ddoc');
 
 
-const DEBUG = config.get('debug.enabled');
+const DEBUG = config.get('debug');
 const CHANGE_PROPS_SEPARATOR = '*';
 const MAX_PARALLEL_CHANGES = config.get('couchbox.max_parallel_changes');
 const COLD_START = config.get('couchbox.cold_start');
@@ -17,7 +17,7 @@ const {
   BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD,
   CHECK_PROCESSES_TIMEOUT,
   LOG_EVENTS: {
-    BUILD_ERROR,
+    BUCKET_DDOC_ERROR,
     BUCKET_CHANGES, BUCKET_FEED, BUCKET_FEED_STOP,
     BUCKET_STOP, BUCKET_CLOSE, BUCKET_ERROR,
     FILTER_ERROR,
@@ -27,7 +27,7 @@ const {
 
 function Bucket(props = {}) {
   const name = props.name;
-  const logger = new Logger({ prefix: 'Bucket '+ name, logger: props.logger });
+  const logger = new Logger({ prefix: 'Bucket', scope: '_'+ name, logger: props.logger });
   const log = logger.getLog();
 
 
@@ -71,21 +71,21 @@ function Bucket(props = {}) {
     db.info((error, info) => {
       if (error) {
         log({
-          message: 'Error on load bucket info',
+          message: 'Error on loading bucket info',
           event: BUCKET_ERROR,
           error
         });
         return reject(error);
       }
       db_info = info;
-      return resolve(info);
+      resolve(info);
     });
   });
   const getBucketState = () => new Promise((resolve, reject) => {
     redisClient.get(stateKey_bucket, (error, data) => {
       if (error) {
         log({
-          message: 'Error on load local bucket state: '+ stateKey_bucket,
+          message: 'Error on loading local bucket state: '+ stateKey_bucket,
           event: BUCKET_ERROR,
           error
         });
@@ -371,7 +371,8 @@ function Bucket(props = {}) {
     log({
       message: 'Error on init db: '+ name,
       event: BUCKET_ERROR,
-      error
+      error,
+      type: 'fatal'
     });
     close();
   };
@@ -426,8 +427,9 @@ function Bucket(props = {}) {
       .catch(error => {
         log({
           message: 'Error on init ddoc: '+ name,
-          event: BUILD_ERROR,
-          error
+          event: BUCKET_DDOC_ERROR,
+          error,
+          type: 'fatal'
         });
       });
   };

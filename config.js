@@ -90,30 +90,12 @@ const defaultConfig = {
     check: checkEnum(['normal', 'now'])
   },
 
-  'debug.enabled': {
+  'debug': {
     env: 'DEBUG',
     value: false,
     str: strBool,
     map: mapBool,
     check: checkBool
-  },
-  'debug.db': {
-    env: 'DEBUG_DB',
-    value: undefined,
-    str: strStr,
-    map: mapStr,
-    check: checkStr
-  },
-  'debug.events': {
-    env: 'DEBUG_EVENTS',
-    value: [],
-    map: mapArrCustom(
-      /,\s*/,
-      (f) => Object.isString(f) ? f.split('/').filter(i => i && i.length && i.trim() !== '*') : Object.isArray(f) ? f : null,
-      (f) => Object.isArray(f) && f.length > 0
-    ),
-    check: checkArrCustom((f) => Object.isArray(f)),
-    str: strArrCustom(',', (f) => f.join('/'))
   },
 
   'system.configTimeout': {

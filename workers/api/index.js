@@ -9,7 +9,7 @@ const { WORKER_HANDLE_EXIT, WORKER_HANDLE_UNHANDLED_ERROR } = Worker.Constants;
 const { WORKER_START, WORKER_EXIT, WORKER_CLOSE, WORKER_ERROR } = Worker.LOG_EVENTS;
 
 module.exports = function initWorker(cluster, props = {}) {
-  const worker = new Worker(cluster, { name: 'API worker' });
+  const worker = new Worker(cluster, { name: 'API' });
   const { logger } = worker;
   const log = logger.getLog();
 

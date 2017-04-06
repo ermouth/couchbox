@@ -5,7 +5,7 @@ const lib = require('./lib');
 const Logger = require('./logger');
 const config = require('../config');
 
-const DEBUG = config.get('debug.enabled');
+const DEBUG = config.get('debug');
 
 // Constants
 const WORKER_HANDLE_EXIT = 'WORKER_HANDLE_EXIT';
@@ -35,8 +35,8 @@ function Worker(cluster, props = {}) {
   const emitter = this;
 
   const pid = process.pid;
-  const name = props.name || 'Worker';
-  const logger = new Logger({ prefix: name +' '+ pid });
+  const name = props.name;
+  const logger = new Logger({ prefix: name + '_worker' });
   const log = logger.getLog();
 
   const send = (msg, data) => process.send({ msg, data });
@@ -75,7 +75,8 @@ function Worker(cluster, props = {}) {
       log({
         message: name +' unhandled error',
         event: WORKER_ERROR,
-        error
+        error,
+        type: 'fatal'
       });
       console.error(error);
     }
@@ -87,7 +88,8 @@ function Worker(cluster, props = {}) {
       log({
         message: name +' error',
         event: WORKER_ERROR,
-        error
+        error,
+        type: 'fatal'
       });
       console.error(error);
     }

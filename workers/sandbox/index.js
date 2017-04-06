@@ -16,12 +16,12 @@ const socketConfigValidator = require('../socket/configValidator');
 const proxyConfigValidator = require('../proxy/configValidator');
 const redisCommanderConfigValidator = require('../redis-commander/configValidator');
 
-const DEBUG = config.get('debug.enabled');
+const DEBUG = config.get('debug');
 
 // Log events constants
 const { LOG_ERROR } = Logger.LOG_EVENTS;
 const { CONFIG_API, CONFIG_BUCKET, CONFIG_SOCKET, CONFIG_PROXY, CONFIG_REDIS_COMMANDER, CONFIG_ENDPOINTS, CONFIG_HOOKS } = config.LOG_EVENTS;
-const { SANDBOX_START, SANDBOX_CLOSE, SANDBOX_CLOSED } = require('./constants').LOG_EVENTS;
+const { SANDBOX_START, SANDBOX_CLOSE, SANDBOX_CLOSED, SANDBOX_ERROR, SANDBOX_CONFIG_ERROR } = require('./constants').LOG_EVENTS;
 
 // Worker constants
 const { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET, WORKER_TYPE_API, WORKER_TYPE_PROXY, WORKER_TYPE_REDIS_COMMANDER, WORKER_WAIT_TIMEOUT } = require('../../utils/worker').Constants;
@@ -41,8 +41,7 @@ const {
 
 // Master worker
 module.exports = function initMaster(cluster) {
-  const sandbox = this;
-  const logger = new Logger({ prefix: 'Master '+ process.pid });
+  const logger = new Logger({ prefix: 'Sandbox' });
   const log = logger.getLog();
 
   // map of current workers
@@ -104,6 +103,22 @@ module.exports = function initMaster(cluster) {
   }
 
   // Init proc signals listeners
+  process.on('unhandledRejection', (error) => {
+    log({
+      message: 'Sandbox unhandled unhandled error',
+      event: SANDBOX_ERROR,
+      error,
+      type: 'fatal'
+    });
+  });
+  process.on('uncaughtException', (error) => {
+    log({
+      message: 'Sandbox unhandled error',
+      event: SANDBOX_ERROR,
+      error,
+      type: 'fatal'
+    });
+  });
   process.on('SIGINT', onClose); // on close command
   process.on('SIGTERM', onClose);
   process.on('exit', () => log({ message: 'Closed', event: SANDBOX_CLOSED })); // on master closed
@@ -129,9 +144,7 @@ module.exports = function initMaster(cluster) {
         ['socket', 'socket'],
         ['proxy', 'proxy'],
 
-        ['debug.enabled', 'debug'],
-        ['debug.db', 'debug_db'],
-        ['debug.events', 'debug_events']
+        ['debug', 'debug']
       ]);
     },
     'cors': (conf = {}) => {
@@ -205,102 +218,113 @@ module.exports = function initMaster(cluster) {
   // CouchDB cfg changes, and at the end of worker start sequence
   const loadConfig = () => {
     if (isClosing) return null;
-
-    couchdb.loadConfig().then(newConf => {
-      // if worker is not running - don't update config and start config update timeout
-      if (isClosing) return null;
-
-      // Map config
-      Object.keys(newConf).forEach(confKey => configMap[confKey] && configMap[confKey](newConf[confKey]));
-
-      const defaults = ['couchbox', 'debug'];
-
-      // Check redis-commander config
-      const newConfigRedisCommanderHash = lib.sdbmCode(defaults.concat(['redis']).map(config.get)); // update configSocketHash by critical fields
-      if (newConfigRedisCommanderHash !== configRedisCommanderHash) {
-        configRedisCommanderHash = newConfigRedisCommanderHash;
+    couchdb.loadConfig()
+      .catch(error => {
         log({
-          message: 'Updated redis-commander worker config',
-          event: CONFIG_REDIS_COMMANDER
+          message: 'Error on load config',
+          event: SANDBOX_CONFIG_ERROR,
+          error,
+          type: 'fatal'
         });
-        updateRedisCommanderWorkers();
-      }
-
-
-      // Check socket config
-      const newConfigSocketHash = lib.sdbmCode(defaults.concat(['redis', 'socket']).map(config.get)); // update configSocketHash by critical fields
-      if (newConfigSocketHash !== configSocketHash) {
-        log({
-          message: 'Updated socket worker config',
-          event: CONFIG_SOCKET
-        });
-        configSocketHash = newConfigSocketHash;
-        updateSocketWorkers();
-      }
-
-
-      // Check proxy config
-      const newConfigProxyHash = lib.sdbmCode(defaults.concat(['proxy', 'cors', 'api', 'socket']).map(config.get)); // update configSocketHash by critical fields
-      if (newConfigProxyHash !== configProxyHash) {
-        configProxyHash = newConfigProxyHash;
-        log({
-          message: 'Updated proxy worker config',
-          event: CONFIG_PROXY
-        });
-        updateProxyWorkers();
-      }
-
-
-      // Check bucket worker and hooks config
-      let updateBuckets = false;
-      const newConfigBucketHash = lib.sdbmCode(defaults.concat(['couchdb', 'redis', 'plugins', 'hooks']).map(config.get)); // update configBucketHash by critical fields
-      if (configBucketHash !== newConfigBucketHash) {
-        configBucketHash = newConfigBucketHash;
-        updateBuckets = true;
-        log({
-          message: 'Updated bucket worker config',
-          event: CONFIG_BUCKET
-        });
-      }
-      const newHooksHash = lib.sdbmCode(hooks);
-      if (hooksHash !== newHooksHash) {
-        hooksHash = newHooksHash;
-        updateBuckets = true;
-        log({
-          message: 'Updated hooks config',
-          event: CONFIG_HOOKS
-        });
-      }
-      if (updateBuckets) updateBucketWorkers(); // start update bucket workers
-
-
-      // Check api worker and endpoints config
-      let updateApi = false;
-      const newConfigApiHash = lib.sdbmCode(defaults.concat(['couchdb', 'redis', 'plugins', 'cors', 'api']).map(config.get)); // update configBucketHash by critical fields
-      if (configApiHash !== newConfigApiHash) {
-        configApiHash = newConfigApiHash;
-        updateApi = true;
-        log({
-          message: 'Updated api worker config',
-          event: CONFIG_API
-        });
-      }
-      const newEndpointsHash = lib.sdbmCode(endpoints);
-      if (endpointsHash !== newEndpointsHash) {
-        endpointsHash = newEndpointsHash;
-        updateApi = true;
-        log({
-          message: 'Updated endpoints config',
-          event: CONFIG_ENDPOINTS
-        });
-      }
-      if (updateApi) updateApiWorkers(); // start update api workers
-
-
-      // start timeout on next config update if worker is running
-      configUpdateTimeout = setTimeout(loadConfig, config.get('system.configTimeout'));
-    });
+        onClose();
+      })
+      .then(onConfig);
   }; // load and process couchdb config
+
+  const onConfig = (newConf) => {
+    // if worker is not running - don't update config and start config update timeout
+    if (isClosing) return null;
+
+    // Map config
+    Object.keys(newConf).forEach(confKey => configMap[confKey] && configMap[confKey](newConf[confKey]));
+
+    const defaults = ['couchbox', 'debug'];
+
+    // Check redis-commander config
+    const newConfigRedisCommanderHash = lib.sdbmCode(defaults.concat(['redis']).map(config.get)); // update configSocketHash by critical fields
+    if (newConfigRedisCommanderHash !== configRedisCommanderHash) {
+      configRedisCommanderHash = newConfigRedisCommanderHash;
+      log({
+        message: 'Updated redis-commander worker config',
+        event: CONFIG_REDIS_COMMANDER
+      });
+      updateRedisCommanderWorkers();
+    }
+
+
+    // Check socket config
+    const newConfigSocketHash = lib.sdbmCode(defaults.concat(['redis', 'socket']).map(config.get)); // update configSocketHash by critical fields
+    if (newConfigSocketHash !== configSocketHash) {
+      log({
+        message: 'Updated socket worker config',
+        event: CONFIG_SOCKET
+      });
+      configSocketHash = newConfigSocketHash;
+      updateSocketWorkers();
+    }
+
+
+    // Check proxy config
+    const newConfigProxyHash = lib.sdbmCode(defaults.concat(['proxy', 'cors', 'api', 'socket']).map(config.get)); // update configSocketHash by critical fields
+    if (newConfigProxyHash !== configProxyHash) {
+      configProxyHash = newConfigProxyHash;
+      log({
+        message: 'Updated proxy worker config',
+        event: CONFIG_PROXY
+      });
+      updateProxyWorkers();
+    }
+
+
+    // Check bucket worker and hooks config
+    let updateBuckets = false;
+    const newConfigBucketHash = lib.sdbmCode(defaults.concat(['couchdb', 'redis', 'plugins', 'hooks']).map(config.get)); // update configBucketHash by critical fields
+    if (configBucketHash !== newConfigBucketHash) {
+      configBucketHash = newConfigBucketHash;
+      updateBuckets = true;
+      log({
+        message: 'Updated bucket worker config',
+        event: CONFIG_BUCKET
+      });
+    }
+    const newHooksHash = lib.sdbmCode(hooks);
+    if (hooksHash !== newHooksHash) {
+      hooksHash = newHooksHash;
+      updateBuckets = true;
+      log({
+        message: 'Updated hooks config',
+        event: CONFIG_HOOKS
+      });
+    }
+    if (updateBuckets) updateBucketWorkers(); // start update bucket workers
+
+
+    // Check api worker and endpoints config
+    let updateApi = false;
+    const newConfigApiHash = lib.sdbmCode(defaults.concat(['couchdb', 'redis', 'plugins', 'cors', 'api']).map(config.get)); // update configBucketHash by critical fields
+    if (configApiHash !== newConfigApiHash) {
+      configApiHash = newConfigApiHash;
+      updateApi = true;
+      log({
+        message: 'Updated api worker config',
+        event: CONFIG_API
+      });
+    }
+    const newEndpointsHash = lib.sdbmCode(endpoints);
+    if (endpointsHash !== newEndpointsHash) {
+      endpointsHash = newEndpointsHash;
+      updateApi = true;
+      log({
+        message: 'Updated endpoints config',
+        event: CONFIG_ENDPOINTS
+      });
+    }
+    if (updateApi) updateApiWorkers(); // start update api workers
+
+
+    // start timeout on next config update if worker is running
+    configUpdateTimeout = setTimeout(loadConfig, config.get('system.configTimeout'));
+  };
 
   // On cfg change detects workers|hooks touched by changes
   // and restarts re-instantiate outdated workers

@@ -8,6 +8,8 @@ const Logger = require('../../utils/logger');
 const config = require('../../config');
 
 
+const DEBUG = config.get('debug');
+
 const {
   NotFoundError,
   SendingError,
@@ -91,6 +93,7 @@ function Router(props = {}) {
   const { sessions } = props;
   const logger = new Logger({ prefix: 'Router', logger: props.logger });
   const log = logger.getLog();
+  const debug = logger.getDebug();
 
   const routes = new Map();
   const paths = {};
@@ -261,9 +264,20 @@ function Router(props = {}) {
   function onRequest(req, res) {
     req.headers[PAGE_GENERATION_PROP] = Date.now();
     const send = result => sendResult(req, res, result);
-    const sendError = error => sendResult(req, res, makeError(error));
+    const sendError = error => {
+      if (DEBUG) {
+        debug({
+          message: 'Error on request',
+          error
+        });
+      }
+      sendResult(req, res, makeError(error));
+    };
 
     const request = makeRoute(req);
+
+    if (DEBUG) debug('Request: '+ JSON.stringify(request));
+
     const route = getRoute(request.host, request.path, request.method);
     if (!route) return sendError(new NotFoundError('not_found'));
 

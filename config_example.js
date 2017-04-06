@@ -15,9 +15,7 @@ module.exports = {
     api: '{"active":true,"ports":[8001,8002],"restart_delta":5000, "hostKey":"Host"}',
     socket: '{"active":true, "port":8000, "path":"/_socket"}',
 
-    debug: false,
-    debug_db: 'debug',
-    debug_events: 'test/*,debug/*,performance/*'
+    debug: false
   },
   couchbox_api: {
     // 'localhost|_test': 'test/test bucket socket cache fetch sms email jpegtran bank'

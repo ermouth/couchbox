@@ -57,6 +57,8 @@ module.exports = {
     API_SAVE: 'api/save',
     API_SESSION_ERROR: 'api/sessionError',
     API_REQUEST_ERROR: 'api/requestError',
+    API_DDOC_ERROR: 'api/ddocError',
+    API_LAMBDA_ERROR: 'api/lambdaError',
     API_REQUEST_REJECT: 'api/requestReject',
     API_ROUTE_ERROR: 'api/routeError',
     API_LOG: 'api/log',

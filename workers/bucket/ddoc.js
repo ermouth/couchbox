@@ -7,12 +7,13 @@ const { makeContext, makeHandler } = require('../../utils/modules');
 const config = require('../../config');
 
 
-const { DDOC_INIT, BUILD_ERROR, HOOK_ERROR, HOOK_LOG } = require('./constants').LOG_EVENTS;
+const { DDOC_INIT, BUCKET_FILTER_ERROR, BUCKET_LAMBDA_ERROR, HOOK_ERROR, HOOK_LOG } = require('./constants').LOG_EVENTS;
 
 function DDoc(bucket, bucketName, props = {}) {
   const { name, methods } = props;
   const logger = new Logger({
-    prefix: 'DDoc '+ name,
+    prefix: 'DDoc',
+    scope: '_'+ bucketName +'/'+ name,
     logger: props.logger
   });
   const log = logger.getLog();
@@ -36,14 +37,15 @@ function DDoc(bucket, bucketName, props = {}) {
       } catch (error) {
         log({
           message: 'Error compile filter: '+ key,
-          event: BUILD_ERROR,
-          error
+          event: BUCKET_FILTER_ERROR,
+          error,
+          type: 'fatal'
         });
       }
 
       if (filter) {
         const hookProps = Object.assign({ logger, logEvent: HOOK_LOG, errorEvent: HOOK_ERROR, methods, referrer }, context);
-        return makeHandler(bucket, name, key, hookParams, hookProps)
+        return makeHandler(bucketName, bucket, name, key, hookParams, hookProps)
           .then(handler => {
             if (handler && handler.handler) {
               return {
@@ -59,8 +61,9 @@ function DDoc(bucket, bucketName, props = {}) {
           })
           .catch((error) => log({
             message: 'Error init hook lambda: '+ key,
-            event: BUILD_ERROR,
-            error
+            event: BUCKET_LAMBDA_ERROR,
+            error,
+            type: 'fatal'
           }));
       }
     };

@@ -7,7 +7,7 @@ const lib = require('./lib');
 const Logger = require('./logger');
 const config = require('../config');
 
-const DEBUG = config.get('debug.enabled');
+const DEBUG = config.get('debug');
 
 const { RejectHandlerError, TimeoutError } = require('./errors');
 
@@ -206,16 +206,17 @@ const makeContext = (contextName = 'modulesContext', body = {}, log) => {
   return { context, ctx, _include, _require };
 };
 
-const makeHandler = (bucket, ddoc, handlerKey, body = {}, props = {}) => {
+const makeHandler = (bucketName, bucket, ddocName, handlerKey, body = {}, props = {}) => {
 
   const { ctx = {}, context, _include, _require, methods, referrer } = props;
   if (!(body && body.lambda)) return Promise.reject(new Error('No lambda'));
   if (!context) return Promise.reject(new Error('No context'));
 
-  const handlerName = ddoc.replace(/[^a-z0-9]+/g, '_') +'/'+ handlerKey.replace(/[^a-z0-9]+/g, '_');
-  const lambdaName = ddoc.replace(/[^a-z0-9]+/g, '_') +'__'+ handlerKey.replace(/[^a-z0-9]+/g, '_');
+  const handlerName = ddocName.replace(/[^a-z0-9]+/g, '_') +'/'+ handlerKey.replace(/[^a-z0-9]+/g, '_');
+  const lambdaName = ddocName.replace(/[^a-z0-9]+/g, '_') +'__'+ handlerKey.replace(/[^a-z0-9]+/g, '_');
   const logger = new Logger({
-    prefix: 'Handler '+ handlerName,
+    prefix: 'Handler',
+    scope: '_'+ bucketName +'/'+ ddocName + '/'+ handlerKey,
     logger: props.logger,
     logEvent: props.logEvent || HANDLER_LOG
   });

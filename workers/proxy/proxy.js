@@ -18,7 +18,7 @@ const {
 } = require('./constants');
 
 function ProxyWorker(props = {}) {
-  const logger = new Logger({ prefix: 'Socket', logger: props.logger });
+  const logger = new Logger({ prefix: 'Proxy', logger: props.logger });
   const log = logger.getLog();
 
   const _onInit = props.onInit || function(){}; // Call on init all ddocs

@@ -12,14 +12,15 @@ module.exports = {
   CHECK_PROCESSES_TIMEOUT: 120,
 
   LOG_EVENTS: {
-    BUILD_ERROR: 'build/error',
-
     BUCKET_FEED: 'bucket/feed',
     BUCKET_FEED_STOP: 'bucket/feedStop',
     BUCKET_CHANGES: 'bucket/changes',
     BUCKET_STOP: 'bucket/stop',
     BUCKET_CLOSE: 'bucket/close',
     BUCKET_ERROR: 'bucket/error',
+    BUCKET_DDOC_ERROR: 'bucket/ddocError',
+    BUCKET_FILTER_ERROR: 'bucket/filterError',
+    BUCKET_LAMBDA_ERROR: 'bucket/lambdaError',
 
     DDOC_INIT: 'ddoc/init',
 

@@ -7,13 +7,13 @@ const config = require('../../config');
 const {
   API_DEFAULT_TIMEOUT,
   LOG_EVENTS: {
-    BUCKET_ERROR, BUILD_ERROR
+    BUCKET_ERROR, API_DDOC_ERROR
   }
 } = require('./constants');
 
 function Bucket(props = {}) {
   const { name } = props;
-  const logger = new Logger({ prefix: 'DB '+ name, logger: props.logger });
+  const logger = new Logger({ prefix: 'Bucket', scope: '_'+ name, logger: props.logger });
   const log = logger.getLog();
 
   const bucket = couchdb.connectBucket(name);
@@ -34,18 +34,20 @@ function Bucket(props = {}) {
       const { ddoc, endpoint, domain, methods } = endpoints[key];
       const ddocId = '_design/' + ddoc;
       if (!ddocs.has(ddocId)) ddocs.add(ddocId);
-      return DDoc({ logger, bucket, name: ddoc, domain, endpoint, methods }).catch(error => {
+      return DDoc(bucket, name, { logger, name: ddoc, domain, endpoint, methods }).catch(error => {
         log({
           message: 'Error init DDoc: '+ ddoc,
-          event: BUILD_ERROR,
-          error
+          event: API_DDOC_ERROR,
+          error,
+          type: 'fatal'
         });
       });
     }).catch(error => {
       log({
         message: 'Error init Bucket: '+ name,
         event: BUCKET_ERROR,
-        error
+        error,
+        type: 'fatal'
       });
     }).then(results => {
       const bucket = { name, getSeq, getBucket };
@@ -64,7 +66,8 @@ function Bucket(props = {}) {
           log({
             message: 'Error init Bucket: '+ name,
             event: BUCKET_ERROR,
-            error
+            error,
+            type: 'fatal'
           });
           reject(error);
         }
