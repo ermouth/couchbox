@@ -76,11 +76,15 @@ function fatal_action(errorMessage) {
     if ('error' in errorMessage) {
       try {
         const error = JSON.parse(errorMessage.error);
-        if (error) {
+        if (error && error.message && error.stack) {
           const stack = error.stack;
-          delete error.stack;
-          errorMessage.error = error;
-          errorMessage = cleanJSON(errorMessage, ' ') + stack;
+          if (Object.keys(error).length > 2) {
+            delete error.stack;
+            errorMessage.error = error;
+          } else {
+            errorMessage.error = error.message;
+          }
+          errorMessage = cleanJSON(errorMessage, ' ') + '\n\nError stack:\n' + stack;
         }
       } catch (e) {
         console.error(e);
