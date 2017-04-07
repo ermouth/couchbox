@@ -56,7 +56,7 @@ const sendMail = (to = config.get('couchbox.mail.recipients'), msg, subj, from =
   if (msg.length === 0) return Promise.reject(new Error('Empty message'));
   return execBash('' +
     // 'mailMsg=\''+ msg +'\' && ' +
-    'echo "Subject:' + subj + '\\nFrom:' + from + '\\n'+ msg +'" | ' +
+    'echo -e "Subject:' + subj + '\\nFrom:' + from + '\\n'+ msg +'" | ' +
     'sendmail "' + to + '"'
   );
 };
