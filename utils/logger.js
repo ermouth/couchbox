@@ -55,7 +55,6 @@ const sendMail = (recipients = config.get('couchbox.mail.recipients'), mailMessa
   if(!Object.isString(mailMessage)) mailMessage = cleanJSON(mailMessage, ' ');
   if (mailMessage.length === 0) return Promise.reject(new Error('Empty message'));
   mailMessage = [
-    'To:' + recipients,
     'From:'+ from,
     'Subject:'+ subject,
     'Mime-Version: 1.0',
