@@ -2,11 +2,9 @@ const http = require('http');
 const httpProxy = require('http-proxy');
 const Logger = require('../../utils/logger');
 const lib = require('../../utils/lib');
-const config = require('../../config');
 
 
 const {
-  NODE_NAME,
   PROXY_PORT, PROXY_PATH,
 
   API_ENABLED, API_PORTS,
