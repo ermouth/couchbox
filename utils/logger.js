@@ -75,10 +75,13 @@ function fatal_action(errorMessage) {
     const subj = 'Node '+ config.get('couchbox.nodename') +' - Fatal Alert';
     if ('error' in errorMessage) {
       try {
-        errorMessage = JSON.parse(errorMessage.error);
-        let stack = errorMessage.error.stack;
-        delete errorMessage.error;
-        errorMessage = cleanJSON(errorMessage, ' ') + stack;
+        const error = JSON.parse(errorMessage.error);
+        if (error) {
+          const stack = error.stack;
+          delete error.stack;
+          errorMessage.error = error;
+          errorMessage = cleanJSON(errorMessage, ' ') + stack;
+        }
       } catch (e) {
         console.error(e);
       }
@@ -203,9 +206,7 @@ function LoggerBody(prefix) {
       row.chain = chain.reverse().join(LOG_CHAIN_DELIMITER);
       if (!row.principal) row.principal = config.get('couchdb.user');
       row.stamp = time.getTime();
-      if (row.type === TYPE_FATAL) {
-        fatal_action(row);
-      }
+      if (row.type === TYPE_FATAL) fatal_action(row);
       if (save_log) {
         stack_log[index_log++] = row;
         this.save(forced);
