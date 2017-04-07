@@ -63,7 +63,6 @@ const sendMail = (recipients = config.get('couchbox.mail.recipients'), mailMessa
     '',
     mailMessage
   ].join('\n');
-  console.log('recipients', config.get('couchbox.mail'));
   return execBash('printf "${mailMessage}" | sendmail "$recipients"', {
     mailMessage,
     recipients
@@ -73,7 +72,7 @@ const sendMail = (recipients = config.get('couchbox.mail.recipients'), mailMessa
 function fatal_action(error) {
   if (config.get('couchbox.mail.active')) {
     const subj = 'Node '+ config.get('couchbox.nodename') +' - Fatal Alert';
-    sendMail('dasiderk@gmail.com', error, subj).catch(sendError => console.error(sendError));
+    sendMail(config.get('couchbox.mail.recipients'), error, subj).catch(sendError => console.error(sendError));
   }
 }
 
