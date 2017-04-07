@@ -5,12 +5,12 @@ const globalsDetect = require('acorn-globals');
 
 // Atomics
 
-function notEmpty(val) {
+function isEmpty(val) {
   return val === undefined || val === null;
 }
 
-function isEmpty(val) {
-  return !notEmpty(val);
+function notEmpty(val) {
+  return !isEmpty(val);
 }
 
 
