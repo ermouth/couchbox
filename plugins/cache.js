@@ -2,6 +2,7 @@ require('sugar');
 const Promise = require('bluebird');
 const stow = require('stow');
 const RedisBackend = require('stow/backends/redis');
+const { notEmpty, isEmpty } = require('../utils/lib');
 const redisClient = require('../utils/redis');
 
 
@@ -13,6 +14,9 @@ const getCache = (key) => new Promise((resolve, reject) => {
 const setCache = (key, data, tags = {}) => new Promise((resolve, reject) => {
   cache.set(key, data, tags, error => error ? reject(error) : resolve());
 });
+const setQueryCache = (query) => new Promise((resolve, reject) => {
+  cache.set(query, error => error ? reject(error) : resolve());
+});
 const invalidateCache = (tags = {}) => new Promise((resolve, reject) => {
   cache.invalidate(tags, error => error ? reject(error) : resolve());
 });
@@ -20,42 +24,35 @@ const clearCache = (key) => new Promise((resolve, reject) => {
   cache.clear(key, error => error ? reject(error) : resolve());
 });
 
+
 function Plugin(method, conf, log) {
   const name = '_' + (method || 'cache');
+  const isS = Object.isString;
+  const isO = Object.isObject;
+  const isN = Object.isNumber;
 
   function cache_method() {
-    let key, tags, data;
-
-    if (Object.isString(arguments[0])) key = arguments[0];
-    else if (Object.isObject(arguments[0]) && !arguments[1] && !arguments[2]) tags = arguments[0];
-
-    // No arguments or bad sequence
-    if (!key && !tags) return Promise.reject(new Error('Bad arguments'));
-
-    // Invalidate by tags
-    if (tags) return invalidateCache(tags);
-
-    if (arguments[1] !== undefined || Object.isObject(arguments[2])) {
-      // Set or clean cache by key & tags
-      data = arguments[1] || null;
-      tags = arguments[2];
-
-      if (data === null) {
-        // If no data start clearing cache
-        return Promise.all([
-          // Clear cache by key
-          clearCache(key),
-          // Invalidate cache by tags if tags set
-          Object.isObject(tags) ? invalidateCache(tags) : null
-        ].compact(true));
-      } else {
-        // If no data start update cache
-        return setCache(key, data, tags);
-      }
+    // Get cache by key
+    if (arguments.length === 1 && isS(arguments[0])) return getCache(arguments[0]);
+    // Query node-stow
+    if (arguments.length === 1 && isO(arguments[0])) {
+      const { key, data, ttl, tags } = arguments[0];
+      if (isS(key) && (isEmpty(tags) || isO(tags)) && (isEmpty(ttl) || (isN(ttl) && ttl > 0))) return setQueryCache({ key, data, ttl, tags });
     }
 
-    // Get cache by key
-    return getCache(key);
+    const key = isS(arguments[0]) ? arguments[0] : null;
+    const data = arguments[1] || null;
+    const tags = isO(arguments[2]) ? arguments[2] : null;
+
+    if (notEmpty(data)) {
+      if (notEmpty(key)) return setCache(key, data, tags);
+    } else {
+      const tasks = [];
+      if (notEmpty(key)) tasks.push(clearCache(key));
+      if (notEmpty(tags)) tasks.push(invalidateCache(tags));
+      if (tasks.length > 0) return Promise.all(tasks);
+    }
+    return Promise.reject(new Error('Bad arguments'))
   }
 
   return new Promise(resolve => {
