@@ -55,7 +55,7 @@ const sendMail = (recipients = config.get('couchbox.mail.recipients'), mailMessa
   if (!Object.isString(mailMessage)) mailMessage = JSON.stringify(mailMessage);
   if (mailMessage.length === 0) return Promise.reject(new Error('Empty message'));
   const mailHeaders = 'subject:'+ subj +'\nfrom:'+ from;
-  return execBash('printf "${mailHeaders}\n${mailMessage}" | sendmail "$recipients"', {
+  return execBash('printf "${mailHeaders}\nMessage:${mailMessage}" | sendmail "$recipients"', {
     mailHeaders,
     mailMessage,
     recipients
