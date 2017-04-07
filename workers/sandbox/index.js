@@ -134,6 +134,8 @@ module.exports = function initMaster(cluster) {
         ['couchbox.nodes', 'nodes'],
         ['couchbox.max_parallel_changes', 'max_parallel_changes'],
         ['couchbox.cold_start', 'cold_start'],
+        ['couchbox.mail', 'mail'],
+
 
         ['redis.ip', 'redis_ip'],
         ['redis.port', 'redis_port'],

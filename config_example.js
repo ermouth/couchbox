@@ -15,6 +15,7 @@ module.exports = {
     api: '{"active":true,"ports":[8001,8002],"restart_delta":5000, "hostKey":"Host"}',
     socket: '{"active":true, "port":8000, "path":"/_socket"}',
 
+    mail: '{"active":false,"from":"CouchBox","recipients":""}',
     debug: false
   },
   couchbox_api: {

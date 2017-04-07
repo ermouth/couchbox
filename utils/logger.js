@@ -1,4 +1,5 @@
 require('sugar');
+const exec = require('child_process').exec;
 const Promise = require('bluebird');
 const lib = require('./lib');
 const couchdb = require('./couchdb');
@@ -7,7 +8,6 @@ const config = require('../config');
 
 const LOG_CONSOLE = config.get('logger.console');
 const LOG_DB = config.get('logger.db');
-const NODE_NAME = config.get('couchbox.nodename');
 const LOG_DEFAULT_EVENT = 'log/message';
 const DEBUG_DEFAULT_EVENT = 'debug/message';
 const LOG_DOCUMENT_TYPE = 'flog';
@@ -42,13 +42,31 @@ function init_db_log() {
   return db_log;
 }
 
-function fatal_action(message) {
-  // TODO: send email or something else
-}
+const execBash = (cmd) => new Promise((resolve, reject) => {
+  if (!(Object.isString(cmd) && cmd.length)) return reject(new Error('Bad command'));
+  exec(cmd, (error, stdout, stderr) => {
+    if (error) return reject(error);
+    if (stderr) return reject(new Error(stderr));
+    resolve(stdout);
+  });
+});
 
-const errorsSet = new Set();
-errorsSet.add(TYPE_ERROR);
-errorsSet.add(TYPE_FATAL);
+const sendMail = (to = config.get('couchbox.mail.recipients'), msg, subj, from = config.get('couchbox.mail.from')) => {
+  if (!Object.isString(msg)) msg = JSON.stringify(msg);
+  if (msg.length === 0) return Promise.reject(new Error('Empty message'));
+  return execBash('' +
+    'mailMsg=\''+ msg +'\' && ' +
+    'echo -e "Subject:' + subj + '\\nFrom:' + from + '\\n$mailMsg" | ' +
+    'sendmail "' + to + '"'
+  );
+};
+
+function fatal_action(error) {
+  if (config.get('couchbox.mail.active')) {
+    const subj = 'Node '+ config.get('couchbox.nodename') +' - Fatal Alert';
+    sendMail('dasiderk@gmail.com', error, subj).catch(sendError => console.error(sendError));
+  }
+}
 
 const cover = t => t ? '['+ t +']' : '';
 function log(text, chain = ['Logger'], type = TYPE_WARN, scope = '', event, time = new Date()) {
@@ -102,7 +120,7 @@ function LoggerBody(prefix) {
   let index_log = 0;
 
   const save = (events, bucket, type = LOG_DOCUMENT_TYPE) => new Promise((resolve, reject) => {
-    const node = config.get('couchbox.nodename') || NODE_NAME;
+    const node = config.get('couchbox.nodename');
     const stamp = Date.now();
     const _id = lib.uuid(stamp);
 

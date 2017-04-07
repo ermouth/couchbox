@@ -90,6 +90,14 @@ const defaultConfig = {
     check: checkEnum(['normal', 'now'])
   },
 
+  'couchbox.mail': {
+    env: 'MAIL',
+    value: { active: false, from: 'CouchBox', recipients: '' },
+    str: strJSON,
+    map: mapJSON,
+    check: checkJSON
+  },
+
   'debug': {
     env: 'DEBUG',
     value: false,
