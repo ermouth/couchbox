@@ -52,7 +52,7 @@ const execBash = (cmd, env = {}) => new Promise((resolve, reject) => {
 });
 
 const sendMail = (recipients = config.get('couchbox.mail.recipients'), mailMessage, subject, from = config.get('couchbox.mail.from')) => {
-  if(!Object.isString(mailMessage)) mailMessage = cleanJSON(mailMessage);
+  if(!Object.isString(mailMessage)) mailMessage = cleanJSON(mailMessage, ' ');
   if (mailMessage.length === 0) return Promise.reject(new Error('Empty message'));
   mailMessage = [
     'To:' + recipients,
