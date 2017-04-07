@@ -54,9 +54,9 @@ const execBash = (cmd) => new Promise((resolve, reject) => {
 const sendMail = (to = config.get('couchbox.mail.recipients'), msg, subj, from = config.get('couchbox.mail.from')) => {
   if (!Object.isString(msg)) msg = JSON.stringify(msg);
   if (msg.length === 0) return Promise.reject(new Error('Empty message'));
-  return execBash('' +
-    // 'mailMsg=\''+ msg +'\' && ' +
-    'echo -e "Subject:' + subj + '\\nFrom:' + from + '\\n'+ msg +'" | ' +
+  return execBash(
+    'mailMsg=\''+ msg +'\' && ' +
+    'printf "Subject:' + subj + '\\nFrom:' + from + '\\n$mailMsg" | ' +
     'sendmail "' + to + '"'
   );
 };
