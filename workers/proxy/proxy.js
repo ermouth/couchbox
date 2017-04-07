@@ -30,12 +30,17 @@ function ProxyWorker(props = {}) {
   let lastApiWorker = 0;
   const maxApiWorker = API_PORTS.length;
 
-  const getApiWorker = () => {
-    if (++lastApiWorker === maxApiWorker) lastApiWorker = 0;
-    return 'http://localhost:' + API_PORTS[lastApiWorker];
-  };
+  const getApiWorker = () => ({
+    host: 'localhost',
+    port: API_PORTS[++lastApiWorker === maxApiWorker ? lastApiWorker = 0 : lastApiWorker]
+  });
 
-  const proxy = httpProxy.createProxyServer({}).on('proxyReq', function(proxyReq, req, res, options) {
+  const getSocketWorker = () => ({
+    host: 'localhost',
+    port: SOCKET_PORT
+  });
+
+  function onProxyReq(proxyReq, req, res, options) {
     let remoteAddress;
     if (req.connection) {
       if (req.connection.remoteAddress) remoteAddress = req.connection.remoteAddress;
@@ -45,17 +50,22 @@ function ProxyWorker(props = {}) {
 
     proxyReq.setHeader('Host', req.headers.host);
     proxyReq.setHeader('X-Forwarded-For', remoteAddress);
-  });
+  }
+
+  const proxyHTTP = httpProxy.createProxyServer({}).on('proxyReq', onProxyReq);
+  const proxySOCKET = new httpProxy.createProxyServer({ target: getSocketWorker() }).on('proxyReq', onProxyReq);
 
 
   const connections = {};
   let connectionCounter = 0;
+
   const destroyConnection = (socket, force) => {
     if (force || (socket._isIdle && _closing)) {
       socket.destroy();
       delete connections[socket._connectionId];
     }
   };
+
   const onConnection = (socket) => {
     const id = connectionCounter++;
     socket._isIdle = true;
@@ -65,6 +75,7 @@ function ProxyWorker(props = {}) {
       delete connections[id];
     });
   };
+
   const onRequest = (req, res) => {
     req.socket._isIdle = false;
     res.on('finish', function() {
@@ -72,13 +83,41 @@ function ProxyWorker(props = {}) {
       destroyConnection(req.socket);
     });
   };
+
+  const processors = [];
+
+  if (SOCKET_ENABLED) {
+    processors.push((req, res) => {
+      if (req.url.indexOf(SOCKET_PATH) === 0) {
+        proxySOCKET.web(req, res);
+        return true;
+      }
+    });
+  }
+
+  if (API_ENABLED) {
+    processors.push((req, res) => {
+      proxyHTTP.web(req, res, { target: getApiWorker() });
+      return true;
+    });
+  }
+
   function router(req, res) {
-    proxy.web(req, res, { target: getApiWorker() });
+    for (let index = 0, max = processors.length; index < max; index++) {
+      if (processors[index](req, res)) break;
+    }
   }
 
   const server = http.createServer(router);
   server.on('connection', onConnection);
   server.on('request', onRequest);
+
+  if (SOCKET_ENABLED) {
+    server.on('upgrade', function (req, socket, head) {
+      proxySOCKET.ws(req, socket, head);
+    });
+  }
+
 
   const init = () => {
     server.listen(PROXY_PORT, () => {
@@ -113,10 +152,7 @@ function ProxyWorker(props = {}) {
 
   const isRunning = () => _running === true || _closing === true;
 
-  return {
-    init, close,
-    isRunning
-  };
+  return { init, close, isRunning };
 }
 
 module.exports = ProxyWorker;

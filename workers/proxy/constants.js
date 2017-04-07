@@ -5,10 +5,10 @@ module.exports = {
   PROXY_PORT: config.get('proxy.port'),
   PROXY_PATH: config.get('proxy.path'),
 
-  API_ENABLED: config.get('api.enabled'),
+  API_ENABLED: config.get('api.active'),
   API_PORTS: config.get('api.ports'),
 
-  SOCKET_ENABLED: config.get('socket.enabled'),
+  SOCKET_ENABLED: config.get('socket.active'),
   SOCKET_PORT: config.get('socket.port'),
   SOCKET_PATH: config.get('socket.path'),
 
