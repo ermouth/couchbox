@@ -6,30 +6,30 @@ const { notEmpty, isEmpty } = require('../utils/lib');
 const redisClient = require('../utils/redis');
 
 
-const cache = stow.createCache(RedisBackend, { client: redisClient });
-
-const getCache = (key) => new Promise((resolve, reject) => {
-  cache.get(key, (error, result) => error ? reject(error) : resolve(result));
-});
-const setCache = (key, data, tags = {}) => new Promise((resolve, reject) => {
-  cache.set(key, data, tags, error => error ? reject(error) : resolve());
-});
-const setQueryCache = (query) => new Promise((resolve, reject) => {
-  cache.set(query, error => error ? reject(error) : resolve());
-});
-const invalidateCache = (tags = {}) => new Promise((resolve, reject) => {
-  cache.invalidate(tags, error => error ? reject(error) : resolve());
-});
-const clearCache = (key) => new Promise((resolve, reject) => {
-  cache.clear(key, error => error ? reject(error) : resolve());
-});
-
-
-function Plugin(method, conf, log) {
+function Plugin(method, conf = {}, log) {
   const name = '_' + (method || 'cache');
   const isS = Object.isString;
   const isO = Object.isObject;
   const isN = Object.isNumber;
+
+  const cache = stow.createCache(RedisBackend, { client: redisClient });
+  const defaultTTL = (conf.ttl|0) | 0;
+
+  const getCache = (key) => new Promise((resolve, reject) => {
+    cache.get(key, (error, result) => error ? reject(error) : resolve(result));
+  });
+  const setCache = (key, data, tags = {}) => new Promise((resolve, reject) => {
+    cache.set({ key, data, tags, ttl: defaultTTL }, error => error ? reject(error) : resolve());
+  });
+  const setQueryCache = ({ key, data, tags = {}, ttl = defaultTTL }) => new Promise((resolve, reject) => {
+    cache.set({ key, data, tags, ttl }, error => error ? reject(error) : resolve());
+  });
+  const invalidateCache = (tags = {}) => new Promise((resolve, reject) => {
+    cache.invalidate(tags, error => error ? reject(error) : resolve());
+  });
+  const clearCache = (key) => new Promise((resolve, reject) => {
+    cache.clear(key, error => error ? reject(error) : resolve());
+  });
 
   function cache_method() {
     // Get cache by key

@@ -7,7 +7,7 @@ module.exports = {
     max_parallel_changes: 16,
 
     redis_ip: 'localhost',
-    redis_password: "",
+    redis_password: '',
     redis_port: 6379,
     redis_commander: '{"active":true,"port":8881,"user":"test","pass":"pass"}',
 
@@ -25,6 +25,7 @@ module.exports = {
     // 'performance_test|performance': 'bucket socket cache fetch sms email jpegtran bank'
   },
   couchbox_plugins: {
+    cache: '{"ttl": 60}',
     bank: '{"login":"","pass":"","currencies":["RUB","USD","EUR"],"languages":["ru","en","uk","be"], "timeout":5000}',
     email: '{"from":"","service":"Yandex","host":"smtp.yandex.ru","port":465,"secure":true,"user":"", "pass":""}',
     sms: '{"key":"", "from":""}',
