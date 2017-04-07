@@ -55,6 +55,7 @@ const sendMail = (recipients = config.get('couchbox.mail.recipients'), mailMessa
   if(!Object.isString(mailMessage)) mailMessage = cleanJSON(mailMessage, ' ');
   if (mailMessage.length === 0) return Promise.reject(new Error('Empty message'));
   mailMessage = [
+    'To:'+ recipients,
     'From:'+ from,
     'Subject:'+ subject,
     'Mime-Version: 1.0',
@@ -69,10 +70,20 @@ const sendMail = (recipients = config.get('couchbox.mail.recipients'), mailMessa
   });
 };
 
-function fatal_action(error) {
+function fatal_action(errorMessage) {
   if (config.get('couchbox.mail.active')) {
     const subj = 'Node '+ config.get('couchbox.nodename') +' - Fatal Alert';
-    sendMail(config.get('couchbox.mail.recipients'), error, subj).catch(sendError => console.error(sendError));
+    if ('error' in errorMessage) {
+      try {
+        errorMessage = JSON.parse(errorMessage.error);
+        let stack = errorMessage.error.stack;
+        delete errorMessage.error;
+        errorMessage = cleanJSON(errorMessage, ' ') + stack;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    sendMail(config.get('couchbox.mail.recipients'), errorMessage, subj).catch(sendError => console.error(sendError));
   }
 }
 
