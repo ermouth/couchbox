@@ -322,16 +322,15 @@ socket.io connections pass through supervisor.
 
 __Key__ | Sample value | Meaning
 --------|--------------|----------------------
+__debug__ | false | Turns on debug mode (more informatibe messages)
 __nodename__ | node1 | Shortcut name of current node
 __nodes__ | {node1,node2} | List of nodes, JSON; nodenames as keys, URLs as values
 __max_parallel_changes__ | 16 | Maximum changes ticks processed simultaneously
-__api__ | true | Api on/off
-__api\_ports__ | 8001,8002 | Number of api workers and ports for them
-__api\_restart\_delta__ | 5000 | Milliseconds between workers restart
+__cold\_start__ | now | Defines if first run starts from current sequences or DB first seq ('normal')
+__api__ | {active,ports,restart_delta,hostKey,fallback} | Configures REST API
 __proxy__ | {active,port,path,fallback} | Proxy settings, JSON
-__socket__ | true | Turns on socket.io
-__socket\_path__ | /_socket | Path socket.io is bound to
-__socket\_port__ | 8000 | Port for socket.io connections
+__socket__ | {active,port,path}} | Socket.io config
+__mail__ | {active,from,recepients} | Emergency notifications email
 __redis\_ip__ | localhost | Redis domain or IP address
 __redis\_port__ | 6379 | Redis port
 __redis\_password__ | pwd | Redis password, if any
@@ -349,7 +348,7 @@ is a JSON string of a plugin configuration object. For example:
 
 Key | Value
 ---|---
-__email__ | {"host":"mail.abc.xyz", "port":465, "user":"mail@abc.xyz", "pass":"1234"}
+__email__ | {"from":"Abc <abc@def.com>", "service":"Yandex", "host":"mail.abc.xyz", "port":465, "secure":true, "user":"mail@abc.xyz", "pass":"1234"}
 __sms__ | {"key":"ABCD-1234", "from":"abc.xyz"}
 
 Plugins receive appropriate config objects when initialized on worker start.
