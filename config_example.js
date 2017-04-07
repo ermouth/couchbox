@@ -11,8 +11,8 @@ module.exports = {
     redis_port: 6379,
     redis_commander: '{"active":true,"port":8881,"user":"test","pass":"pass"}',
 
-    proxy: '{"active":false, "port":8888, "path":"/", "fallback":"http://localhost:5984"}',
-    api: '{"active":true,"ports":[8001,8002],"restart_delta":5000, "hostKey":"Host"}',
+    proxy: '{"active":false, "port":8888, "path":"/"}',
+    api: '{"active":true,"ports":[8001,8002],"restart_delta":5000, "hostKey":"Host", "fallback":"http://localhost:5984"}',
     socket: '{"active":true, "port":8000, "path":"/_socket"}',
 
     mail: '{"active":false,"from":"CouchBox","recipients":""}',

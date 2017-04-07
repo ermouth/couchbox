@@ -1,5 +1,6 @@
 require('sugar');
 const Promise = require('bluebird');
+const httpProxy = require('http-proxy');
 const cookieParser = require('cookie');
 const queryString = require('query-string');
 const lib = require('../../utils/lib');
@@ -25,6 +26,7 @@ const {
   API_DEFAULT_METHODS,
   API_AVAILABLE_METHODS,
   API_REFERRER_PARSER,
+  API_FALLBACK_URL,
   CORS,
   CORS_CREDENTIALS,
   CORS_ORIGINS,
@@ -94,6 +96,19 @@ function Router(props = {}) {
   const logger = new Logger({ prefix: 'Router', logger: props.logger });
   const log = logger.getLog();
   const debug = logger.getDebug();
+
+  function onProxyReq(proxyReq, req, res, options) {
+    let remoteAddress;
+    if (req.connection) {
+      if (req.connection.remoteAddress) remoteAddress = req.connection.remoteAddress;
+      else if (req.connection.socket && req.connection.socket.remoteAddress) remoteAddress = req.connection.socket.remoteAddress;
+    }
+    if (!remoteAddress && req.socket && req.socket.remoteAddress) remoteAddress = req.socket.remoteAddress;
+
+    proxyReq.setHeader('Host', req.headers.host);
+    proxyReq.setHeader('X-Forwarded-For', remoteAddress);
+  }
+  const proxyHTTP = httpProxy.createProxyServer({}).on('proxyReq', onProxyReq);
 
   const routes = new Map();
   const paths = {};
@@ -271,7 +286,11 @@ function Router(props = {}) {
           error
         });
       }
-      sendResult(req, res, makeError(error));
+      if (API_FALLBACK_URL) {
+        proxyHTTP.web(req, res, { target: API_FALLBACK_URL });
+      } else {
+        sendResult(req, res, makeError(error));
+      }
     };
 
     const request = makeRoute(req);

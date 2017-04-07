@@ -2,6 +2,7 @@ const config = require('../../config');
 
 const NODE_NAME = config.get('couchbox.nodename');
 
+const API_FALLBACK_URL = Object.isString(config.get('api.fallback')) ? config.get('api.fallback') : undefined;
 const SESSION_TTL = config.get('user.session') * 1e3; // to ms
 
 const CORS = config.get('cors.enabled') === true;
@@ -43,6 +44,7 @@ module.exports = {
     DELETE: true
   },
   API_REFERRER_PARSER,
+  API_FALLBACK_URL,
 
   LOG_EVENTS: {
     BUILD_ERROR: 'build/error',
