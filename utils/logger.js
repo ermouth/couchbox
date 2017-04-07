@@ -51,12 +51,20 @@ const execBash = (cmd, env = {}) => new Promise((resolve, reject) => {
   });
 });
 
-const sendMail = (recipients = config.get('couchbox.mail.recipients'), mailMessage, subj, from = config.get('couchbox.mail.from')) => {
+const sendMail = (recipients = config.get('couchbox.mail.recipients'), mailMessage, subject, from = config.get('couchbox.mail.from')) => {
   if (!Object.isString(mailMessage)) mailMessage = JSON.stringify(mailMessage);
   if (mailMessage.length === 0) return Promise.reject(new Error('Empty message'));
-  const mailHeaders = 'subject:'+ subj +'\nfrom:'+ from + '\n';
-  return execBash('printf "${mailHeaders}Message:${mailMessage}" | sendmail "$recipients"', {
-    mailHeaders,
+  mailMessage = [
+    'To:' + recipients,
+    'From:'+ from,
+    'Subject:'+ subject,
+    'Mime-Version: 1.0',
+    'Content-Type: text/plain; charset=utf-8',
+    'Content-Disposition: inline',
+    '',
+    mailMessage
+  ].join('\n');
+  return execBash('printf "${mailMessage}" | sendmail "$recipients"', {
     mailMessage,
     recipients
   });
