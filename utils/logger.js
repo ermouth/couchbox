@@ -216,7 +216,7 @@ function Logger(props = {}) {
   }
 
 
-  this.log = ({ time, chain, msg, scope, eventName = default_log_event, eventType }, forced = false) => {
+  this.log = ({ time, chain, msg, scope, eventName = default_log_event, eventType = TYPE_INFO }, forced = false) => {
     if (!time) time = new Date();
     if (!chain) chain = [];
     chain.push(prefix);
