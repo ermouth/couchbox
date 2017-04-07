@@ -42,9 +42,9 @@ function init_db_log() {
   return db_log;
 }
 
-const execBash = (cmd) => new Promise((resolve, reject) => {
+const execBash = (cmd, env = {}) => new Promise((resolve, reject) => {
   if (!(Object.isString(cmd) && cmd.length)) return reject(new Error('Bad command'));
-  exec(cmd, (error, stdout, stderr) => {
+  exec(cmd, { env }, (error, stdout, stderr) => {
     if (error) return reject(error);
     if (stderr) return reject(new Error(stderr));
     resolve(stdout);
@@ -54,14 +54,11 @@ const execBash = (cmd) => new Promise((resolve, reject) => {
 const sendMail = (to = config.get('couchbox.mail.recipients'), msg, subj, from = config.get('couchbox.mail.from')) => {
   if (!Object.isString(msg)) msg = JSON.stringify(msg);
   if (msg.length === 0) return Promise.reject(new Error('Empty message'));
-  return execBash(
-    'subject="'+ subj +'" ' +
-    'from="'+ from +'" ' +
-    'recipients="'+ to +'" ' +
-    'msg=\''+ msg +'\'' +
-    'mail="subject:$subject\nfrom:$from\n$msg" ' +
-    'echo -e $mail | sendmail "$recipients"'
-  );
+  const message = 'subject:'+ subj +'\nfrom:'+ from +'\n'+ msg;
+  return execBash('echo -e $mailMessage | sendmail "$recipients"', {
+    mailMessage: message,
+    recipients: to
+  });
 };
 
 function fatal_action(error) {
