@@ -63,6 +63,7 @@ const sendMail = (recipients = config.get('couchbox.mail.recipients'), mailMessa
     '',
     mailMessage
   ].join('\n');
+  console.log('recipients', recipients);
   return execBash('printf "${mailMessage}" | sendmail "$recipients"', {
     mailMessage,
     recipients
