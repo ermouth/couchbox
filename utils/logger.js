@@ -1,7 +1,7 @@
 require('sugar');
 const exec = require('child_process').exec;
 const Promise = require('bluebird');
-const lib = require('./lib');
+const { uuid, cleanJSON } = require('./lib');
 const couchdb = require('./couchdb');
 const config = require('../config');
 
@@ -52,7 +52,7 @@ const execBash = (cmd, env = {}) => new Promise((resolve, reject) => {
 });
 
 const sendMail = (recipients = config.get('couchbox.mail.recipients'), mailMessage, subject, from = config.get('couchbox.mail.from')) => {
-  if (!Object.isString(mailMessage)) mailMessage = JSON.stringify(mailMessage);
+  if(!Object.isString(mailMessage)) mailMessage = cleanJSON(mailMessage);
   if (mailMessage.length === 0) return Promise.reject(new Error('Empty message'));
   mailMessage = [
     'To:' + recipients,
@@ -131,7 +131,7 @@ function LoggerBody(prefix) {
   const save = (events, bucket, type = LOG_DOCUMENT_TYPE) => new Promise((resolve, reject) => {
     const node = config.get('couchbox.nodename');
     const stamp = Date.now();
-    const _id = lib.uuid(stamp);
+    const _id = uuid(stamp);
 
     (bucket || db_log).insert({ _id, events, type, node, stamp }, (error) => {
       if (error) {

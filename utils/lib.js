@@ -60,6 +60,62 @@ const getField = function getField(obj = {}, path, separator = '.') {
   return null;
 };
 
+const cleanJSON = (function(){
+  // outputs js object as string
+  // js2txt(srcObj, tabChar) >> string
+
+  function f(n){return n<10?'0'+n:n;}
+  var tabs= '\t'.repeat(20),  fj = JSON.stringify;
+  function s2 (w, ctab0, tab){
+    var tl=0,a,i,k,l,v,ctab=ctab0||0,xt = tabs;
+    if (tab && Object.isString(tab)) {
+      tl=(tab+"").length;xt = (tab+"").repeat(20);
+    }
+    switch((typeof w).substr(0,3)){
+      case 'str': return fj(w).replace(/<\/scri/ig,'<\\u002fscri');
+      case 'num': return isFinite(w)?''+String(w):'null';
+      case 'boo': case'nul':return String(w);
+      case 'fun': return _cleanFn(w.toString())
+        .replace(/\n([^\t\n])/g,'\n'+(tab?xt.to(ctab*tl+tl):"")+'$1')
+        .replace(/<\/scri/ig,'<\\u002fscri');
+      case 'obj': if(!w) return'null';
+        if (Object.isRegExp(w)) return w.toString();
+        if (typeof w.toJSON==="function") return s2(w.toJSON(),ctab+(tab?1:0),tab);
+        a=[];
+        if (Object.isArray(w)){
+          for(i=0; i<w.length; i+=1){
+            a.push(s2(w[i],ctab+(tab?1:0),tab)||'null');
+          }
+          return'['
+            +a.join(','+(tab?"\n"+xt.to(ctab*tl+tl):""))
+            +']';
+        }
+
+        if (w + '' == '[object Object]') {
+          for (k in w) {
+            if (w.hasOwnProperty(k)) {
+              v = s2(w[k], ctab + (tab?1:0), tab);
+              if (v) a.push((tab?"\n" + xt.to(ctab*tl+tl):"")+s2(k, ctab + (tab?1:0), tab)+': '+v);
+            }
+          };
+        }
+
+        return '{'+a.join(',')+(tab?"\n"+xt.to(ctab*tl):"")+'}';
+    }
+  }
+  return s2.fill(undefined,0,undefined);
+
+  // - - - - - - - - - - - - - - - - - - - - - - -
+
+  function _cleanFn (s) {
+    var splitter = /\)([\s\n\r\t]+?|\/{1,10}.*?\*\/|\/\/[^\n\r]{0,200}[\n\r]){0,20}?\{/,
+      a = s.split(splitter,1),
+      head = a[0].from(8).replace(/[\s\n\r\t]+?|\/{1,10}.*?\*\/|\/\/[^\n\r]{0,200}[\n\r]/g,'')+")",
+      tail = "{"+s.from(a[0].length).replace(splitter,'').replace(/}[^\}]+$/,'}');
+    return ("function "+head).replace(/^function\sanonymous/,"function ") +" "+tail;
+  }
+})();
+
 
 // Hashes
 
@@ -158,6 +214,7 @@ module.exports = {
   toBase64,
   coverFunction,
   evalFunc,
+  cleanJSON,
 
   uuid,
   guid,
