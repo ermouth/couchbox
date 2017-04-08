@@ -45,7 +45,7 @@ listed in `couchbox/nodes` config key.
 
 Unlike `this._bucket`, fetch is more low-level. It requires knowing CouchDB API,
 and is able to return not only JSON, but Stream as well. Streams are useful for 
-piping attaches or long queries directly to client for instance.
+piping attaches or long queries directly to client.
 
 Couchbox’s fetch is a thin wrapper around [node-fetch](https://www.npmjs.com/package/node-fetch).
 The difference is `this.\_fetch()` receives only one argument and restricts destinations
@@ -97,6 +97,47 @@ recommended however.
 
 ---
 
-## this._cache
+## this.\_cache
 
+The `_cache` method provides access to Redis-backed cache, based on 
+[node-stow](https://github.com/cpsubrian/node-stow). 
 
+Cache is configured using JSON in `couchbox_plugins/cache` section and have only 
+one param `{"ttl":0}`. The `ttl` property defines default ttl for a cache entry,
+_in seconds_. Zero creates forever lasting entries.
+
+#### this.\_cache(key'') → Promise → {key,data,tags,ttl}
+
+Returns promise resoved with stow object, or rejected if no key exist. Fetching 
+several kilobytes of data takes ~1…2 ms. Estimating very roughly, fetching cache 
+is ~5 times faster than reading CouchDB.
+
+#### this.\_cache({key,data,tags,ttl}) → Promise
+
+Stores `data` of any JSONable type under `key`, that must be a string. Optional 
+`ttl` property restricts cache entry lifetime, in _seconds_.
+
+The `tags` property is an optional object like `{tag1:10,tag2:[3,4]}`. Tags are useful
+for massive group cache invalidation.
+
+#### this.\_cache(key'',data,tags{}*) → Promise
+
+Stores `data` under `key` with optional `tags`. More expressive alias for saving data.
+
+#### this.\_cache(key'',null) → Promise
+
+Evicts entry, stored under `key`, from cache. Wildcard keys are supported like 
+in node-stow.
+
+#### this.\_cache(null,null,tags{}) → Promise
+
+Invalidates keys by `tags`. Calling `this.\_cache(null,null,{tag2:3})` evicts all
+entries with value `3` in `tag2` tag, whatever it is.
+
+---
+
+## this.\_email
+
+---
+
+## this.\_socket
