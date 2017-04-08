@@ -52,7 +52,7 @@ section in `.hooks` object. For example:
 Filter part is an ordinary filter function, except hook filters never receive `req`
 argument, since there are no inbound http requests for action.
 
-A hook object itself has 4 properties: 
+A hook object has 3 properties: 
 
 * `.timeout`, number in milliseconds, optional
 * `.lambda`, required, JS code of the hook,
@@ -91,10 +91,10 @@ only after all docs are saved successfully.
 ### Hooks modes
 
 Each hook definition may have `.mode` property of values `"sequential"`, `"transitive"`
-or `"parallel"`. Default mode is transitive.
+or `"parallel"`. Default is transitive.
 
-Mode defines hook’s behavior when there is an unprocessed queue of changes of
-a single doc.
+Mode defines hook behavior when there is an unprocessed queue of changes of
+a single particular doc.
 
 __Parallel__ mode allows to run a hook for each change of a particular doc. So several
 instances of a hook, processing different revisions of a doc, may run simultaneously.
@@ -186,12 +186,13 @@ call lambda, that presumably sends emails (and we configured it to have an
 access to `this._email` extension to be able to act this way).
 
 Unrecognized requests (no matching rules) by default return `404`. However,
-if config key `couchbox/api_fallback` contains an URL, Couchbox proxies all
-unrecognized requests to the URL given.
+if config key `couchbox/api` has `"fallback"` property with an URL, Couchbox proxies 
+all unrecognized requests to the URL given. The `"hostKey"` property overrides
+`Host` header for proxied requests.
 
 ### Request object
 
-The request object is CouchDB-styled, with minor differences. Request object
+The request object is CouchDB-style, with minor differences. Request object
 looks like:
 ``` javascript
 {
@@ -207,7 +208,7 @@ looks like:
     "Host": "abc.example.com",
     "User-Agent": "Mozilla/5.0"
   },
-  "body": " /* body string */ ",
+  "body": " /* body string or undefined*/ ",
   "peer": "0.0.0.0",
   "cookie": {"AuthSession": "B64TOKEN"},
   "userCtx": {
@@ -224,7 +225,7 @@ update sequence.
 ### Result object
 
 Api call must end up calling `resolve(result)` or `reject(result)`. The `result` 
-object has quite simple structure:
+object should look like this:
 ```javascript
 {
   code:200, // or any http code
@@ -241,7 +242,7 @@ object has quite simple structure:
 Fields `.headers` and `.docs` are optional. Code and body are sent to a client only
 if all docs were saved successfully. [More about saving docs](#saving-docs).
 
-If there were any errors during saving docs, a client receives `500` response.
+If there were any errors during saving docs, client receives `500` response.
 
 ### Api and workers
 
@@ -250,10 +251,10 @@ identical round-robin workers can run simultaneously in different threads.
 
 So Couchbox api feature provides a farm of identical monolith single-threaded
 web servers. On any monitored ddoc change all farm workers restart one by one,
-first finishing requests pending.
+first finalizing active requests.
 
 Api lambdas run in separate node.js `vm` instances, so they neither can see, nor
-can intervene their parent worker global scope.
+can intervene parent worker global scope.
 
 ## Plugins
 
