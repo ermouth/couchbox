@@ -108,14 +108,14 @@ _in seconds_. Zero creates forever lasting entries.
 
 #### this.\_cache(key'') → Promise → {key,data,tags,ttl}
 
-Returns promise resoved with stow object, or rejected if no key exist. Fetching 
+Returns promise resolved with stow object, or rejected if no key exists. Retrieving 
 several kilobytes of data takes ~1…2 ms. Estimating very roughly, fetching cache 
 is ~5 times faster than reading CouchDB.
 
 #### this.\_cache({key,data,tags,ttl}) → Promise
 
-Stores `data` of any JSONable type under `key`, that must be a string. Optional 
-`ttl` property restricts cache entry lifetime, in _seconds_.
+Stores `data` of any JSONable type under the `key`, that must be a string. Optional 
+`ttl` property restricts cache entry lifetime, _in seconds_.
 
 The `tags` property is an optional object like `{tag1:10,tag2:[3,4]}`. Tags are useful
 for massive group cache invalidation.
@@ -126,7 +126,7 @@ Stores `data` under `key` with optional `tags`. More expressive alias for saving
 
 #### this.\_cache(key'',null) → Promise
 
-Evicts entry, stored under `key`, from cache. Wildcard keys are supported like 
+Evicts an entry, stored under the `key`. Wildcard keys are supported like 
 in node-stow.
 
 #### this.\_cache(null,null,tags{}) → Promise
