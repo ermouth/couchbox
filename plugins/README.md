@@ -146,6 +146,8 @@ entries with value `3` in `tag2` tag, whatever it is.
 
 ## this.\_kkm
 
+The `this._kkm` method provides access to [kkm server](https://kkmserver.ru/KkmServer). 
+
 #### this.\_kkm('devices') → Promise
 
 Returns promise with list of devices

@@ -100,36 +100,35 @@ function resolveModule(path, mod = {}, root) {
 function pluginLoader(ctx, log) {
   return function loadPlugin(method) {
     if (method in ctx) return Promise.resolve();
-    let pluginPromise = Promise.resolve();
     try {
       const pluginModule = require('../plugins/'+ method);
       if (pluginModule) {
-        const onPluginInitError = (error) => {
+        return pluginModule(method, config.get('plugins.' + method) || {}, log).catch((error) => {
           log({
             message: 'Error init plugin: '+ method,
             event: PLUGIN_ERROR,
             error
           });
           return null;
-        };
-        return pluginModule(method, config.get('plugins.' + method) || {}, log).catch(onPluginInitError);
+        });
       }
     } catch (error) {
       log({
         message: 'Error plugin '+ method +' not exist',
         event: PLUGIN_ERROR,
-        error
+        error,
+        type: 'warn'
       });
     }
-    return pluginPromise;
+    return Promise.resolve();
   }
 }
 
 const makePlugins = (ctx, methods = [], log) => {
   const methodsList = methods && methods.length > 0 ? methods.compact(true).unique() : [];
-  return Promise.all(methodsList.map(pluginLoader(ctx, log))).then(pluginsList => {
+  return Promise.map(methodsList, pluginLoader(ctx, log)).then(pluginsList => {
     const plugins = {};
-    for(let i = 0, i_max = pluginsList.length, plugin; i < i_max; i++) if (plugin = pluginsList[i]) plugins[plugin.name] = plugin;
+    for (let i = 0, i_max = pluginsList.length, plugin; i < i_max; i++) if (plugin = pluginsList[i]) plugins[plugin.name] = plugin;
     return plugins;
   });
 };

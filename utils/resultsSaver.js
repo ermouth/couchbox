@@ -8,18 +8,19 @@ const saveResults = (bucket, docs) => {
   return Promise.resolve();
 }; // save results sequential by first order recursively
 
-const saveBatch = (bucket, toSave) => {
-  if (Object.isObject(toSave)) return saveDoc(bucket, toSave); // if data is Object save as one document
-  else if (Object.isArray(toSave)) return Promise.all(toSave.map(doc => saveDoc(bucket, doc))); // if data is Array save as many docs in parallel
-  else return Promise.reject(new Error('Bad results: ('+ JSON.stringify(toSave) +')')); // return error if data is not Object or Array
-}; // check to save data and save
-
-const saveDoc = (bucket, doc) => {
+const saveToBucket = (bucket) => (doc) => {
   if (!doc) return Promise.reject(new Error('Bad document'));
   const docDB = doc._db ? couchdb.connectBucket(doc._db) : bucket;
   const newDoc = Object.reject(doc, /^(?!(_rev$|_id$|_attachments$))_.+$/);
   return getOldDoc(docDB, newDoc).then(oldDoc => updateDoc(docDB, oldDoc, newDoc));
 }; // save one doc: load old by result params and update
+
+const saveBatch = (bucket, toSave) => {
+  const saveDoc = saveToBucket(bucket);
+  if (Object.isObject(toSave)) return saveDoc(toSave); // if data is Object save as one document
+  else if (Object.isArray(toSave)) return Promise.map(toSave, saveDoc); // if data is Array save as many docs in parallel
+  else return Promise.reject(new Error('Bad results: ('+ JSON.stringify(toSave) +')')); // return error if data is not Object or Array
+}; // check to save data and save
 
 const getOldDoc = (docDB, doc) => new Promise((resolve, reject) => {
   if (!doc._id) return resolve();
