@@ -64,43 +64,49 @@ const cleanJSON = (function(){
   // outputs js object as string
   // js2txt(srcObj, tabChar) >> string
 
-  function f(n){return n<10?'0'+n:n;}
-  var tabs= '\t'.repeat(20),  fj = JSON.stringify;
+  const tabs = '\t'.repeat(20);
   function s2 (w, ctab0, tab){
-    var tl=0,a,i,k,l,v,ctab=ctab0||0,xt = tabs;
+    const ctab = ctab0 || 0;
+    let tl = 0;
+    let xt = tabs;
     if (tab && Object.isString(tab)) {
-      tl=(tab+"").length;xt = (tab+"").repeat(20);
+      tl = (tab + '').length;
+      xt = (tab + '').repeat(20);
     }
     switch((typeof w).substr(0,3)){
-      case 'str': return fj(w).replace(/<\/scri/ig,'<\\u002fscri');
+      case 'str': return JSON.stringify(w).replace(/<\/scri/ig, '<\\u002fscri');
       case 'num': return isFinite(w)?''+String(w):'null';
       case 'boo': case'nul':return String(w);
       case 'fun': return _cleanFn(w.toString())
-        .replace(/\n([^\t\n])/g,'\n'+(tab?xt.to(ctab*tl+tl):"")+'$1')
-        .replace(/<\/scri/ig,'<\\u002fscri');
+        .replace(/\n([^\t\n])/g, '\n'+ (tab ? xt.to(ctab * tl + tl) : '') +'$1')
+        .replace(/<\/scri/ig, '<\\u002fscri');
       case 'obj': if(!w) return'null';
         if (Object.isRegExp(w)) return w.toString();
-        if (typeof w.toJSON==="function") return s2(w.toJSON(),ctab+(tab?1:0),tab);
-        a=[];
+        if (typeof w.toJSON === "function") return s2(w.toJSON(), ctab + (tab ? 1 : 0), tab);
+        let a = [];
+        let i, m;
+
         if (Object.isArray(w)){
-          for(i=0; i<w.length; i+=1){
-            a.push(s2(w[i],ctab+(tab?1:0),tab)||'null');
+          for(i = 0, m = w.length; i < m; i += 1) {
+            a.push(s2(w[i], ctab + (tab ? 1 : 0), tab) || 'null');
           }
-          return'['
-            +a.join(','+(tab?"\n"+xt.to(ctab*tl+tl):""))
-            +']';
+          return '['+ a.join(',' + (tab ? '\n' + xt.to(ctab * tl + tl) : '')) +']';
         }
 
-        if (w + '' == '[object Object]') {
-          for (k in w) {
-            if (w.hasOwnProperty(k)) {
-              v = s2(w[k], ctab + (tab?1:0), tab);
-              if (v) a.push((tab?"\n" + xt.to(ctab*tl+tl):"")+s2(k, ctab + (tab?1:0), tab)+': '+v);
+        let v;
+
+        if (w + '' === '[object Object]') {
+          for (i in w) {
+            if (w.hasOwnProperty(i)) {
+              v = s2(w[i], ctab + (tab?1:0), tab);
+              if (v) a.push(
+                (tab ? '\n' + xt.to(ctab * tl + tl) : '') + s2(i, ctab + (tab ? 1 : 0), tab) + ': ' + v
+              );
             }
-          };
+          }
         }
 
-        return '{'+a.join(',')+(tab?"\n"+xt.to(ctab*tl):"")+'}';
+        return '{'+ a.join(',') + (tab ? '\n'+ xt.to(ctab * tl) : '') +'}';
     }
   }
   return s2.fill(undefined,0,undefined);
@@ -108,11 +114,11 @@ const cleanJSON = (function(){
   // - - - - - - - - - - - - - - - - - - - - - - -
 
   function _cleanFn (s) {
-    var splitter = /\)([\s\n\r\t]+?|\/{1,10}.*?\*\/|\/\/[^\n\r]{0,200}[\n\r]){0,20}?\{/,
+    const splitter = /\)([\s\n\r\t]+?|\/{1,10}.*?\*\/|\/\/[^\n\r]{0,200}[\n\r]){0,20}?\{/,
       a = s.split(splitter,1),
-      head = a[0].from(8).replace(/[\s\n\r\t]+?|\/{1,10}.*?\*\/|\/\/[^\n\r]{0,200}[\n\r]/g,'')+")",
+      head = a[0].from(8).replace(/[\s\n\r\t]+?|\/{1,10}.*?\*\/|\/\/[^\n\r]{0,200}[\n\r]/g,'') + ")",
       tail = "{"+s.from(a[0].length).replace(splitter,'').replace(/}[^\}]+$/,'}');
-    return ("function "+head).replace(/^function\sanonymous/,"function ") +" "+tail;
+    return ("function "+ head).replace(/^function\sanonymous/, "function ") +" "+ tail;
   }
 })();
 

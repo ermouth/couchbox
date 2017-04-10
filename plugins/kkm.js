@@ -2,6 +2,7 @@ require('sugar');
 const Promise = require('bluebird');
 const fetch = require('node-fetch');
 const btoa = require('btoa');
+const { guid } = require('../utils/lib');
 const config = require('../config');
 
 
@@ -45,16 +46,11 @@ function Plugin(method, conf = {}, log) {
   if (!kkm_valid_tax(KKM_TAX)) return Promise.reject(new Error('Bad kkm tax: -1, 0, 10, 18'));
 
 
-  function kkm_guid() {
-    const S4 = () => (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1);
-    return (S4() + S4() + "-" + S4() + "-" + S4() + "-" + S4() + "-" + S4() + S4() + S4());
-  }
-
   const kkm_method_send = (command, data = {}, async = false) => {
     data.Command = command;
 
     // Уникальный идентификатор команды. Любая строка из 40 символов - должна быть уникальна для каждой подаваемой команды
-    if (!(Object.isString(data.IdCommand) && data.IdCommand.length !== 40)) data.IdCommand = kkm_guid();
+    if (!(Object.isString(data.IdCommand) && data.IdCommand.length !== 40)) data.IdCommand = guid();
 
     // Номер устройства. Если 0 то первое не блокированное на сервере
     if (!(Object.isNumber(data.NumDevice) && data.NumDevice >= 0)) data.NumDevice = 0;
@@ -76,8 +72,9 @@ function Plugin(method, conf = {}, log) {
 
   const _defautCheckStrings = [ { PrintText: { Text: '>#2#<'+ KKM_COMPANY, Font: 2 } } ]; // company title
 
-  const kkm_method_sell = (userContact, products = [], print = false) => {
+  const kkm_method_sell = (userContact, orderId, products = [], print = false) => {
     if (!(Object.isString(userContact) && userContact.length > 0)) return Promise.reject('Bad userContact');
+    if (!(Object.isString(orderId) && orderId.length > 0)) return Promise.reject('Bad orderId');
     {
       let itemIndex, item;
       if (!(Object.isArray(products) && (itemIndex = products.length) > 0)) return Promise.reject('Bad products to sell');
@@ -143,7 +140,9 @@ function Plugin(method, conf = {}, log) {
       CheckProps: [],
 
       // Дополнительные произвольные реквизиты (не обязательно) пока только 1 строка
-      AdditionalProps: [],
+      AdditionalProps: [
+        { Print: true, PrintInHeader: false, NameProp: "Номер заказа", Prop: orderId },
+      ],
 
       // Строки чека
       CheckStrings: Object.clone(_defautCheckStrings),

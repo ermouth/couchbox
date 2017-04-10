@@ -141,3 +141,39 @@ entries with value `3` in `tag2` tag, whatever it is.
 ---
 
 ## this.\_socket
+
+---
+
+## this.\_kkm
+
+#### this.\_kkm('devices') → Promise
+
+Returns promise with list of devices
+
+#### this.\_kkm('sell', userContact'', orderId'', products[{name'', count, price, amount}], toPrint = false) → Promise
+
+Register sell to client with products
+
+#### this.\_kkm('open', deviceNum?]) → Promise
+
+Open shift
+
+#### this.\_kkm('zreport', deviceNum''?]) → Promise
+
+Make ZReport
+
+#### this.\_kkm('xreport', deviceNum''?]) → Promise
+
+Make XReport
+
+#### this.\_kkm('status', deviceNum''?]) → Promise
+
+Get device status
+
+#### this.\_kkm('checkCommand', commandId]) → Promise
+
+Get command status
+
+#### this.\_kkm('lineLength', deviceNum''?]) → Promise
+
+Get device line length
