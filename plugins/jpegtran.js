@@ -46,13 +46,22 @@ function Plugin(method, conf = {}, log) {
     }
 
     const chunks = [];
+    const translator = new JpegTran(props);
+    const onError = (error) => new Error('Error translating src: "'+ error.message +'"');
+
     if (mode === 'stream') {
-      resolve(fileStream.pipe(new JpegTran(props)));
+      resolve(
+        fileStream
+        .on('error', error => log(onError(error)))
+        .pipe(translator)
+      );
     } else {
-      fileStream.pipe(new JpegTran(props))
-        .on('error', error => reject(new Error('Error translating src: "'+ error.message +'"')))
-        .on('data', chunk => chunks.push(chunk))
-        .on('end', () => resolve(mode === 'base64' ? Buffer.concat(chunks).toString('base64') : Buffer.concat(chunks)));
+      fileStream
+        .on('error', error => reject(onError(error)))
+        .pipe(translator)
+          .on('error', error => reject(onError(error)))
+          .on('data', chunk => chunks.push(chunk))
+          .on('end', () => resolve(mode === 'base64' ? Buffer.concat(chunks).toString('base64') : Buffer.concat(chunks)));
     }
   });
 
