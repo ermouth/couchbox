@@ -176,6 +176,12 @@ const check_merchants = (val) => {
   return Promise.reject(new Error('Bad transactionStates'));
 };
 const check_searchByCreatedDate = (val = false) => Promise.resolve(!!val);
+const check_pan = (val) => {
+  if (Object.isString(val) && (val = val.trim()) && val.length >= 12 && val.length <= 19 && /^[0-9]+$/.test(val)) {
+    return Promise.resolve(val);
+  }
+  return Promise.reject(new Error('Bad transactionStates'));
+};
 
 const errorCodeKey = 'errorCode';
 const errorCodeMessageKey = 'errorCodeMessage';
@@ -187,6 +193,11 @@ const errorCodes = {
   'register4': 'Отсутствует обязательный параметр запроса',
   'register5': 'Ошибка значение параметра запроса',
   'register7': 'Системная ошибка',
+
+  'reverse0': 'Обработка запроса прошла без системных ошибок',
+  'reverse5': 'Ошибка значение параметра запроса',
+  'reverse6': 'Незарегистрированный OrderId',
+  'reverse7': 'Системная ошибка',
 
   'getOrderStatus0': 'Обработка запроса прошла без системных ошибок',
   'getOrderStatus2': 'Заказ отклонен по причине ошибки в реквизитах платежа',
@@ -207,6 +218,12 @@ const errorCodes = {
   ],
   'getOrderStatusExtended6': 'Заказ не найден',
   'getOrderStatusExtended7': 'Системная ошибка',
+
+  'verifyEnrollment0': 'Обработка запроса прошла без системных ошибок',
+  'verifyEnrollment1': 'Ошибка в номере карты',
+  'verifyEnrollment5': 'Доступ запрещён',
+  'verifyEnrollment6': 'По заданному номеру карты информация не найдена.',
+  'verifyEnrollment7': 'Произошла системная ошибка',
 
   'getLastOrdersForMerchants0': 'Обработка запроса прошла без системных ошибок',
   'getLastOrdersForMerchants5': [
@@ -399,6 +416,27 @@ function Plugin(method, conf = {}, log) {
   };
 
 
+  // Запрос отмены оплаты заказа
+  const bank_reverse = (action = 'reverse', props, ref) => {
+    const {
+      userName, // ! Логин магазина, полученный при подключении
+      password, // ! Пароль магазина, полученный при подключении
+      orderId,  // ! Номер заказа в платежной системе. Уникален в пределах системы.
+      language  //   Язык в кодировке ISO 639-1. Если не указан, считается, что язык – русский. Сообщение ошибке будет возвращено именно на этом языке.
+    } = props;
+
+    return Promise.all([
+      check_userName(userName || BANK_LOGIN),
+      check_password(password || BANK_PASSWORD),
+      check_orderId(orderId),
+      check_language(language)
+    ]).then(([ userName, password, orderId, language ]) => ({ userName, password, orderId, language }))
+      .then(makeRequest(action, ref))
+      .then(onRequest(action))
+      .then(checkError([0]));
+  };
+
+
   // Запрос состояния заказа
   const bank_getOrderStatus = (action = 'getOrderStatus', props, ref) => {
     const {
@@ -440,6 +478,25 @@ function Plugin(method, conf = {}, log) {
       .then(makeRequest(action, ref))
       .then(onRequest(action))
       .then(checkResult(['orderStatus', 'orderNumber', 'amount', 'actionCode']));
+  };
+
+
+  // Запрос отмены оплаты заказа
+  const bank_verifyEnrollment = (action = 'verifyEnrollment', props, ref) => {
+    const {
+      userName, // ! Логин магазина, полученный при подключении
+      password, // ! Пароль магазина, полученный при подключении
+      pan,      // ! Номер карты
+    } = props;
+
+    return Promise.all([
+      check_userName(userName || BANK_LOGIN),
+      check_password(password || BANK_PASSWORD),
+      check_pan(pan)
+    ]).then(([ userName, password, pan ]) => ({ userName, password, pan }))
+      .then(makeRequest(action, ref))
+      .then(onRequest(action))
+      .then(checkError([0]));
   };
 
 
@@ -514,11 +571,17 @@ function Plugin(method, conf = {}, log) {
         case 'register':
           task = bank_register(action, props, ref);
           break;
+        case 'reverse':
+          task = bank_reverse(action, props, ref);
+          break;
         case 'getOrderStatus':
           task = bank_getOrderStatus(action, props, ref);
           break;
         case 'getOrderStatusExtended':
           task = bank_getOrderStatusExtended(action, props, ref);
+          break;
+        case 'verifyEnrollment':
+          task = bank_verifyEnrollment(action, props, ref);
           break;
         case 'getLastOrdersForMerchants':
           task = bank_getLastOrdersForMerchants(action, props, ref);
