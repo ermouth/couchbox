@@ -9,7 +9,7 @@ const config = require('../config');
 
 const DEBUG = config.get('debug');
 
-const { RejectHandlerError, TimeoutError } = require('./errors');
+const { LocaleError, RejectHandlerError, TimeoutError } = require('./errors');
 
 const MODULE_ERROR = 'module/error';
 const PLUGIN_ERROR = 'plugin/error';
@@ -36,7 +36,7 @@ const couchGlobals = {
   isArray: Object.isArray,
   toJSON: JSON.stringify,
 };
-const customGlobals = { Promise };
+const customGlobals = { Promise, LocaleError };
 
 if (DEBUG) customGlobals.console = console;
 

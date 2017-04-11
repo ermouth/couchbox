@@ -1,3 +1,44 @@
+class LocaleError extends Error {
+  constructor(message) {
+    const locales = {};
+    let error;
+
+    if (Object.isString(message)) {
+      const locale = message.split(' ', 1)[0];
+      if (LocaleError.checkLocale(locale)) {
+        locales[locale] = message.substr(locale.length + 1);
+      }
+    } else if (Object.isObject(message)) {
+      Object.keys(message).forEach(locale => {
+        if (LocaleError.checkLocale(locale)) locales[locale] = message[locale];
+      });
+    } else if (message instanceof Error) {
+      error = message;
+      locales['EN'] = error.message;
+    }
+
+    if (Object.keys(locales).length === 0) {
+      locales['EN'] = 'Bad Error';
+    }
+
+    super(locales['EN'] || locales[Object.keys(locales)[0]]);
+    this.locales = locales;
+    if (error) this.error = error;
+  }
+
+  toString(locale = 'EN') {
+    switch (locale) {
+      case 'RU':
+        if (this.locales[locale]) return 'Ошибка "'+ this.locales[locale] +'"';
+    }
+    return 'Error "'+ this.message +'"';
+  }
+
+  static checkLocale(locale) {
+    return Object.isString(locale) && locale.length >= 2 && locale.length <= 3;
+  }
+}
+
 class SendingError extends Error {
   constructor(error) {
     super('Error on send result');
@@ -59,6 +100,7 @@ class BadReferrerError extends Error {
 }
 
 module.exports = {
+  LocaleError,
   NotFoundError,
   SendingError,
   TimeoutError,

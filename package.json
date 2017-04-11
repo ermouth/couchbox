@@ -24,6 +24,7 @@
     "jpegtran": "1.0.5",
     "http-proxy": "1.16.2",
     "moment": "2.18.1",
+    "locale": "0.1.0",
     "redis-commander": "git://github.com/MegaGM/redis-commander.git"
   }
 }

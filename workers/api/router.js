@@ -3,6 +3,7 @@ const Promise = require('bluebird');
 const httpProxy = require('http-proxy');
 const cookieParser = require('cookie');
 const queryString = require('query-string');
+const locale = require('locale');
 const lib = require('../../utils/lib');
 const saveResults = require('../../utils/resultsSaver');
 const Logger = require('../../utils/logger');
@@ -190,7 +191,7 @@ function Router(props = {}) {
     });
   };
 
-  const makeError = (error) => {
+  const makeError = (error, req) => {
     let code = 500;
     const json = {
       error: 'not_found',
@@ -202,7 +203,14 @@ function Router(props = {}) {
       if (error.reason) json.reason = error.reason;
 
       if (error instanceof Error) {
-        json.error = error.message;
+        if (req && req.headers && error.error) {
+          let errorLocale = new locale.Locales(req.headers['accept-language'])[0];
+          if (errorLocale && errorLocale.language) errorLocale = errorLocale.language.toUpperCase();
+          else errorLocale = 'EN';
+          json.error = error.error.toString(errorLocale);
+        } else {
+          json.error = error.message;
+        }
       } else {
         if (Object.isObject(error)) {
           json.error = new Error(error.message || error.error);
@@ -224,19 +232,32 @@ function Router(props = {}) {
       headers[PAGE_GENERATION_PROP] = Date.now() - req.headers[PAGE_GENERATION_PROP];
       headers['X-Accel-Buffering'] = 'no';
       res.writeHead(code, headers); // disable nginx cache for stream
-      result.stream.pipe(res).on('error', error => {
-        log({
-          message: 'Error pipe result.stream',
-          event: API_REQUEST_ERROR,
-          error
-        });
-        return sendResult(res, makeError(new SendingError(error)));
-      });
+
+      result.stream
+        .on('error', error => {
+          log({
+            message: 'Error pipe result stream',
+            event: API_REQUEST_ERROR,
+            error,
+            type: 'warn'
+          });
+          return sendResult(req, res, makeError(new SendingError(error), req));
+        })
+        .pipe(res)
+        .on('error', error => {
+          log({
+            message: 'Error pipe result',
+            event: API_REQUEST_ERROR,
+            error,
+            type: 'fatal'
+          });
+          return sendResult(req, res, makeError(new SendingError(error), req));
+        })
     } else {
       // Body
       if (result.json) {
         // JSON sugar
-        headers['Content-Type'] = 'application/json';
+        headers['Content-Type'] = 'application/json; charset=UTF-8';
         try {
           result.body = JSON.stringify(result.json);
         } catch (error) {
@@ -245,11 +266,14 @@ function Router(props = {}) {
             event: API_REQUEST_ERROR,
             error
           });
-          return sendResult(res, makeError(new SendingError(error)));
+          return sendResult(req, res, makeError(new SendingError(error), req));
         }
       }
 
-      headers[PAGE_GENERATION_PROP] = Date.now() - req.headers[PAGE_GENERATION_PROP];
+      if (req && req.headers && req.headers[PAGE_GENERATION_PROP]) {
+        headers[PAGE_GENERATION_PROP] = Date.now() - req.headers[PAGE_GENERATION_PROP];
+      }
+
       res.writeHead(code, headers);
       if (result.body !== undefined) {
         try {
@@ -260,7 +284,7 @@ function Router(props = {}) {
             event: API_REQUEST_ERROR,
             error
           });
-          return sendResult(res, makeError(new SendingError(error)));
+          return sendResult(req, res, makeError(new SendingError(error), req));
         }
       }
       res.end((error) => {
@@ -286,10 +310,10 @@ function Router(props = {}) {
           error
         });
       }
-      if (API_FALLBACK_URL) {
+      if (error && (error.code === 404 || error.code === '404') && API_FALLBACK_URL) {
         proxyHTTP.web(req, res, { target: API_FALLBACK_URL });
       } else {
-        sendResult(req, res, makeError(error));
+        sendResult(req, res, makeError(error, req));
       }
     };
 
@@ -333,6 +357,7 @@ function Router(props = {}) {
     }
 
     processPromise.then(send).catch(error => {
+      console.log('error', error);
       log({
         message: 'Route rejection',
         event: API_REQUEST_REJECT,

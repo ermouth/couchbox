@@ -78,7 +78,6 @@ function Worker(cluster, props = {}) {
         error,
         type: 'fatal'
       });
-      console.error(error);
     }
   }
 
@@ -91,7 +90,6 @@ function Worker(cluster, props = {}) {
         error,
         type: 'fatal'
       });
-      console.error(error);
     }
   }
 
