@@ -359,7 +359,6 @@ function Router(props = {}) {
     }
 
     processPromise.then(send).catch(error => {
-      console.log('error', error);
       log({
         message: 'Route rejection',
         event: API_REQUEST_REJECT,

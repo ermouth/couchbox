@@ -27,9 +27,11 @@ class LocaleError extends Error {
   }
 
   toString(locale = 'EN') {
-    switch (locale) {
-      case 'RU':
-        if (this.locales[locale]) return 'Ошибка "'+ this.locales[locale] +'"';
+    if (locale in this.locales) {
+      switch (locale) {
+        case 'RU': return 'Ошибка "'+ this.locales[locale] +'"';
+        case 'EN': return 'Error "'+ this.locales[locale] +'"';
+      }
     }
     return 'Error "'+ this.message +'"';
   }
