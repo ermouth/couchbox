@@ -19,10 +19,10 @@ module.exports = {
     debug: false
   },
   couchbox_api: {
-    // 'localhost|_test': 'test/test bucket socket cache fetch sms email jpegtran bank'
+    'host|_route': 'db/ddoc bucket socket cache jpegtran fetch email sms bank kkm'
   },
   couchbox_hooks: {
-    // 'performance_test|performance': 'bucket socket cache fetch sms email jpegtran bank'
+    'db|ddoc': 'bucket socket cache jpegtran fetch email sms bank kkm'
   },
   couchbox_plugins: {
     cache: '{"ttl": 60}',
