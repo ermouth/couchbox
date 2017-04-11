@@ -152,7 +152,7 @@ The `this._kkm` method provides access to [kkm server](https://kkmserver.ru/KkmS
 
 Returns promise with list of devices
 
-#### this.\_kkm('sell', userContact'', orderId'', products[{name'', count, price, amount}], toPrint = false) → Promise
+#### this.\_kkm('sell', userContact'', products[{name'', count, price, amount}], toPrint = false) → Promise
 
 Register sell to client with products
 

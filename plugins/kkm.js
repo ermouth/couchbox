@@ -70,11 +70,8 @@ function Plugin(method, conf = {}, log) {
     return fetch(url, params).then(res => res.json());
   };
 
-  const _defautCheckStrings = [ { PrintText: { Text: '>#2#<'+ KKM_COMPANY, Font: 2 } } ]; // company title
-
-  const kkm_method_sell = (userContact, orderId, products = [], print = false) => {
+  const kkm_method_sell = (userContact, products = [], print = false) => {
     if (!(Object.isString(userContact) && userContact.length > 0)) return Promise.reject('Bad userContact');
-    if (!(Object.isString(orderId) && orderId.length > 0)) return Promise.reject('Bad orderId');
     {
       let itemIndex, item;
       if (!(Object.isArray(products) && (itemIndex = products.length) > 0)) return Promise.reject('Bad products to sell');
@@ -140,12 +137,10 @@ function Plugin(method, conf = {}, log) {
       CheckProps: [],
 
       // Дополнительные произвольные реквизиты (не обязательно) пока только 1 строка
-      AdditionalProps: [
-        { Print: true, PrintInHeader: false, NameProp: "Номер заказа", Prop: orderId },
-      ],
+      AdditionalProps: [],
 
       // Строки чека
-      CheckStrings: Object.clone(_defautCheckStrings),
+      CheckStrings: [],
 
       Cash: 0,          // нал
       CashLessType1: 0, // безнал - карта
@@ -158,6 +153,11 @@ function Plugin(method, conf = {}, log) {
         { Print: true, PrintInHeader: false, NameProp: 'Телефон поставщика', Prop: KKM_PHONE }
       );
     }
+
+    // Company title
+    sellRequest.CheckStrings.push(
+      { PrintText: { Text: '>#2#<'+ KKM_COMPANY, Font: 2 } }
+    );
 
     products.forEach(product => {
       const Register = {
