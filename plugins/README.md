@@ -205,3 +205,103 @@ Get command status
 #### this.\_kkm('lineLength', deviceNum''?]) → Promise
 
 Get device line length
+
+---
+
+## this.\_bank
+
+The `this._bank` method provides access to [Sberbank Api](https://developer.sberbank.ru/acquiring). 
+
+#### this.\_bank('register', {userName*, password*, orderNumber*, amount*, currency, returnUrl*, failUrl, description, language, pageView, clientId, merchantLogin, jsonParams, sessionTimeoutSecs, expirationDate, bindingId}) → Promise
+
+Register new order with props:
+
+Required:
+* `.userName` login from api
+* `.password` password from api
+* `.orderNumber` order number in shop
+* `.amount` price of order
+* `.returnUrl` absolute link for redirect after `GOOD` result
+
+Not required
+* `.currency` order currency in `ISO 4217`
+* `.failUrl` absolute link for redirect after `BAD` result
+* `.description` order description
+* `.language` language in `ISO 639-1`
+* `.pageView` interface type `DESKTOP | MOBILE | custom template`
+* `.clientId` client id in shop
+* `.merchantLogin` for register order from child merchant
+* `.jsonParams` custom json meta
+* `.sessionTimeoutSecs` order TTL - `default 1200 sec = 20 min`
+* `.expirationDate` order expiration date
+* `.bindingId`
+
+#### this.\_bank('reverse', {userName*, password*, orderId*, language}) → Promise
+
+Reverse order by `id`:
+
+Required:
+* `.userName` login from api
+* `.password` password from api
+* `.orderId` order id in bank
+
+Not required
+* `.language` language in `ISO 639-1`
+
+#### this.\_bank('getOrderStatus', {userName*, password*, orderId*, language}) → Promise
+
+Load order status by `id`
+
+Required:
+* `.userName` login from api
+* `.password` password from api
+* `.orderId` order id in bank
+
+Not required
+* `.language` language in `ISO 639-1`
+
+#### this.\_bank('getOrderStatusExtended', {userName*, password*, orderId*, orderNumber*, language}) → Promise
+
+Load order status by `id` in bank and `id` in shop 
+
+Required:
+* `.userName` login from api
+* `.password` password from api
+* `.orderId` order id in bank
+* `.orderNumber` order id in shop
+
+Not required
+* `.language` language in `ISO 639-1`
+
+#### this.\_bank('verifyEnrollment', {userName*, password*, pan*}) → Promise
+
+Verify card 3d secure
+
+Required:
+* `.userName` login from api
+* `.password` password from api
+* `.pan` card number `12..19`
+
+#### this.\_bank('getLastOrdersForMerchants', {userName*, password*, language, page, size*, from*, to*, transactionStates*, merchants*, searchByCreatedDate}) → Promise
+
+Load orders
+
+Required:
+* `.userName` login from api
+* `.password` password from api
+* `.size` count elements per page
+* `.from` from date `YYYYMMDDHHmmss`
+* `.to` to date `YYYYMMDDHHmmss`
+* `.transactionStates` orders states `CREATED, APPROVED, DEPOSITED, DECLINED, REVERSED, REFUNDED`
+* `.merchants` list of merchantes
+* `.searchByCreatedDate` `true`- search by date of created `false`- by date of payment `default false`
+
+#### this.\_bank('refund', {userName*, password*, orderId*, amount*}) → Promise
+
+Refund money from order by `id`
+
+Required:
+* `.userName` login from api
+* `.password` password from api
+* `.orderId` order id in bank
+* `.amount` money amount
