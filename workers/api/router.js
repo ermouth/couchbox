@@ -275,6 +275,7 @@ function Router(props = {}) {
       }
 
       res.writeHead(code, headers);
+
       if (result.body !== undefined) {
         try {
           res.write(result.body);
@@ -292,7 +293,8 @@ function Router(props = {}) {
           log({
             message: 'Error on send response',
             event: API_REQUEST_ERROR,
-            error
+            error,
+            type: 'fatal'
           });
         }
       });
