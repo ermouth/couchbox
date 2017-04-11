@@ -138,6 +138,32 @@ entries with value `3` in `tag2` tag, whatever it is.
 
 ## this.\_email
 
+The `_email` method provides access to mail sender, which is a thin wrapper around
+[nodemailer](https://www.npmjs.com/package/nodemailer). Like other Couchbox methods, 
+`this._email` returns Promise.
+
+```javascript
+this._email ({
+  to: 'r2@woo.com',       // or to:'r1@example.com, r2@woo.com'
+  from:'',                // Optional, default should be configured in Couch cfg
+  subject:'',             // Required
+  text:'',                // Text representation, required
+  html:'',                // Optional html representation
+  attachments:[           // Attached files, optional
+    {
+      filename:'foo.jpg',
+      contentType:'',     // valid mime
+      content: Buffer | String,	// only buffer or b64 string, streams are denied
+      //cid:''            // cid for inlined images
+    }
+  ]
+})
+.then(function(){ /* do smth on success */})
+.catch(function(err){ /* process errors */})
+```
+Note, that attachements do not allow passing `.href` or `.path` properties for 
+an attach. Only properties ensuring no sandbox escape are allowed.
+
 ---
 
 ## this.\_socket
