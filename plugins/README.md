@@ -178,23 +178,31 @@ The `this._kkm` method provides access to [kkm server](https://kkmserver.ru/KkmS
 
 Returns promise with list of devices
 
-#### this.\_kkm('sell', userContact'', products[{name'', count, price, amount}], toPrint = false) → Promise
+#### this.\_kkm('sell', deviceNum, userContact'', products, toPrint?) → Promise
 
 Register sell to client with products
+
+Required:
+* `.deviceNum` num of kkm device (default = 0)
+* `.userContact` client contact: email or phone number
+* `.products` array of products `[{name'', count, price, amount}]`
+
+Not required
+* `.toPrint` true if need to print on paper (default = false)
 
 #### this.\_kkm('open', deviceNum?]) → Promise
 
 Open shift
 
-#### this.\_kkm('zreport', deviceNum''?]) → Promise
+#### this.\_kkm('zreport', deviceNum?]) → Promise
 
 Make ZReport
 
-#### this.\_kkm('xreport', deviceNum''?]) → Promise
+#### this.\_kkm('xreport', deviceNum?]) → Promise
 
 Make XReport
 
-#### this.\_kkm('status', deviceNum''?]) → Promise
+#### this.\_kkm('status', deviceNum?]) → Promise
 
 Get device status
 
@@ -202,7 +210,7 @@ Get device status
 
 Get command status
 
-#### this.\_kkm('lineLength', deviceNum''?]) → Promise
+#### this.\_kkm('lineLength', deviceNum?]) → Promise
 
 Get device line length
 

@@ -76,7 +76,8 @@ function Plugin(method, conf = {}, log) {
     });
   };
 
-  const kkm_method_sell = (userContact, products = [], print = false) => {
+  const kkm_method_sell = (NumDevice = 0, userContact, products = [], print = false) => {
+    if (!(Object.isNumber(NumDevice) && NumDevice >= 0)) return Promise.reject('Bad NumDevice');
     if (!(Object.isString(userContact) && userContact.length > 0)) return Promise.reject('Bad userContact');
     {
       let itemIndex, item;
@@ -119,6 +120,7 @@ function Plugin(method, conf = {}, log) {
     }
 
     const sellRequest = {
+      NumDevice,
       Timeout: KKM_TIMEOUT, // Таймаут в секундах
       IsFiscalCheck: true,
       TypeCheck: 0, // 0 – продажа; 1 – возврат продажи; 10 – покупка; 11 - возврат покупки; 8 - продажа только по ЕГАИС; 9 - возврат продажи только по ЕГАИС;
