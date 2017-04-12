@@ -24,15 +24,13 @@ function Plugin(method, conf, log) {
     return Promise.resolve();
   }
 
-  return new Promise(resolve => {
 
-    function make(env) {
-      const { ctx } = env;
-      return socket_emit.bind(ctx);
-    }
+  function make(env) {
+    const { ctx } = env;
+    return socket_emit.bind(ctx);
+  }
 
-    resolve({ name, make });
-  });
+  return Promise.resolve({ name, make });
 }
 
 module.exports = Plugin;

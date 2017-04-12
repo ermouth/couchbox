@@ -597,10 +597,12 @@ function Plugin(method, conf = {}, log) {
   };
 
 
-  return Promise.resolve({
-    name,
-    make: ({ ctx, ref }) => call_bank(ref).bind(ctx)
-  });
+  function make(env) {
+    const { ctx, ref } = env;
+    return call_bank(ref).bind(ctx)
+  }
+
+  return Promise.resolve({ name, make });
 }
 
 module.exports = Plugin;

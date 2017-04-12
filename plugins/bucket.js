@@ -6,7 +6,16 @@ function Plugin(method, conf, log) {
   const name = '_' + (method || 'bucket');
 
   function Bucket(bucket) {
-    if (!bucket) return null;
+    if (!bucket) {
+      const error = new Error('Empty bucket');
+      log({
+        message: 'Error on init bucket plugin',
+        event: 'plugin/error',
+        error,
+        type: 'fatal'
+      });
+      throw error;
+    }
 
     function get() {
       const id = arguments[0];
@@ -41,15 +50,12 @@ function Plugin(method, conf, log) {
     return { get, allDocs, query };
   }
 
-  return new Promise(resolve => {
+  function make(env) {
+    const { bucket } = env;
+    return new Bucket(bucket);
+  }
 
-    function make(env) {
-      const { bucket } = env;
-      return new Bucket(bucket);
-    }
-
-    resolve({ name, make });
-  });
+  return Promise.resolve({ name, make });
 }
 
 module.exports = Plugin;

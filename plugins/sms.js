@@ -99,15 +99,12 @@ function Plugin(method, conf, log) {
     });
   };
 
-  return new Promise(resolve => {
+  function make(env) {
+    const { ref, ctx } = env;
+    return sms_method(ref).bind(ctx);
+  }
 
-    function make(env) {
-      const { ref, ctx } = env;
-      return sms_method(ref).bind(ctx);
-    }
-
-    resolve({ name, make });
-  });
+  return Promise.resolve({ name, make });
 }
 
 module.exports = Plugin;

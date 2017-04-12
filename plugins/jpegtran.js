@@ -65,15 +65,12 @@ function Plugin(method, conf = {}, log) {
     }
   });
 
-  return new Promise(resolve => {
+  function make(env) {
+    const { ctx, bucket } = env;
+    return jpegtran_method(bucket).bind(ctx);
+  }
 
-    function make(env) {
-      const { ctx, bucket } = env;
-      return jpegtran_method(bucket).bind(ctx);
-    }
-
-    resolve({ name, make });
-  });
+  return Promise.resolve({ name, make });
 }
 
 module.exports = Plugin;

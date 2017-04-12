@@ -55,15 +55,12 @@ function Plugin(method, conf = {}, log) {
     return Promise.reject(new Error('Bad arguments'))
   }
 
-  return new Promise(resolve => {
+  function make(env) {
+    const { ctx } = env;
+    return cache_method.bind(ctx);
+  }
 
-    function make(env) {
-      const { ctx } = env;
-      return cache_method.bind(ctx);
-    }
-
-    resolve({ name, make });
-  });
+  return Promise.resolve({ name, make });
 }
 
 module.exports = Plugin;

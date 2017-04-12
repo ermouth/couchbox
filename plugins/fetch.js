@@ -82,15 +82,13 @@ function Plugin(method, conf = {}, log) {
     return fetch(url, queryParams);
   };
 
-  return new Promise(resolve => {
 
-    function make(env) {
-      const { ref, ctx } = env;
-      return fetch_method(ref).bind(ctx);
-    }
+  function make(env) {
+    const { ref, ctx } = env;
+    return fetch_method(ref).bind(ctx);
+  }
 
-    resolve({ name, make });
-  });
+  return Promise.resolve({ name, make });
 }
 
 module.exports = Plugin;
