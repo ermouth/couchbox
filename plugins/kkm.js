@@ -67,7 +67,13 @@ function Plugin(method, conf = {}, log) {
       },
       body: JSON.stringify(data)
     };
-    return fetch(url, params).then(res => res.json());
+    return fetch(url, params).then(res => res.json()).catch(error => {
+      if (error && error.type === 'request-timeout') {
+        throw new Error('Timeout command "'+ command +'"');
+      } else {
+        throw error;
+      }
+    });
   };
 
   const kkm_method_sell = (userContact, products = [], print = false) => {
@@ -185,8 +191,11 @@ function Plugin(method, conf = {}, log) {
   const kkm_method_open = (NumDevice = 0) => kkm_method_send('OpenShift', { CashierName: KKM_CASHIER });
   const kkm_method_zreport = (NumDevice = 0) => kkm_method_send('ZReport', { NumDevice });
   const kkm_method_xreport = (NumDevice = 0) => kkm_method_send('XReport', { NumDevice });
-  const kkm_method_checkCommand = (IdCommand) => kkm_method_send('GetRezult', { IdCommand });
   const kkm_method_lineLength = (NumDevice = 0) => kkm_method_send('GetLineLength', { NumDevice });
+  const kkm_method_checkCommand = (IdCommand) => {
+    if (!(Object.isString(IdCommand) && IdCommand.length === 40)) return Promise.reject('Bad command id: '+ IdCommand);
+    return kkm_method_send('GetRezult', { IdCommand });
+  };
 
   const kkm_method = (ref) => function (action) {
     switch (action) {
@@ -202,13 +211,12 @@ function Plugin(method, conf = {}, log) {
     return Promise.reject(new Error('Bad action name'))
   };
 
-  return new Promise((resolve, reject) => {
-    function make(env) {
-      const { ref, ctx } = env;
-      return kkm_method(ref).bind(ctx);
-    }
-    resolve({ name, make });
-  });
+  function make(env) {
+    const { ref, ctx } = env;
+    return kkm_method(ref).bind(ctx);
+  }
+
+  return Promise.resolve({ name, make });
 }
 
 module.exports = Plugin;
