@@ -1,5 +1,6 @@
 require('sugar');
 const Promise = require('bluebird');
+const { connectBucket } = require('../utils/couchdb');
 
 
 function Plugin(method, conf, log) {
@@ -47,7 +48,25 @@ function Plugin(method, conf, log) {
       return new Promise((resolve, reject) => bucket.view(designname, viewname, params, (error, result) => error ? reject(error) : resolve(result)));
     }
 
-    return { get, allDocs, query };
+    function connect() {
+      const bucketName = arguments[0];
+      if (!bucketName) return Promise.reject(new Error('Bad bucket name: '+ bucketName));
+      const newBucket = connectBucket(bucketName);
+      if (!(newBucket && newBucket.info)) return Promise.reject(new Error('Bad bucket: '+ bucketName));
+      return new Promise((resolve, reject) => {
+        newBucket.info(function(error) {
+          if (error) return reject(error);
+          const newBucketPlugin = new Bucket(newBucket);
+          if (newBucketPlugin) {
+            resolve(newBucketPlugin);
+          } else {
+            reject(new Error('Bad bucket: '+ bucketName));
+          }
+        });
+      });
+    }
+
+    return { get, allDocs, query, connect };
   }
 
   function make(env) {
