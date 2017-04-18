@@ -17,29 +17,20 @@ function Plugin(method, conf, log) {
       throw error;
     }
 
-    function get() {
-      const id = arguments[0];
-      const params = arguments[1] || {};
-
+    function get(id, params = {}) {
       if (!id) return Promise.reject(new Error('Bad document id: '+ id));
       if (!Object.isObject(params)) return Promise.reject(new Error('Bad params: '+ JSON.stringify(params)));
 
       return new Promise((resolve, reject) => bucket.get(id, params, (error, result) => error ? reject(error) : resolve(result)));
     }
 
-    function allDocs() {
-      const params = arguments[0] || {};
-
+    function allDocs(params = {}) {
       if (!Object.isObject(params)) return Promise.reject(new Error('Bad params: '+ JSON.stringify(params)));
 
       return new Promise((resolve, reject) => bucket.list(params, (error, result) => error ? reject(error) : resolve(result)));
     }
 
-    function query() {
-      const designname = arguments[0];
-      const viewname = arguments[1];
-      const params = arguments[2] || {};
-
+    function query(designname, viewname, params = {}) {
       if (!designname) return Promise.reject(new Error('Bad design document name: '+ designname));
       if (!viewname) return Promise.reject(new Error('Bad view name: '+ viewname));
       if (!Object.isObject(params)) return Promise.reject(new Error('Bad params: '+ JSON.stringify(params)));
