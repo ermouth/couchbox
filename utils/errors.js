@@ -1,7 +1,6 @@
 class LocaleError extends Error {
-  constructor(message) {
+  constructor(message, error) {
     const locales = {};
-    let error;
 
     if (Object.isString(message)) {
       const locale = message.split(' ', 1)[0];
@@ -12,8 +11,10 @@ class LocaleError extends Error {
       Object.keys(message).forEach(locale => {
         if (LocaleError.checkLocale(locale)) locales[locale] = message[locale];
       });
+    } else if (message instanceof LocaleError) {
+      return message;
     } else if (message instanceof Error) {
-      error = message;
+      if (!error) error = message;
       locales['EN'] = error.message;
     }
 
