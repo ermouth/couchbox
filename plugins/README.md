@@ -8,6 +8,20 @@ Plugins are configured on init with an object, parsed from JSON string,
 taken from CouchDB config. Plugin named `xyz.js` imlements `this._xyz`
 and receives config from the key `couchbox_plugins/xyz`.
 
+Couchbox built-in plugins, in AZ order:
+
+__Plugin__ | Description
+---|---
+[this.\bank](#this_bank) | Access to SBRF API for web merchants.
+[this.\bucket](#this_bucket) | Provides access to CouchDB bucket.
+[this.\cache](#this_cache) | Redis-backed fast cache.
+[this.\email](#this_email) | Email sender.
+[this.\fetch](#this_cache) | Access to CouchDB across nodes.
+this.\jpegtran | Proxy method for jpegtran lib.
+[this.\kkm](#this_kkm) | Fiscal reports, required in Russia since 2017.
+this.\sms | Sends SMS.
+[this.\socket](#this_socket) | Sends messages to socket.
+
 ----
 
 ## this.\_bucket
