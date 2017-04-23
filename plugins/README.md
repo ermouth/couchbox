@@ -168,6 +168,20 @@ an attach. Only properties ensuring no sandbox escape are allowed.
 
 ## this.\_socket
 
+Method, sends message to a socket. Wrapper over [socket.io](https://socket.io/), 
+only allowing to send. Returns a promise, fulfilled on success and rejected on fail.
+
+Syntax is `this.\_socket (channel'', message) → Promise → true`. A message can 
+be of any JSONable type, channel name should be a string.
+
+Unlike other plugins, the socket plugin is configured in the main `couchbox` config 
+section under the `socket` key. The value should be stringified JSON, like
+`{"active":true,"port":8000,"path":"/_socket"}`. 
+
+At the client side socketio should connect using both port and path from the config.
+
+Socket connections do not require user to be authorized.
+
 ---
 
 ## this.\_kkm
