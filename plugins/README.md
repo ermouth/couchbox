@@ -12,15 +12,15 @@ Couchbox built-in plugins, in AZ order:
 
 __Plugin__ | Description
 ---|---
-[this.\bank](#this_bank) | Access to SBRF API for web merchants.
-[this.\bucket](#this_bucket) | Provides access to CouchDB bucket.
-[this.\cache](#this_cache) | Redis-backed fast cache.
-[this.\email](#this_email) | Email sender.
-[this.\fetch](#this_cache) | Access to CouchDB across nodes.
-this.\jpegtran | Proxy method for jpegtran lib.
-[this.\kkm](#this_kkm) | Fiscal reports, required in Russia since 2017.
+[this.\_bank](#this_bank) | Access to SBRF API for web merchants.
+[this.\_bucket](#this_bucket) | Provides access to CouchDB bucket.
+[this.\_cache](#this_cache) | Redis-backed fast cache.
+[this.\_email](#this_email) | Email sender.
+[this.\_fetch](#this_cache) | Access to CouchDB across nodes.
+this.\_jpegtran | Proxy method for jpegtran lib.
+[this.\_kkm](#this_kkm) | Fiscal reports, required in Russia since 2017.
 this.\sms | Sends SMS.
-[this.\socket](#this_socket) | Sends messages to socket.
+[this.\_socket](#this_socket) | Sends messages to socket.
 
 ----
 
