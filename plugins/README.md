@@ -120,7 +120,7 @@ Stores `data` of any JSONable type under the `key`, that must be a string. Optio
 The `tags` property is an optional object like `{tag1:10,tag2:[3,4]}`. Tags are useful
 for massive group cache invalidation.
 
-#### this.\_cache(key'',data,tags{}*) → Promise
+#### this.\_cache(key'',data,tags{}?) → Promise
 
 Stores `data` under `key` with optional `tags`. More expressive alias for saving data.
 
@@ -168,14 +168,14 @@ an attach. Only properties ensuring no sandbox escape are allowed.
 
 ## this.\_socket
 
-Method, sends message to a socket. Wrapper over [socket.io](https://socket.io/), 
+Method, sends a message to a socket. Wrapper over [socket.io](https://socket.io/), 
 only allowing to send. Returns a promise, fulfilled on success and rejected on fail.
 
-Syntax is `this.\_socket (channel'', message) → Promise → true`. A message can 
+Syntax is `this._socket (channel'', message) → Promise → true`. A message can 
 be of any JSONable type, channel name should be a string.
 
 Unlike other plugins, the socket plugin is configured in the main `couchbox` config 
-section under the `socket` key. The value should be stringified JSON, like
+section, under the `socket` key. The value should be stringified JSON, like
 `{"active":true,"port":8000,"path":"/_socket"}`. 
 
 At the client side socketio should connect using both port and path from the config.
@@ -186,15 +186,17 @@ Socket connections do not require user to be authorized.
 
 ## this.\_kkm
 
-The `this._kkm` method provides access to [kkm server](https://kkmserver.ru/KkmServer). 
+The `this._kkm` method provides access to pre-configured and running
+[kkm server](https://kkmserver.ru/KkmServer). The plugin provides fiscal reports,
+required for web strores in Russia since 2017.
 
 #### this.\_kkm('devices') → Promise
 
-Returns promise with list of devices
+Returns promise with a list of devices available.
 
 #### this.\_kkm('sell', deviceNum, userContact'', products, toPrint?) → Promise
 
-Register sell to client with products
+Registers payed deal (successful buy).
 
 Required:
 * `.deviceNum` num of kkm device (default = 0)
@@ -206,52 +208,52 @@ Not required
 
 #### this.\_kkm('open', deviceNum?]) → Promise
 
-Open shift
+Opens shift.
 
 #### this.\_kkm('zreport', deviceNum?]) → Promise
 
-Make ZReport
+Makes ZReport.
 
 #### this.\_kkm('xreport', deviceNum?]) → Promise
 
-Make XReport
+Makes XReport.
 
 #### this.\_kkm('status', deviceNum?]) → Promise
 
-Get device status
+Gets device status
 
 #### this.\_kkm('checkCommand', commandId]) → Promise
 
-Get command status
+Gets command status.
 
 #### this.\_kkm('lineLength', deviceNum?]) → Promise
 
-Get device line length
+Gets device line length.
 
 ---
 
 ## this.\_bank
 
-The `this._bank` method provides access to [Sberbank Api](https://developer.sberbank.ru/acquiring). 
+The `this._bank` method provides an access to [Sberbank acquiring API](https://developer.sberbank.ru/acquiring). 
 
-#### this.\_bank('register', {userName*, password*, orderNumber*, amount*, currency, returnUrl*, failUrl, description, language, pageView, clientId, merchantLogin, jsonParams, sessionTimeoutSecs, expirationDate, bindingId}) → Promise
+#### this.\_bank('register', opts={}) → Promise
 
-Register new order with props:
+Registers an order using the opts object of properties:
 
-Required:
-* `.userName` login from api
-* `.password` password from api
+Required props:
+* `.userName`    login from api
+* `.password`    password from api
 * `.orderNumber` order number in shop
-* `.amount` price of order
-* `.returnUrl` absolute link for redirect after `GOOD` result
+* `.amount`      price of order
+* `.returnUrl`   absolute link for redirect after `GOOD` result
 
-Not required
-* `.currency` order currency in `ISO 4217`
-* `.failUrl` absolute link for redirect after `BAD` result
+Optional props:
+* `.currency`    order currency in `ISO 4217`
+* `.failUrl`     absolute link for redirect after `BAD` result
 * `.description` order description
-* `.language` language in `ISO 639-1`
-* `.pageView` interface type `DESKTOP | MOBILE | custom template`
-* `.clientId` client id in shop
+* `.language`    language in `ISO 639-1`
+* `.pageView`    interface type `DESKTOP | MOBILE | custom template`
+* `.clientId`    client id in shop
 * `.merchantLogin` for register order from child merchant
 * `.jsonParams` custom json meta
 * `.sessionTimeoutSecs` order TTL - `default 1200 sec = 20 min`
@@ -260,14 +262,14 @@ Not required
 
 #### this.\_bank('reverse', {userName*, password*, orderId*, language}) → Promise
 
-Reverse order by `id`:
+Reverses (cancels) an order.
 
-Required:
+Required options properties:
 * `.userName` login from api
 * `.password` password from api
-* `.orderId` order id in bank
+* `.orderId`  order id, bank generated
 
-Not required
+Optional properties:
 * `.language` language in `ISO 639-1`
 
 #### this.\_bank('getOrderStatus', {userName*, password*, orderId*, language}) → Promise
@@ -277,9 +279,9 @@ Load order status by `id`
 Required:
 * `.userName` login from api
 * `.password` password from api
-* `.orderId` order id in bank
+* `.orderId`  order id, bank generated
 
-Not required
+Optional:
 * `.language` language in `ISO 639-1`
 
 #### this.\_bank('getOrderStatusExtended', {userName*, password*, orderId*, orderNumber*, language}) → Promise
@@ -287,33 +289,33 @@ Not required
 Load order status by `id` in bank and `id` in shop 
 
 Required:
-* `.userName` login from api
-* `.password` password from api
-* `.orderId` order id in bank
-* `.orderNumber` order id in shop
+* `.userName`    login from api
+* `.password`    password from api
+* `.orderId`     order id, bank generated
+* `.orderNumber` order id, local
 
-Not required
+Optional:
 * `.language` language in `ISO 639-1`
 
 #### this.\_bank('verifyEnrollment', {userName*, password*, pan*}) → Promise
 
-Verify card 3d secure
+Verifies if a card is 3d secure memeber.
 
 Required:
 * `.userName` login from api
 * `.password` password from api
-* `.pan` card number `12..19`
+* `.pan`      card number `12..19`
 
 #### this.\_bank('getLastOrdersForMerchants', {userName*, password*, language, page, size*, from*, to*, transactionStates*, merchants*, searchByCreatedDate}) → Promise
 
-Load orders
+Fetches orders by several filter criteria.
 
 Required:
 * `.userName` login from api
 * `.password` password from api
-* `.size` count elements per page
-* `.from` from date `YYYYMMDDHHmmss`
-* `.to` to date `YYYYMMDDHHmmss`
+* `.size`     count elements per page
+* `.from`     from date `YYYYMMDDHHmmss`
+* `.to`       to date `YYYYMMDDHHmmss`
 * `.transactionStates` orders states `CREATED, APPROVED, DEPOSITED, DECLINED, REVERSED, REFUNDED`
 * `.merchants` list of merchantes
 * `.searchByCreatedDate` `true`- search by date of created `false`- by date of payment `default false`
@@ -323,7 +325,7 @@ Required:
 Refund money from order by `id`
 
 Required:
-* `.userName` login from api
-* `.password` password from api
-* `.orderId` order id in bank
-* `.amount` money amount
+* `.userName`  login from api
+* `.password`  password from api
+* `.orderId`   order id in bank
+* `.amount`    money amount
