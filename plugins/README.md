@@ -1,45 +1,45 @@
 # Couchbox plugins
 
-Plugins allows hooks and REST API functions to communicate with outside world.
+Plugins allow hook and REST API functions to communicate with outside world.
 Each plugin exports a function or a class object, accesible through
 `this._methodname` during lambda runtime.
 
-Plugins are configured on init with an object, parsed from JSON string,
-taken from CouchDB config. Plugin named `xyz.js` imlements `this._xyz`
-and receives config from the key `couchbox_plugins/xyz`.
+Plugins are configured on init with an object, parsed from JSON string
+taken from CouchDB config. Plugin named `xyz.js` should implement `this._xyz`
+and receives config key `couchbox_plugins/xyz`.
 
 Couchbox built-in plugins, in AZ order:
 
 __Plugin__ | Description
 ---|---
 [this.\_bank](#this_bank) | Access to SBRF API for web merchants.
-[this.\_bucket](#this_bucket) | Provides access to CouchDB bucket.
+[this.\_bucket](#this_bucket) | Provides access to current CouchDB bucket.
 [this.\_cache](#this_cache) | Redis-backed fast cache.
 [this.\_email](#this_email) | Email sender.
 [this.\_fetch](#this_cache) | Access to CouchDB across nodes.
 this.\_jpegtran | Proxy method for jpegtran lib.
 [this.\_kkm](#this_kkm) | Fiscal reports, required in Russia since 2017.
-this.\sms | Sends SMS.
-[this.\_socket](#this_socket) | Sends messages to socket.
+this.\_sms | Sends SMS using sms.ru API.
+[this.\_socket](#this_socket) | Sends a message into a socket.
 
 ----
 
 ## this.\_bucket
 
 Object `this._bucket` provides read access to a bucket the lambda lives in,
-and has 3 methods: `get`, `allDocs` and `query`, each returns `Promise`.
+and has 3 methods: `get`, `allDocs` and `query`, each returns Promise.
 Actually, all three methods are just promisified and contextified Nano 
 functions.
 
 #### this.\_bucket.get (\_id'', opts{}?) 
 
-Reads a doc from CouchDB bucket, returns Promise, fulfilled with doc object.
+Reads a doc from CouchDB bucket, returns Promise, fulfilled with the doc object.
 See [Nano docs](https://github.com/dscape/nano#dbgetdocname-params-callback) 
-for more details on options.
+for more details about options.
 
 #### this.\_bucket.allDocs(opts{})
 
-Equivalent to Nano `db.list`, wrapping CouchDB `\_all\_docs` request. See 
+Equivalent to Nano `db.list`, wrapping CouchDB `_all_docs` request. See 
 [CouchDB docs](http://docs.couchdb.org/en/1.6.1/api/database/bulk-api.html#db-all-docs) 
 for list of available options.
 
@@ -54,15 +54,15 @@ method. Returns Promise, fulfilled with CouchDB response object.
 
 ## this.\_fetch
 
-Method `this._fetch` provides access to CouchDB instances across nodes 
-listed in `couchbox/nodes` config key.
+Method `this._fetch` provides an access to CouchDB nodes listed in `couchbox/nodes` 
+config key.
 
 Unlike `this._bucket`, fetch is more low-level. It requires knowing CouchDB API,
 and is able to return not only JSON, but Stream as well. Streams are useful for 
 piping attaches or long queries directly to client.
 
 Couchbox’s fetch is a thin wrapper around [node-fetch](https://www.npmjs.com/package/node-fetch).
-The difference is `this.\_fetch()` receives only one argument and restricts destinations
+The difference is `this._fetch()` receives only one argument and restricts destinations
 reacheable.
 
 ```javascript
@@ -105,7 +105,7 @@ this._fetch({url:'db/docid/filename.jpg'})
     })
 });
 ```
-Since `this.\_fetch` allows not only GET, but also PUT and POST requests, it can
+Since `this._fetch` allows not only GET, but also PUT and POST requests, it can
 write data during lambda execution. Writing data during lambda runtime is not
 recommended however.
 
@@ -117,7 +117,7 @@ The `_cache` method provides access to Redis-backed cache, based on
 [node-stow](https://github.com/cpsubrian/node-stow). 
 
 Cache is configured using JSON in `couchbox_plugins/cache` section and have only 
-one param `{"ttl":0}`. The `ttl` property defines default ttl for a cache entry,
+one param `{"ttl":0}`. The `ttl` property defines default ttl for new cache entry,
 _in seconds_. Zero creates forever lasting entries.
 
 #### this.\_cache(key'') → Promise → {key,data,tags,ttl}
@@ -182,11 +182,11 @@ an attach. Only properties ensuring no sandbox escape are allowed.
 
 ## this.\_socket
 
-Method, sends a message to a socket. Wrapper over [socket.io](https://socket.io/), 
-only allowing to send. Returns a promise, fulfilled on success and rejected on fail.
+Method, sends a message into a socket. Wraps [socket.io](https://socket.io/), 
+only allowing send. Returns Promise, fulfilled on success and rejected on fail.
 
 Syntax is `this._socket (channel'', message) → Promise → true`. A message can 
-be of any JSONable type, channel name should be a string.
+be of any JSONable type, a channel name should be a string.
 
 Unlike other plugins, the socket plugin is configured in the main `couchbox` config 
 section, under the `socket` key. The value should be stringified JSON, like
