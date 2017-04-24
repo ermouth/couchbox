@@ -1,6 +1,6 @@
 {
-  "name": "sandbox",
-  "version": "0.3.0",
+  "name": "couchbox",
+  "version": "0.3.1",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
