@@ -260,6 +260,7 @@ function Plugin(method, conf = {}, log) {
 
   const BANK_LOGIN = conf.login;
   const BANK_PASSWORD = conf.pass;
+  const BANK_MERCHANT = conf.merchant;
   const BANK_TIMEOUT = conf.timeout || 5000;
 
   (conf.languages && conf.languages.length > 0 ? conf.languages : DEFAULT_LANGS).forEach(lang => languages.add(lang));
@@ -398,7 +399,7 @@ function Plugin(method, conf = {}, log) {
       check_language(language),
       check_pageView(pageView),
       check_clientId(clientId),
-      check_merchantLogin(merchantLogin),
+      check_merchantLogin(merchantLogin || BANK_MERCHANT),
       check_jsonParams(jsonParams),
       check_sessionTimeoutSecs(sessionTimeoutSecs),
       check_expirationDate(expirationDate),
@@ -530,7 +531,7 @@ function Plugin(method, conf = {}, log) {
       check_size(size),
       check_from_to(from, to),
       check_transactionStates(transactionStates),
-      check_merchants(merchants),
+      check_merchants(merchants || [BANK_MERCHANT]),
       check_searchByCreatedDate(searchByCreatedDate)
     ]).then(([
       userName, password, language, page, size, [from, to], transactionStates, merchants, searchByCreatedDate
