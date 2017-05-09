@@ -14,7 +14,8 @@ Unlike CouchDB, Couchbox only tracks ddocs explicitly listed in configs,
 and each ddoc has own set of available aux methods, also defined in CouchDB config. 
 To manage feed states properly, Couchbox requires [Redis](#redis).
 
-Couchbox is intended for CouchDB 1.5–1.6.1.
+Couchbox is intended for CouchDB 1.5–1.6.1 and specially designed for large 
+multi-node projects.
 
 ## Hooks
 
@@ -59,9 +60,9 @@ A hook object has 3 properties:
 * `.mode`, defines an [order of doc revs processing](#hooks-modes).
 
 Lambda function receives a doc as an argument and must call `resolve()` or `reject()`
-function in `.timeout` timeframe, or it is assumed rejected. Lambda is not allowed
+ in `.timeout` timeframe, or it is assumed rejected. Lambda is not allowed
 to return Promise for safety reasons: a wrapper Promise must be able to auto-reject
-on timeout and handle uncaught error, so it’s safer to instantiate Promise outside
+on timeout and handle uncaught errors, so it’s safer to instantiate Promise outside
 lambda code.
 
 Lambdas have access to aux functions using `this._method` syntax, so aux functions look
@@ -88,13 +89,25 @@ The `.docs` array can be non-plain, any row can be an array of docs also.
 In this case all docs of the row are saved simultaneously, and next row is processed
 only after all docs are saved successfully.
 
+``` javascript
+resolve ({
+  code:200, docs:[
+    [{_id:'A',_node:'N1',_db:'db1'},{_id:'B',_node:'N2',_db:'db1'}],
+    [{_id:'C',_node:'N3',_db:'db1'}],
+    {_id:'D'}
+  ]
+})
+```
+Above code will attempt to save docs `A` and `B` simultaneously. If succeed, 
+the `C` doc is saved, and, on sucess, the `D` doc.
+
 ### Hooks modes
 
 Each hook definition may have `.mode` property of values `"sequential"`, `"transitive"`
 or `"parallel"`. Default is transitive.
 
 Mode defines hook behavior when there is an unprocessed queue of changes of
-a single particular doc.
+a single particular doc. 
 
 __Parallel__ mode allows to run a hook for each change of a particular doc. So several
 instances of a hook, processing different revisions of a doc, may run simultaneously.
@@ -110,8 +123,8 @@ it only takes the last revision in queue.
 ### Hooks configuration
 
 Hooks are configured in `couchbox_hooks` section of CouchDB config. Each key in 
-the `couchbox_hooks` section is a pointer to ddoc, and its value is a space 
-separated list of aux fns, available for hooks in the ddoc. In JSON format it 
+the `couchbox_hooks` section is a pointer to a ddoc, and its value is a space 
+separated list of aux fns (plugins), available for hooks in the ddoc. In JSON format it 
 might look like this:
 
 ```
@@ -132,7 +145,7 @@ Key’s value ie `bucket fetch sms` means all hooks in a particular ddoc will se
 
 TLDR: one hook worker per one CouchDB bucket (DB).
 
-All hooks originating from one CouchDB bucket run in one worker thread. This is
+All hooks originating from one CouchDB bucket run in a single-threaded worker. This is
 different from CouchDB query server model, where each ddoc has own SpiderMonkey
 instance.
 
@@ -142,7 +155,7 @@ hook runs in a separate node.js `vm` context.
 
 __Note__, that REST API employs yet another model of workers, also different from CouchDB.
 
-On any DB ddoc change hook worker must restart entirely. In this case running fns aren’t
+On any DB ddoc change a hook worker must restart entirely. In this case running fns aren’t
 killed immediately, they are allowed to resolve/reject each. Worker to die receives
 \_changes until new worker successfully starts, then waits for running jobs to finish,
 and then terminates itself.
@@ -182,11 +195,11 @@ Appropriate CouchDB config section may look like this...
 }}
 ```
 With above config, POST-ing to `abc.example.com/cmd/sendmail/all/immediate` will
-call lambda, that presumably sends emails (and we configured it to have an
+call lambda, which presumably sends emails (and we configured it to have an
 access to `this._email` extension to be able to act this way).
 
 Unrecognized requests (no matching rules) by default return `404`. However,
-if config key `couchbox/api` has `"fallback"` property with an URL, Couchbox proxies 
+if the `couchbox/api` config key has `"fallback"` property with an URL, Couchbox proxies 
 all unrecognized requests to the URL given. The `"hostKey"` property overrides
 `Host` header for proxied requests.
 
@@ -234,8 +247,8 @@ object should look like this:
   // stream: Stream,    // may be used instead of .body
   headers:{ /* response headers */ },
   docs:[
-    [{_id:"doc1"},{_id:"doc2",_db:"db2"}],    // first pile of docs to save
-    {_id:"doc3",_db:"db3",_node:"nodename"}   // doc to save after the first pile
+    [{_id:"doc1"},{_id:"doc2",_db:"db2"}],  // first pile of docs to save
+    {_id:"doc3",_db:"db3",_node:"n1"}       // doc to save after the first pile
   ]
 }
 ```
@@ -247,7 +260,7 @@ If there were any errors during saving docs, client receives `500` response.
 ### Api and workers
 
 TLDR: all REST API request listeners run in a single worker. However, several
-identical round-robin workers can run simultaneously in different threads.
+similar round-robin workers can run simultaneously in different threads.
 
 So Couchbox api feature provides a farm of identical monolith single-threaded
 web servers. On any monitored ddoc change all farm workers restart one by one,
