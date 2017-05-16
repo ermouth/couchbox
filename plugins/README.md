@@ -46,6 +46,7 @@ for list of available options.
 Returns Promise, fulfilled with CouchDB response object.
 
 #### this.\_bucket.query(ddoc'', view'', opts{}?)
+#### this.\_bucket.query(ddoc/view'', opts{}?)
 
 Wrapper for Nano [db.view](https://github.com/dscape/nano#dbviewdesignname-viewname-params-callback) 
 method. Returns Promise, fulfilled with CouchDB response object.
