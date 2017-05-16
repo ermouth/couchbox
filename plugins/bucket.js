@@ -31,19 +31,24 @@ function Plugin(method, conf, log) {
     }
 
     function query() {
-      var designname, viewname, params;
-      var al = arguments.length;
-      if (al == 2) {
-        [designname,viewname] = arguments[0].split('/');
-        params = arguments[1];
+      let design, view, params;
+      switch (arguments.length) {
+        case 2:
+          [ design, view ] = arguments[0].split('/');
+          params = arguments[1];
+          break;
+        case 3:
+          [ design, view, params ] = arguments;
+          break;
+        default:
+          return Promise.reject(new Error('Bad params'));
       }
-      else if (al == 3) [designname,viewname,params] = arguments;
-      
-      if (!designname) return Promise.reject(new Error('Bad design document name'));
-      if (!viewname) return Promise.reject(new Error('Bad view name in ddoc '+ designname));
+
+      if (!design) return Promise.reject(new Error('Bad design document name'));
+      if (!view) return Promise.reject(new Error('Bad view name in ddoc '+ design));
       if (!Object.isObject(params)) return Promise.reject(new Error('Bad params: '+ JSON.stringify(params).to(300)));
 
-      return new Promise((resolve, reject) => bucket.view(designname, viewname, params, (error, result) => error ? reject(error) : resolve(result)));
+      return new Promise((resolve, reject) => bucket.view(design, view, params, (error, result) => error ? reject(error) : resolve(result)));
     }
 
     return { get, allDocs, query };
