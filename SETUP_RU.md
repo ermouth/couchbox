@@ -325,6 +325,7 @@ Couchbox
     
     script
       export NODE_ENV="production"
+      export DB_USER="couchbox"
       export DB_PASS="couchbox"
       export LOGGER_DB="log"
       export LOGGER_DB_SAVE=true
