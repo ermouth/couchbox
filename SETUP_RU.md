@@ -338,6 +338,44 @@ Couchbox
       rm -f /var/run/$APP_NAME.pid
       echo "[`date -u +%Y-%m-%dT%T.%3NZ`] $APP_NAME stopping" >> $LOG_FILE
     end script
+    
+Пример конфигурации couchbox */home/couchbox/couchbox.json*
 
+    {
+      "cors": {
+        "origins": "http://cloudwall.me, http://jquerymy.com, http://ddoc.me, http://localhost, http://127.0.0.1, http://localhost:5984, http://127.0.0.1:5984, http://localhost:8888"
+      },
+      "couchbox": {
+        "api": "{active:true, ports:[8001], restart_delta:5000, hostKey:\"Host\", fallback:\"http://localhost:5984\"}",
+        "cold_start": "now",
+        "debug": "true",
+        "mail": "{ active:true, from:\"CouchBox\", recipients:\"recipient@someaddress.com\"}",
+        "max_parallel_changes": "16",
+        "nodename": "lc",
+        "nodes": "{ lc: \"https: //localhost:5984\"}",
+        "proxy": "{ active:true, port:8888, path:\"/\"}",
+        "redis_commander": "{ active:true, port:8881, user:\"rc\", pass:\"password\"}",
+        "redis_ip": "localhost",
+        "redis_password": "password",
+        "redis_port": "6379",
+        "socket": "{ active:true, port:8000, path:\"/_socket\"}"
+      },
+      "couchbox_plugins": {
+        "cache": "{\"ttl\": 60}",
+        "bank": "{\"login\":\"\",\"pass\":\"\",\"currencies\":[\"RUB\",\"USD\",\"EUR\"],\"languages\":[\"ru\",\"en\",\"uk\",\"be\"],\"timeout\":5000,\"merchant\":\"\"}",
+        "email": "{\"from\":\"\",\"service\":\"Yandex\",\"host\":\"smtp.yandex.ru\",\"port\":465,\"secure\":true,\"user\":\"\", \"pass\":\"\"}",
+        "sms": "{\"key\":\"\", \"from\":\"\"}",
+        "kkm": "{\"url\":\"http://localhost:5893\",\"login\":\"Admin\",\"password\":\"\",\"timeout\":30,\"requestTimeout\":10000,\"company\":\"Couchbox\",\"cashier\":\"Couchbox software\",\"tax\":-1}"
+      },
+      "couchbox_api": {
+        "host|_route": "db/ddoc bucket socket cache jpegtran fetch email sms bank kkm"
+      },
+      "couchbox_hooks": {
+        "db|ddoc": "bucket socket cache jpegtran fetch email sms bank kkm"
+      }
+    }
 
+Установка конфигурации
+
+    /home/couchbox/couchbox/setup.js /home/couchbox/couchbox.json -n cb -ip 127.0.0.1 -port 5984 -u couchbox -p couchbox -c http://localhost,http://127.0.0.1 -s 12345678901234567890123456789012
 
