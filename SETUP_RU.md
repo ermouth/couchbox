@@ -1,30 +1,29 @@
-Couchbox setup
-===================
+Установка Couchbox в Ubuntu
+==================
 
-*prepare.sh*
+Обновление системы + зависимости
 
-    #!/bin/sh
-    # prepare server
-    
     sudo apt-get update -y
     sudo apt-get upgrade -y
-    sudo apt-get install build-essential curl -y
-    
-    echo "That's all...enjoy! ;)"
-    exit 0
+    sudo apt-get install build-essential curl git -y
 
-*couchdb-prepare.sh*
+Создание пользователя с sudo правами (например ubuntu)
 
-    #!/bin/sh
-    # prepare install couchdb from source
-    # -- based on this installation https://github.com/pixelpark/ppnet/wiki/Install-CouchDB-1.6.1-on-Ubuntu-14.04
-    
+    adduser ubuntu
+    usermod -aG sudo ubuntu
+    su - ubuntu
+
+NodeJS
+
+    curl -sL https://deb.nodesource.com/setup_7.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+
+СouchDB
+------
+Зависимости + Erlang
+
     cd /tmp
-    
-    #prepare install erlang OTP17.0 (only for 14.04)  TODO: specific!
     wget http://packages.erlang-solutions.com/erlang-solutions_1.0_all.deb
-    #wget http://packages.erlang-solutions.com/site/esl/esl-erlang/FLAVOUR_1_esl/esl-erlang_17.4-2~ubuntu~trusty_amd64.deb
-    
     sudo dpkg -i erlang-solutions_1.0_all.deb
     sudo apt-get update
     sudo apt-get install erlang -y
@@ -36,17 +35,9 @@ Couchbox setup
     
     sudo apt-get install -y erlang-dev erlang-manpages erlang-base-hipe erlang-eunit erlang-nox erlang-xmerl erlang-inets
     sudo apt-get install -y libmozjs185-dev libicu-dev libcurl4-gnutls-dev libtool
-    
-    
-    echo "That's all...enjoy! ;)"
-    exit 0
 
-*couchdb-src.sh*
+Дистрибутив + патч (нужно скачать *configure* файл)
 
-    #!/bin/sh
-    # prepare couchdb 1.6.1
-    # via http://ftp.fau.de/apache/couchdb/source/1.6.1/
-    
     cd /tmp
     wget http://ftp.fau.de/apache/couchdb/source/1.6.1/apache-couchdb-1.6.1.tar.gz && tar xvzf apache-couchdb-*
     
@@ -54,21 +45,9 @@ Couchbox setup
     cp ~/install/configure ./
     ./configure && make
     sudo make install
-    
-    echo "That's all...enjoy! ;)"
-    exit 0
 
-*couchdb-setup.sh*
+Настройка + пользователь (couchdb) + автозагрузка
 
-    #!/bin/sh
-    
-    # Thefeed backend installer
-    # for ubuntu 14.04, 64bit
-    # update system, installs couchdb 1.6.1, nodejs
-    
-    # install couchdb from source
-    # -- based on this installation https://github.com/pixelpark/ppnet/wiki/Install-CouchDB-1.6.1-on-Ubuntu-14.04
-    
     ##############################################################################
     # vars
     ##############################################################################
@@ -86,7 +65,6 @@ Couchbox setup
     toend=$(tput hpa $(tput cols))$(tput cub 6)
     
     country=RU
-    
     
     
     ###############################################################################
@@ -156,8 +134,7 @@ Couchbox setup
     
     EOF
     
-    
-    
+        
     ##############################################################
     
     # create SSL
@@ -277,20 +254,14 @@ Couchbox setup
     sleep 5
     sudo start couchdb
     sleep 5
-    
-    
-    echo "That's all...enjoy! ;)"
-    exit 0
 
-*redis-insta.sh*
+Redis
+------
+Установка + автозагрузка
 
-    #!/bin/sh
-    # Install nginx from source with additional module
-    # for ubuntu 16.04, 64bit
-    
+    cd /tmp
     sudo apt-get update
     sudo apt-get install build-essential tcl -y
-    cd /tmp
     curl -O http://download.redis.io/redis-stable.tar.gz
     tar xzvf redis-stable.tar.gz
     cd redis-stable
@@ -300,8 +271,72 @@ Couchbox setup
     cd utils
     sudo ./install_server.sh
     sudo update-rc.d redis_6379 defaults
+
+Nginx
+------
+
+    sudo apt-get update
+    sudo apt-get install nginx
+
+Couchbox
+------
+
+Установка
+
+    useradd -d /home/couchbox couchbox
     
-    sleep 5
+    sudo chown -R couchbox:/home/couchbox
+    sudo chown -R couchbox: /usr/local/var/log/couchbox
+    sudo chmod 0770 /usr/local/var/log/couchbox
     
-    echo "That's all...enjoy! ;)"
-    exit 0
+    cd ~/
+    git pull git@gitlab.com:ermouth/couchbox.git
+    cd couchbox
+    npm install
+
+Скрипт автозапуска */etc/init/couchbox.conf*
+
+    #!upstart
+    description "Couchbox service"
+    author      "bismedia"
+    
+    start on started couchdb
+    stop on stopped couchdb
+    
+    respawn
+    respawn limit 10 5
+    
+    env NODE=/usr/local/bin/node
+    env APP_USER=couchbox
+    env APP_NAME=couchbox
+    env APP_DIR=/home/couchbox/couchbox
+    env APP_FILE=index.js
+    env LOGS_DIR=/usr/local/var/log
+    env LOG_DIR=/usr/local/var/log/couchbox
+    env LOG_FILE=/usr/local/var/log/couchbox/couchbox.log
+    
+    pre-start script
+      test -x $NODE || { stop; echo "Bad node"; exit 0; }
+      test -e $LOGS_DIR || { stop; echo "Bad log dir"; exit 0; }
+      test -e $LOG_DIR || { echo "Make dir $LOG_DIR"; mkdir $LOG_DIR; chown -R $APP_USER:$APP_USER $LOG_DIR; }
+      test -e $LOG_FILE || { echo "Make file $LOG_FILE"; touch $LOG_FILE; chown $APP_USER:$APP_USER $LOG_FILE; chmod 770 $LOG_FILE; }
+      echo "[`date -u +%Y-%m-%dT%T.%3NZ`] $APP_NAME starting" >> $LOG_FILE
+    end script
+    
+    script
+      export NODE_ENV="production"
+      export DB_PASS="couchbox"
+      export LOGGER_DB="log"
+      export LOGGER_DB_SAVE=true
+      export LOGGER_BULK_SIZE=100
+    
+      exec start-stop-daemon --start --chuid $APP_USER --make-pidfile --pidfile /var/run/$APP_NAME.pid --exec $NODE $APP_DIR/$APP_FILE >> $LOG_FILE 2>&1
+    end script
+    
+    pre-stop script
+      rm -f /var/run/$APP_NAME.pid
+      echo "[`date -u +%Y-%m-%dT%T.%3NZ`] $APP_NAME stopping" >> $LOG_FILE
+    end script
+
+
+
