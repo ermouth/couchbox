@@ -18,7 +18,6 @@ const checkAddress = (() => {
   return (address) => isS(address) && httpR.test(address) && domainR.test(address.replace(httpR, ''));
 })();
 
-
 const toSecret = secret => {
   if (!(isS(secret) && secret.length === 32)) {
     console.log('Generate new secret');
@@ -28,9 +27,19 @@ const toSecret = secret => {
   return secret;
 };
 
+const MODE_OVERWRITE  = 'MODE_OVERWRITE';
+const MODE_PATCH      = 'MODE_PATCH';
+const toMode = mode => {
+  switch (mode) {
+    case 'o':
+    case 'overwrite':
+      return MODE_OVERWRITE;
+    default:
+      return MODE_PATCH;
+  }
+};
+
 const CONFIG_PATH   = argv._[0];
-
-
 const NODE_NAME     = argv.n;
 const COUCHDB_USER  = argv.u;
 const COUCHDB_PASS  = argv.p;
@@ -39,6 +48,8 @@ const COUCHDB_PORT  = argv.port || 5984;
 const COUCHDB_URL   = 'http://'+ COUCHDB_USER +':'+ COUCHDB_PASS +'@'+ COUCHDB_IP +':'+ COUCHDB_PORT;
 const CORS          = (argv.c || '').split(',').filter(checkAddress);
 const SECRET        = toSecret(argv.s);
+const MODE          = toMode(argv.m);
+
 
 const dbQuery = (path) => fetch(COUCHDB_URL + path, {
   method: 'GET',
@@ -47,7 +58,6 @@ const dbQuery = (path) => fetch(COUCHDB_URL + path, {
     'Content-Type': 'application/json; charset=utf-8',
   }
 }).then(res => res.json());
-
 
 const removeConfigItem = (path) => {
   console.log('remove config item', path);
@@ -87,7 +97,7 @@ const saveConfigItem = (path, val) => {
     });
 };
 
-const getConfig = (filePath) => new Promise((resolve, reject) => {
+const getConfigFile = (filePath) => new Promise((resolve, reject) => {
   fs.stat(filePath, (errorCheck) => {
     if (errorCheck) return reject(errorCheck);
     fs.readFile(filePath, (errorLoad, res) => {
@@ -131,7 +141,7 @@ const checkParams = () => new Promise((resolve, reject) => {
 Promise.all([
   checkParams(),
   dbQuery('/_config'),
-  getConfig(CONFIG_PATH)
+  getConfigFile(CONFIG_PATH)
 ]).then(([params, conf, json]) => {
   const save_actions = [];
   const remove_actions = [];
@@ -139,16 +149,13 @@ Promise.all([
   if (conf.couchbox_hooks) Object.keys(conf.couchbox_hooks).forEach(key => remove_actions.push([ 'couchbox_hooks/'+ key ]));
   if (conf.couchbox_api) Object.keys(conf.couchbox_api).forEach(key => remove_actions.push([ 'couchbox_api/'+ key ]));
 
-
   const c = Object.extended({}).merge(json).merge(params, true);
-  Object.keys(c).forEach(k1 => Object.keys(c[k1]).forEach(k2 => {
-    console.log(k1,k2);
-    save_actions.push([k1 +'/'+ k2, c[k1][k2]]);
-  }));
+  Object.keys(c).forEach(k1 => Object.keys(c[k1]).forEach(k2 => save_actions.push([k1 +'/'+ k2, c[k1][k2]])));
 
-  return Promise.map(remove_actions, args => removeConfigItem.apply(this, args), { concurrency: 1 }).then(() => {
-    return Promise.map(save_actions, args => saveConfigItem.apply(this, args), {concurrency: 1});
-  });
+  const patchConfig = () => Promise.map(save_actions, args => saveConfigItem.apply(this, args), {concurrency: 1});
+
+  if (MODE === MODE_PATCH) return patchConfig();
+  return Promise.map(remove_actions, args => removeConfigItem.apply(this, args), { concurrency: 1 }).then(patchConfig);
 })
-  .then(res => console.dir(res))
-  .catch(err => console.error(err));
+  .catch(err => console.error(err))
+  .then(res => res.forEach(row => console.log(row.join('\n= '))));
