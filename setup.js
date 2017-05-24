@@ -51,6 +51,7 @@ const CORS          = (argv.c || '').split(',').filter(checkAddress);
 const SECRET        = toSecret(argv.s);
 const MODE          = toMode(argv.m);
 
+console.log('argv', argv);
 console.log('COUCHDB_USER', COUCHDB_USER);
 console.log('COUCHDB_PASS', COUCHDB_PASS);
 console.log('COUCHDB_PORT', COUCHDB_PORT);
