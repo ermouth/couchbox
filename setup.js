@@ -119,21 +119,23 @@ const getConfigFile = (filePath) => new Promise((resolve, reject) => {
 });
 
 const checkParams = () => new Promise((resolve, reject) => {
-  const rewrite = {
-    cors: {
-      origins: CORS.join(', ')
-    },
-    couch_httpd_auth: {
-      secret: SECRET
-    },
-    couchbox: {}
-  };
+  const rewrite = {};
 
-  if (NODE_NAME) {
-    if (!(isS(NODE_NAME) && NODE_NAME.length > 0)) return reject(new Error('Bad node name'));
-    rewrite.couchbox.nodename = NODE_NAME;
+  if (CORS && CORS.length > 0) {
+    rewrite.cors =  { origins: CORS.join(', ') };
   }
-  if (!(SECRET && isS(SECRET) && SECRET.length === 32)) return reject(new Error('Bad secret'));
+  if (NODE_NAME) {
+    if (!(isS(NODE_NAME) && NODE_NAME.length > 0)) {
+      return reject(new Error('Bad node name'));
+    }
+    rewrite.couchbox = { nodename: NODE_NAME };
+  }
+  if (SECRET) {
+    if (!(isS(SECRET) && SECRET.length === 32)) {
+      return reject(new Error('Bad secret'));
+    }
+    rewrite.couch_httpd_auth =  { secret: SECRET };
+  }
 
   resolve(rewrite);
 });
