@@ -51,6 +51,7 @@ const CORS          = (argv.c || '').split(',').filter(checkAddress);
 const SECRET        = toSecret(argv.s);
 const MODE          = toMode(argv.m);
 
+console.log('COUCHDB_URL', COUCHDB_URL);
 
 const dbQuery = (path) => fetch(COUCHDB_URL + path, {
   method: 'GET',
