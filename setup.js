@@ -19,9 +19,10 @@ const checkAddress = (() => {
 })();
 
 const toSecret = secret => {
+  if (secret === null || secret === undefined) return null;
   if (!(isS(secret) && secret.length === 32)) {
     console.log('Generate new secret');
-    secret = '' + Date.now() + (secret ||  Number.random(1000000, 10000000)).toString();
+    secret = '' + Date.now() + ((secret + '') ||  Number.random(1000000, 10000000)).toString();
     secret = crypto.createHash('md5').update(secret).digest("hex");
   }
   return secret;
