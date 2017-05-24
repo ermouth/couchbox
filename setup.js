@@ -160,5 +160,5 @@ Promise.all([
   if (MODE === MODE_PATCH) return patchConfig();
   return Promise.map(remove_actions, args => removeConfigItem.apply(this, args), { concurrency: 1 }).then(patchConfig);
 })
-  .catch(err => console.error(err))
-  .then(res => res.forEach(row => console.log(row.join('\n= '))));
+  .then(res => res.forEach(row => console.log(row.join('\n= '))))
+  .catch(err => console.error(err));
