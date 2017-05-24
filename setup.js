@@ -44,6 +44,7 @@ const CONFIG_PATH   = argv._[0];
 const NODE_NAME     = argv.n;
 const COUCHDB_USER  = argv.u;
 const COUCHDB_PASS  = argv.p;
+const REDIS_PASS    = argv.r;
 const COUCHDB_IP    = argv.A || '127.0.0.1';
 const COUCHDB_PORT  = argv.P || 5984;
 const COUCHDB_URL   = 'http://'+ COUCHDB_USER +':'+ COUCHDB_PASS +'@'+ COUCHDB_IP +':'+ COUCHDB_PORT;
@@ -119,7 +120,9 @@ const getConfigFile = (filePath) => new Promise((resolve, reject) => {
 });
 
 const checkParams = () => new Promise((resolve, reject) => {
-  const rewrite = {};
+  const rewrite = {
+    couchbox: {}
+  };
 
   if (CORS && CORS.length > 0) {
     rewrite.cors =  { origins: CORS.join(', ') };
@@ -128,13 +131,19 @@ const checkParams = () => new Promise((resolve, reject) => {
     if (!(isS(NODE_NAME) && NODE_NAME.length > 0)) {
       return reject(new Error('Bad node name'));
     }
-    rewrite.couchbox = { nodename: NODE_NAME };
+    rewrite.couchbox.nodename = NODE_NAME;
   }
   if (SECRET) {
     if (!(isS(SECRET) && SECRET.length === 32)) {
       return reject(new Error('Bad secret'));
     }
     rewrite.couch_httpd_auth =  { secret: SECRET };
+  }
+  if (REDIS_PASS) {
+    if (!(isS(REDIS_PASS) && REDIS_PASS.length > 0)) {
+      return reject(new Error('Bad redis password'));
+    }
+    rewrite.couchbox.redis_password = REDIS_PASS;
   }
 
   resolve(rewrite);
