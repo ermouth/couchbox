@@ -1,4 +1,4 @@
-# Couchbox
+# <img align="right" src="http://jquerymy.com/i/couchbox130.png" /> Couchbox
 
 Couchbox extends CouchDB query server with backstage \_changes feed hooks and
 configurable REST API. Both [hooks](#hooks) and [REST API](#rest-api) are functions
