@@ -34,11 +34,13 @@ function Plugin(method, conf, log) {
       let design, view, params;
       switch (arguments.length) {
         case 2:
-          [ design, view ] = arguments[0].split('/');
-          params = arguments[1];
-          break;
+          if (!!~arguments[0].indexOf('/')) {
+            [ design, view ] = arguments[0].split('/');
+            params = arguments[1] || {};
+            break;
+          }
         case 3:
-          [ design, view, params ] = arguments;
+          [design, view, params = {}] = arguments;
           break;
         default:
           return Promise.reject(new Error('Bad params'));
