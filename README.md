@@ -28,7 +28,7 @@ __Contents__ | Description
 Couchbox is intended for CouchDB 1.5–1.6.1 and specially designed for large 
 multi-node projects.
 
-There exist special repository, [Couchbox/install](/Couchbox/install/tree/master), 
+There exist special repository, [Couchbox/install](https://gitlab.com/Couchbox/install), 
 containing installation scripts. Scripts install nginx, CouchDB 1.6.1, Redis and 
 Couchbox itself, with all dependencies. Also special script configures autostarts.
 
