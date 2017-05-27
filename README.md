@@ -4,18 +4,36 @@ Couchbox extends CouchDB query server with backstage \_changes feed hooks and
 configurable REST API. Both [hooks](#hooks) and [REST API](#rest-api) are functions
 in design docs. Unlike native query server functions, couchbox parts are async and
 have per-ddoc configurable access to DB and outside world via 
-[aux methods](#plugins).
+[plugins](#plugins).
 
 Couchbox is multi-worker and employs [native CouchDB config](#configs). Once started, 
 Couchbox tracks changes in both CouchDB config and ddocs, and seamlessly restarts 
 appropriate workers.
 
 Unlike CouchDB, Couchbox only tracks ddocs explicitly listed in configs,
-and each ddoc has own set of available aux methods, also defined in CouchDB config. 
+and each ddoc has own set of available aux methods (plugins), also defined in CouchDB config. 
 To manage feed states properly, Couchbox requires [Redis](#redis).
+
+__Contents__ | Description
+---|---
+[Install](#install) | How to install Couchbox.
+[Hooks](#hooks) | Functions listening to _changes feeds and taking action on updates.
+[REST API](#rest_api) | Functions, receiving http requests.
+[Plugins](#plugins) | Plugins provide external services like email, SMS, fast cache etc.
+[Redis](#redis) | How and why Redis is used.
+[Configs](#configs) | How Couchbox is configured.
+
+## Install
 
 Couchbox is intended for CouchDB 1.5–1.6.1 and specially designed for large 
 multi-node projects.
+
+There exist special repository, [Couchbox/install](/Couchbox/install/tree/master), 
+containing installation scripts. Scripts install nginx, CouchDB 1.6.1, Redis and 
+Couchbox itself, with all dependencies. Also special script configures autostarts.
+
+Couchbox node deployment over clean OS takes 3–5 min and requires nearly zero 
+user interaction.
 
 ## Hooks
 
@@ -309,7 +327,10 @@ function Plugin(methodName, conf = {}, log) {
 module.exports = Plugin;
 ```
 
-[] TODO: list of built-in plugins
+### Built-in plugins
+
+Couchbox have several built-in plugins (e-mail, SMS, cache etc). Plugins are located 
+in `/plugins` folder. APIs are described in [/plugins/README.md](/Couchbox/couchbox/blob/master/plugins/README.md).
 
 ## Redis
 
