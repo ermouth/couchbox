@@ -18,7 +18,7 @@ __Contents__ | Description
 ---|---
 [Install](#install) | How to install Couchbox.
 [Hooks](#hooks) | Functions listening to _changes feeds and taking action on updates.
-[REST API](#rest_api) | Functions, receiving http requests.
+[REST API](#rest-api) | Functions, receiving http requests.
 [Plugins](#plugins) | Plugins provide external services like email, SMS, fast cache etc.
 [Redis](#redis) | How and why Redis is used.
 [Configs](#configs) | How Couchbox is configured.
