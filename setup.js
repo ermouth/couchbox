@@ -40,17 +40,19 @@ const toMode = mode => {
   }
 };
 
-const CONFIG_PATH   = argv._[0];
-const NODE_NAME     = argv.n;
-const COUCHDB_USER  = argv.u;
-const COUCHDB_PASS  = argv.p;
-const REDIS_PASS    = argv.r;
-const COUCHDB_IP    = argv.A || '127.0.0.1';
-const COUCHDB_PORT  = argv.P || 5984;
+const CONFIG_PATH   = isS(argv._[0]) ? argv._[0] : null;
+const NODE_NAME     = isS(argv.n) ? argv.n : null;
+const COUCHDB_USER  = isS(argv.u) ? argv.u : null;
+const COUCHDB_PASS  = isS(argv.p) ? argv.p : null;
+const REDIS_PASS    = isS(argv.r) ? argv.r : null;
+const COUCHDB_IP    = isS(argv.A) ? argv.A : '127.0.0.1';
+const COUCHDB_PORT  = isS(argv.P) ? argv.P : '5984';
+const CORS          = isS(argv.c) ? argv.c.split(',').filter(checkAddress) : [];
+const SECRET        = isS(argv.s) ? toSecret(argv.s) : null;
+const MODE          = isS(argv.m) ? toMode(argv.m) : null;
+
 const COUCHDB_URL   = 'http://'+ COUCHDB_USER +':'+ COUCHDB_PASS +'@'+ COUCHDB_IP +':'+ COUCHDB_PORT;
-const CORS          = (argv.c || '').split(',').filter(checkAddress);
-const SECRET        = toSecret(argv.s);
-const MODE          = toMode(argv.m);
+
 
 const dbQuery = (path) => fetch(COUCHDB_URL + path, {
   method: 'GET',
@@ -99,6 +101,7 @@ const saveConfigItem = (path, val) => {
 };
 
 const getConfigFile = (filePath) => new Promise((resolve, reject) => {
+  if (!(filePath && isS(filePath))) return {};
   fs.stat(filePath, (errorCheck) => {
     if (errorCheck) return reject(errorCheck);
     fs.readFile(filePath, (errorLoad, res) => {
