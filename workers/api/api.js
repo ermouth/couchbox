@@ -44,7 +44,7 @@ function API(props = {}) {
       const ddoc = dbParams[1];
       const methods = paramsIndex > 0 ? endpointVal.substring(paramsIndex + 1).split(/\s+/g).compact(true).unique() : [];
       if (!result[db]) result[db] = {};
-      const route = domain + API_URL_ROOT + endpoint;
+      const route = domain + (endpoint ? API_URL_ROOT + endpoint : '');
       result[db][route] = { domain, endpoint, db, ddoc, methods };
     });
     return result;
@@ -56,7 +56,7 @@ function API(props = {}) {
 
 
   // Default routes
-  router.addRoute('*', '_now', '', ['GET','POST'], (req) => Promise.resolve({
+  router.addRoute('*', '', '_now', ['GET','POST'], (req) => Promise.resolve({
     code: 200,
     headers: { 'Content-Type': 'text/plain' },
     body: Date.now().toString()

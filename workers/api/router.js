@@ -155,15 +155,15 @@ function Router(props = {}) {
     methods0 = methods0.map(m => m.toUpperCase()).filter(m => m in API_AVAILABLE_METHODS);
     if (!methods0 || !methods0.length) throw new Error('Empty methods');
     if (!domain) throw new Error('Empty domain');
-    if (!endpoint) throw new Error('Empty endpoint');
-    if (endpoint[0] !== API_URL_PREFIX) throw new Error('Bad endpoint: ' + endpoint);
+    // if (!endpoint) throw new Error('Empty endpoint');
+    // if (endpoint[0] !== API_URL_PREFIX) throw new Error('Bad endpoint: ' + endpoint);
     if (domain !=='*' && !path) throw new Error('Empty path');
     if (!handler) throw new Error('Empty handler');
-    if (domain !=='*' && !(endpoint && endpoint.length >= 1 && path && path.length >= 1 && path[0] !== ROOT_PATH)) throw new Error('Bad route');
+    if (domain !== '*' && !(path && path.length >= 1 && path[0] !== ROOT_PATH)) throw new Error('Bad route');
 
     const methods = {}; methods0.forEach(m => methods[m] = true);
 
-    const routeKey = domain + API_URL_ROOT + endpoint + (endpoint === API_URL_PREFIX ? '' : ROOT_PATH)+ path;
+    const routeKey = domain + API_URL_ROOT + endpoint + ROOT_PATH + path;
     routes.set(routeKey, { handler, bucket, methods });
     const fullPath = [domain, endpoint].concat(path.split(ROOT_PATH)).compact(true);
     addPath(fullPath, routeKey);

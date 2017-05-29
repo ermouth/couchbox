@@ -52,7 +52,7 @@ function Bucket(props = {}) {
     }).then(results => {
       const bucket = { name, getSeq, getBucket };
       results.forEach(info => {
-        if (!(info && info.domain && info.endpoint && info.api )) return null;
+        if (!(info && info.domain && info.api )) return null;
         if (info.timeout && timeout < info.timeout) timeout = info.timeout;
         const { domain, endpoint } = info;
         info.api.forEach(apiItem => {
