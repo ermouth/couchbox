@@ -15,7 +15,10 @@
     "redis_ip": "localhost",
     "redis_password": "password",
     "redis_port": "6379",
-    "socket": "{ \"active\":true, \"port\":8000, \"path\":\"/_socket\"}"
+    "socket": "{ \"active\":true, \"port\":8000, \"path\":\"/_socket\"}",
+    "log_db": "log",
+    "log_dbSave": false,
+    "log_bulkSize": 100
   },
   "couchbox_plugins": {
     "cache": "{\"ttl\": 60}",

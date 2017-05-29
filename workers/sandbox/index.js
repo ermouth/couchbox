@@ -135,6 +135,9 @@ module.exports = function initMaster(cluster) {
         ['couchbox.max_parallel_changes', 'max_parallel_changes'],
         ['couchbox.cold_start', 'cold_start'],
         ['couchbox.mail', 'mail'],
+        ['logger.db', 'log_db'],
+        ['logger.dbSave', 'log_dbSave'],
+        ['logger.bulkSize', 'log_bulkSize'],
 
 
         ['redis.ip', 'redis_ip'],
