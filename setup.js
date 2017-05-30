@@ -187,20 +187,50 @@ const checkParams = () => new Promise((resolve, reject) => {
 });
 
 
-const checkDB = (db) => {
-  // TODO: checkDB
-  return Promise.resolve();
+const checkDB = (dbName) => {
+  return fetch(COUCHDB_URL +'/'+ dbName, { method: 'HEAD' })
+    .then(res => {
+      if (res && res.status === 200) return true;
+      throw new Error('No db');
+    });
 };
 
-const createDB = (db) => {
-  // TODO: createDB
-  return Promise.resolve();
+const createDB = (dbName) => {
+  return fetch(COUCHDB_URL +'/'+ dbName, {
+    method: 'PUT',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json; charset=utf-8',
+    }
+  }).then(res => res.json())
+    .then(res => res && res.ok === true);
 };
 
-const saveDDoc = ([[db, name], json]) => {
-  // TODO: saveDDoc
-  return Promise.resolve();
-};
+
+const saveDDoc = ([[db, name], json]) => checkDB(db).catch(() => createDB(db)).then(() => {
+  return fetch(COUCHDB_URL +'/'+ db +'/'+ name, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json; charset=utf-8',
+    },
+    body: JSON.stringify(json)
+  }).then(res => res.json()).then(res => {
+
+    if (res && res._id && res._rev) {
+      json._rev = res._rev;
+    }
+
+    return fetch(COUCHDB_URL +'/'+ db +'/'+ name, {
+      method: 'PUT',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
+      },
+      body: JSON.stringify(json)
+    }).then(res => res.json()).then(res => [[db, name], res && res.ok === true]);
+  });
+});
 
 
 Promise.all([
@@ -221,7 +251,7 @@ Promise.all([
   const patchConfig = () => Promise.map(save_actions, args => saveConfigItem.apply(this, args), {concurrency: 1})
     .then(res => {
       res.forEach(row => console.log(row.join('\n= ')));
-      return Promise.map(ddocs, saveDDoc);
+      return Promise.map(ddocs, saveDDoc).then(res => res.forEach(row => console.log(row)));
     });
 
   if (MODE === MODE_PATCH) return patchConfig();
