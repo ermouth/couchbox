@@ -8,6 +8,7 @@ const fetch = require('node-fetch');
 
 const isS = Object.isString;
 const isO = Object.isObject;
+const isA = Object.isArray;
 const isB = Object.isBoolean;
 const isN = Object.isNumber;
 
@@ -41,6 +42,7 @@ const toMode = mode => {
 };
 
 const CONFIG_PATH   = isS(argv._[0]) ? argv._[0] : null;
+const DDOCS         = isS(argv.D) ? argv.D.split(',') : [];
 const NODE_NAME     = isS(argv.n) ? argv.n : null;
 const COUCHDB_USER  = isS(argv.u) ? argv.u : null;
 const COUCHDB_PASS  = isS(argv.p) ? argv.p : null;
@@ -122,6 +124,38 @@ const getConfigFile = (filePath) => new Promise((resolve, reject) => {
   });
 });
 
+
+const getDDoc = (filePath) => new Promise((resolve, reject) => {
+  if (!(filePath && isS(filePath))) return reject(new Error('Bad file path'));
+  fs.stat(filePath, (errorCheck) => {
+    if (errorCheck) return reject(errorCheck);
+    fs.readFile(filePath, (errorLoad, res) => {
+      if (errorLoad) return reject(errorLoad);
+      if (!res) return reject(new Error('No file'));
+      let json;
+      try {
+        json = JSON.parse(res.toString());
+      }
+      catch (errorParse) {
+        return reject(errorParse);
+      }
+      if (json && isO(json)) {
+        let i = filePath.lastIndexOf('/');
+        if (i >= 0) filePath = filePath.substr(i + 1, filePath.length - i - 1 - 5);
+        i = filePath.indexOf('=');
+        filePath = [filePath.substr(0, i), filePath.substr(i + 1).replace('-', '/')];
+        return resolve([filePath, json]);
+      }
+      return reject(new Error('Bad json'));
+    });
+  });
+});
+
+const getDDocs = (ddocs) => {
+  if (!(ddocs && isA(ddocs) && ddocs.length > 0)) return Promise.resolve([]);
+  return Promise.map(ddocs, getDDoc);
+};
+
 const checkParams = () => new Promise((resolve, reject) => {
   const rewrite = {
     couchbox: {}
@@ -152,11 +186,29 @@ const checkParams = () => new Promise((resolve, reject) => {
   resolve(rewrite);
 });
 
+
+const checkDB = (db) => {
+  // TODO: checkDB
+  return Promise.resolve();
+};
+
+const createDB = (db) => {
+  // TODO: createDB
+  return Promise.resolve();
+};
+
+const saveDDoc = ([[db, name], json]) => {
+  // TODO: saveDDoc
+  return Promise.resolve();
+};
+
+
 Promise.all([
   checkParams(),
   dbQuery('/_config'),
-  getConfigFile(CONFIG_PATH)
-]).then(([params, conf, json]) => {
+  getConfigFile(CONFIG_PATH),
+  getDDocs(DDOCS)
+]).then(([params, conf, json, ddocs]) => {
   const save_actions = [];
   const remove_actions = [];
 
@@ -166,10 +218,13 @@ Promise.all([
   const c = Object.extended({}).merge(json).merge(params, true);
   Object.keys(c).forEach(k1 => Object.keys(c[k1]).forEach(k2 => save_actions.push([k1 +'/'+ k2, c[k1][k2]])));
 
-  const patchConfig = () => Promise.map(save_actions, args => saveConfigItem.apply(this, args), {concurrency: 1});
+  const patchConfig = () => Promise.map(save_actions, args => saveConfigItem.apply(this, args), {concurrency: 1})
+    .then(res => {
+      res.forEach(row => console.log(row.join('\n= ')));
+      return Promise.map(ddocs, saveDDoc);
+    });
 
   if (MODE === MODE_PATCH) return patchConfig();
   return Promise.map(remove_actions, args => removeConfigItem.apply(this, args), { concurrency: 1 }).then(patchConfig);
 })
-  .then(res => res.forEach(row => console.log(row.join('\n= '))))
   .catch(err => console.error(err));

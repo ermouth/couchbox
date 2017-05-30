@@ -28,7 +28,6 @@
     "kkm": "{\"url\":\"http://localhost:5893\",\"login\":\"Admin\",\"password\":\"\",\"timeout\":30,\"requestTimeout\":10000,\"company\":\"Couchbox\",\"cashier\":\"Couchbox software\",\"tax\":-1}"
   },
   "couchbox_api": {
-    "localhost|_test": "test/test bucket socket cache jpegtran fetch email",
     "localhost|": "test/test bucket socket cache jpegtran fetch email"
   },
   "couchbox_hooks": {
