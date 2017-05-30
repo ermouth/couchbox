@@ -21,7 +21,7 @@ const {
 
 const {
   API_URL_ROOT,
-  API_URL_PREFIX,
+  API_DEFAULT_LOCALE,
   API_DEFAULT_CODE,
   API_DEFAULT_HEADERS,
   API_DEFAULT_METHODS,
@@ -76,7 +76,7 @@ const parseBody = (req) => {
 const makeRoute = (req) => {
   const { method, url } = req;
   const headers = Object.isObject(req.headers) ? req.headers : {};
-  const hostFull = (headers[config.get('api.hostKey')] || headers.host).split(':', 2);
+  const hostFull = (headers[config.get('api.hostKey')] || headers.host || '').split(':', 2);
   const host = hostFull[0];
   const port = hostFull[1]|0 || 80;
 
@@ -106,7 +106,7 @@ function Router(props = {}) {
     }
     if (!remoteAddress && req.socket && req.socket.remoteAddress) remoteAddress = req.socket.remoteAddress;
 
-    proxyReq.setHeader('Host', req.headers.host);
+    proxyReq.setHeader('Host', req.headers.host || '');
     proxyReq.setHeader('X-Forwarded-For', remoteAddress);
   }
   const proxyHTTP = httpProxy.createProxyServer({}).on('proxyReq', onProxyReq);
@@ -204,7 +204,7 @@ function Router(props = {}) {
 
       if (error instanceof Error) {
         if (req && req.headers && error.error) {
-          let errorLocale = new locale.Locales(req.headers['accept-language'])[0];
+          let errorLocale = new locale.Locales(req.headers['accept-language'] || API_DEFAULT_LOCALE)[0];
           if (errorLocale && errorLocale.language) errorLocale = errorLocale.language.toUpperCase();
           else errorLocale = 'EN';
           json.error = error.error.toString(errorLocale);
