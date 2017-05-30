@@ -10,7 +10,7 @@ RUN apt-get install -y sudo curl wget
 
 # Install node.js
 RUN curl -sL https://deb.nodesource.com/setup_7.x | sudo -E bash - && \
-    apt-get install -y python build-essential nodejs
+    apt-get install -y sendmail libjpeg-progs build-essential nodejs
 
 # Create app directory
 RUN mkdir -p /usr/app
