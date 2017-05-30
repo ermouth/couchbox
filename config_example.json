@@ -9,7 +9,7 @@
     "mail": "{ \"active\":true, \"from\":\"CouchBox\", \"recipients\":\"recipient@someaddress.com\"}",
     "max_parallel_changes": "16",
     "nodename": "lc",
-    "nodes": "{ \"lc\": \"https\": \"localhost:5984\"}",
+    "nodes": "{ \"lc\": \"https://localhost:5984\"}",
     "proxy": "{ \"active\":true, \"port\":8888, \"path\":\"/\"}",
     "redis_commander": "{ \"active\":false, \"port\":8881, \"user\":\"rc\", \"pass\":\"password\"}",
     "redis_ip": "localhost",
