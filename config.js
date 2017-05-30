@@ -283,7 +283,7 @@ const defaultConfig = {
 
   'api': {
     env: 'API',
-    value: {"active":false,"ports":[8001],"restart_delta":5000, "hostKey":"Host"},
+    value: { active:false, ports:[8001], restart_delta:5000, hostKey:'host' },
     str: strJSON,
     map: mapJSON,
     check: checkJSON

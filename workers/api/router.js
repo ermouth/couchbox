@@ -11,6 +11,9 @@ const config = require('../../config');
 
 
 const DEBUG = config.get('debug');
+const isO = Object.isObject;
+const isA = Object.isArray;
+
 
 const {
   NotFoundError,
@@ -34,12 +37,14 @@ const {
   CORS_METHODS,
   CORS_HEADES,
   LOG_EVENTS: {
-    API_SAVE, API_REQUEST_ERROR, API_REQUEST_REJECT
+    API_SAVE,
+    API_REQUEST_ERROR,
+    API_REQUEST_REJECT
   }
 } = require('./constants');
 
 const ROOT_PATH = '/';
-const PAGE_GENERATION_PROP = 'X-Page-Generation';
+const PAGE_GENERATION_PROP = 'x-page-generation';
 
 const corsHeads = (request) => {
   const headers = API_DEFAULT_HEADERS;
@@ -47,41 +52,38 @@ const corsHeads = (request) => {
   if (!CORS) return Promise.reject(new BadReferrerError());
   const rule = CORS_ORIGINS['*'] ? '*' : CORS_ORIGINS[request.headers.origin] ? request.headers.origin : null;
   if (!rule) return Promise.reject(new BadReferrerError());
-  headers['Access-Control-Allow-Origin'] = rule;
-  headers['Access-Control-Allow-Headers'] = CORS_HEADES || '';
-  headers['Access-Control-Allow-Methods'] = CORS_METHODS || '';
-  headers['Access-Control-Allow-Credentials'] = CORS_CREDENTIALS;
+  headers['access-control-allow-origin'] = rule;
+  headers['access-control-allow-headers'] = CORS_HEADES || '';
+  headers['access-control-allow-methods'] = CORS_METHODS || '';
+  headers['access-control-allow-credentials'] = CORS_CREDENTIALS;
   return Promise.resolve({ headers });
 };
 
-const parseBody = (req) => {
+const parseBody = (req) => new Promise((resolve, reject) => {
   switch (req.method) {
     case 'DELETE':
     case 'HEAD':
-      return Promise.resolve('');
+      resolve('');
+      break;
     case 'GET':
-      return Promise.resolve(undefined);
+      resolve(undefined);
       break;
     default:
-      return new Promise((resolve, reject) => {
-        const body = [];
-        req
-          .on('data', chunk => body.push(chunk))
-          .on('end', () => resolve(Buffer.concat(body).toString()))
-          .on('error', error => reject(error));
-      });
+      const body = [];
+      req
+        .on('data', chunk => body.push(chunk))
+        .on('end', () => resolve(Buffer.concat(body).toString()))
+        .on('error', error => reject(error));
   }
-};
+});
 
 const makeRoute = (req) => {
   const { method, url } = req;
-  const headers = Object.isObject(req.headers) ? req.headers : {};
-  const hostFull = (headers[config.get('api.hostKey')] || headers.host || '').split(':', 2);
+  const headers = isO(req.headers) ? req.headers : {};
+  const hostFull = (headers[config.get('api.hostKey')] || headers.host || ':80').split(':', 2);
   const host = hostFull[0];
-  const port = hostFull[1]|0 || 80;
-
+  const port = (hostFull[1]|0) || 80;
   const peer = headers['x-forwarded-for'] || headers.referer;
-
   const queryIndex = url.indexOf('?');
   const raw_path = queryIndex >= 0 ? url.substring(0, queryIndex) : url;
   const query = queryIndex >= 0 ? queryString.parse(url.substring(queryIndex + 1)) : {};
@@ -106,8 +108,8 @@ function Router(props = {}) {
     }
     if (!remoteAddress && req.socket && req.socket.remoteAddress) remoteAddress = req.socket.remoteAddress;
 
-    proxyReq.setHeader('Host', req.headers.host || '');
-    proxyReq.setHeader('X-Forwarded-For', remoteAddress);
+    proxyReq.setHeader('host', req.headers.host || '');
+    proxyReq.setHeader('x-forwarded-for', remoteAddress);
   }
   const proxyHTTP = httpProxy.createProxyServer({}).on('proxyReq', onProxyReq);
 
@@ -119,9 +121,9 @@ function Router(props = {}) {
     const node = (parent || paths)[p];
     if (node) {
       if (path.length) return findRoute(path, node);
-      return Object.isObject(node) ? node[ROOT_PATH] : node;
+      return isO(node) ? node[ROOT_PATH] : node;
     }
-    return Object.isObject(parent) ? parent[ROOT_PATH] : parent;
+    return isO(parent) ? parent[ROOT_PATH] : parent;
   };
   const getRoute = (host, path, method) => {
     const routeKey = findRoute([host].concat(path).compact(true));
@@ -141,7 +143,7 @@ function Router(props = {}) {
         const parentPath = path.slice(0, index - 1).join(separator);
         const parent = lib.getField(paths, parentPath, separator);
         if (parent) {
-          if (!Object.isObject(parent)) lib.addField(paths, parentPath, { [ROOT_PATH]: parent }, separator);
+          if (!isO(parent)) lib.addField(paths, parentPath, { [ROOT_PATH]: parent }, separator);
           lib.addField(paths, p, val, separator);
         }
       } else {
@@ -155,13 +157,12 @@ function Router(props = {}) {
     methods0 = methods0.map(m => m.toUpperCase()).filter(m => m in API_AVAILABLE_METHODS);
     if (!methods0 || !methods0.length) throw new Error('Empty methods');
     if (!domain) throw new Error('Empty domain');
-    // if (!endpoint) throw new Error('Empty endpoint');
-    // if (endpoint[0] !== API_URL_PREFIX) throw new Error('Bad endpoint: ' + endpoint);
     if (domain !=='*' && !path) throw new Error('Empty path');
     if (!handler) throw new Error('Empty handler');
     if (domain !== '*' && !(path && path.length >= 1 && path[0] !== ROOT_PATH)) throw new Error('Bad route');
 
-    const methods = {}; methods0.forEach(m => methods[m] = true);
+    const methods = {};
+    methods0.forEach(m => methods[m] = true);
 
     const routeKey = domain + API_URL_ROOT + endpoint + ROOT_PATH + path;
     routes.set(routeKey, { handler, bucket, methods });
@@ -212,7 +213,7 @@ function Router(props = {}) {
           json.error = error.message;
         }
       } else {
-        if (Object.isObject(error)) {
+        if (isO(error)) {
           json.error = new Error(error.message || error.error);
         } else {
           json.error = new Error(error);
@@ -230,7 +231,7 @@ function Router(props = {}) {
     if (result.stream && result.stream.pipe) {
       // Stream
       headers[PAGE_GENERATION_PROP] = Date.now() - req.headers[PAGE_GENERATION_PROP];
-      headers['X-Accel-Buffering'] = 'no';
+      headers['x-accel-buffering'] = 'no';
       res.writeHead(code, headers); // disable nginx cache for stream
 
       result.stream
@@ -257,7 +258,7 @@ function Router(props = {}) {
       // Body
       if (result.json) {
         // JSON sugar
-        headers['Content-Type'] = 'application/json; charset=UTF-8';
+        headers['content-type'] = 'application/json; charset=UTF-8';
         try {
           result.body = JSON.stringify(result.json);
         } catch (error) {
@@ -329,7 +330,7 @@ function Router(props = {}) {
     let processPromise;
 
     const processRequest = (request) => route.handler(request).then(result => {
-      if (route.bucket && Object.isArray(result.docs) && result.docs.length > 0) {
+      if (route.bucket && isA(result.docs) && result.docs.length > 0) {
         return saveResults(route.bucket.getBucket(), result.docs).then(() => {
           log({
             message: 'Saved api results: "' + request.raw_path + '"',

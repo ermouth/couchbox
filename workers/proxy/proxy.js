@@ -46,8 +46,8 @@ function ProxyWorker(props = {}) {
     }
     if (!remoteAddress && req.socket && req.socket.remoteAddress) remoteAddress = req.socket.remoteAddress;
 
-    proxyReq.setHeader('Host', req.headers.host);
-    proxyReq.setHeader('X-Forwarded-For', remoteAddress);
+    proxyReq.setHeader('host', req.headers.host);
+    proxyReq.setHeader('x-forwarded-for', remoteAddress);
   }
 
   const proxyHTTP = httpProxy.createProxyServer({}).on('proxyReq', onProxyReq);
