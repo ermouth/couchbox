@@ -188,7 +188,7 @@ sections in ddocs, although without complimentary filter.
 
 Appropriate CouchDB config section may look like this...
 ```
-"api":{
+"couchbox_api":{
   "abc.example.com|cmd|sendmail":"db1/mail bucket email",
   "def.example.com":"db2/ddoc2 bucket"
 }
