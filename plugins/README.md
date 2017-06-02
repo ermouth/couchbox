@@ -19,6 +19,7 @@ __Plugin__ | Description
 [this.\_fetch](#this_cache) | Access to CouchDB across nodes.
 this.\_jpegtran | Proxy method for jpegtran lib.
 [this.\_kkm](#this_kkm) | Fiscal reports, required in Russia since 2017.
+[this.\_redis](#this_redis) | Direct access to Redis.
 this.\_sms | Sends SMS using sms.ru API.
 [this.\_socket](#this_socket) | Sends a message into a socket.
 
@@ -109,6 +110,18 @@ this._fetch({url:'db/docid/filename.jpg'})
 Since `this._fetch` allows not only GET, but also PUT and POST requests, it can
 write data during lambda execution. Writing data during lambda runtime is not
 recommended however.
+
+---
+
+## this.\_redis
+
+The `_redis` methods is a thin wrapper around 
+[node-redis](https://github.com/NodeRedis/node_redis) client. All commands of 
+original lib are supported in promisified form.
+
+Think twice if you’re going to set event trackers (`.on(evt)`) from inside either 
+hooks or api lambdas, it may cause strange errors very hard to debug. The module 
+is mostly intended to read/write data.
 
 ---
 
