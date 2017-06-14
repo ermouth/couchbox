@@ -21,6 +21,7 @@ const {
   SendingError,
   BadRequestError,
   BadReferrerError
+  //, HttpError
 } = require('../../utils/errors');
 
 const {
@@ -48,7 +49,7 @@ const ROOT_PATH = '/';
 const PAGE_GENERATION_PROP = 'x-page-generation';
 
 const corsHeads = (request) => {
-  const headers = API_DEFAULT_HEADERS;
+  const headers = Object.clone(API_DEFAULT_HEADERS, true);
   if (!(request && request.headers && request.headers.origin)) return Promise.resolve({ headers });
   if (!CORS) return Promise.reject(new BadReferrerError());
   const rule = CORS_ORIGINS['*'] ? '*' : CORS_ORIGINS[request.headers.origin] ? request.headers.origin : null;
@@ -194,6 +195,7 @@ function Router(props = {}) {
   };
 
   const makeError = (error, req) => {
+    // TODO: parse HttpError
     let code = 500;
     const json = {
       error: 'not_found',
@@ -343,6 +345,7 @@ function Router(props = {}) {
       }
       return result;
     });
+
 
     if (request.headers.origin) {
       if (request.method === 'OPTIONS') {
