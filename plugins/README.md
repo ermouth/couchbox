@@ -22,6 +22,7 @@ this.\_jpegtran | Proxy method for jpegtran lib.
 [this.\_redis](#this_redis) | Direct access to Redis.
 this.\_sms | Sends SMS using sms.ru API.
 [this.\_socket](#this_socket) | Sends a message into a socket.
+[this.\_html2pdf](#this_html2pdf) | Sends a message into a socket.
 
 ----
 
@@ -209,6 +210,18 @@ section, under the `socket` key. The value should be stringified JSON, like
 At the client side socketio should connect using both port and path from the config.
 
 Socket connections do not require user to be authorized.
+
+---
+
+## this.\_html2pdf
+
+The `__html2pdf` methods is a thin wrapper around 
+[node-html-pdf](https://github.com/marcbachmann/node-html-pdf)
+
+#### this.\_html2pdf(html, options, stream = false) → Promise
+* `html` string with HTML to render
+* `options` object with params
+* `stream` if `true` return stream else return Buffer
 
 ---
 

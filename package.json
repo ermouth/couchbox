@@ -1,45 +1,41 @@
 {
-  "name":       "couchbox",
-  "version":    "0.3.1",
-
-  "homepage":   "https://gitlab.com/ermouth/couchbox",
+  "name": "couchbox",
+  "version": "0.3.1",
+  "homepage": "https://gitlab.com/ermouth/couchbox",
   "repository": "https://gitlab.com/ermouth/couchbox",
-  "license":    "MIT",
-
+  "license": "MIT",
   "contributors": [
     "Anton Veshnyakov <dasiderk@gmail.com>",
     "ermouth"
   ],
-
-  "main":       "index.js",
+  "main": "index.js",
   "scripts": {
-    "start":    "node index.js"
+    "start": "node index.js"
   },
-
   "dependencies": {
-    "bluebird":         "3.5.0",
-    "sugar":            "1.4.1",
-    "acorn-globals":    "3.1.0",
-    "cookie":           "0.3.1",
-    "query-string":     "4.3.4",
-    "nano":             "6.3.0",
-    "redis":            "2.7.1",
-    "stow":             "1.0.1",
-    "node-fetch":       "1.6.3",
-    "socket.io":        "1.7.3",
+    "acorn-globals": "3.1.0",
+    "atob": "2.0.3",
+    "bluebird": "3.5.0",
+    "btoa": "1.1.2",
+    "cookie": "0.3.1",
+    "html-pdf": "^2.1.0",
+    "http-proxy": "1.16.2",
+    "jpegtran": "1.0.5",
+    "locale": "0.1.0",
+    "mime-types": "2.1.15",
+    "minimist": "1.2.0",
+    "moment": "2.18.1",
+    "nano": "6.3.0",
+    "node-fetch": "1.6.3",
+    "nodemailer": "3.1.8",
+    "query-string": "4.3.4",
+    "redis": "2.7.1",
+    "redis-commander": "git://github.com/MegaGM/redis-commander.git",
+    "socket.io": "1.7.3",
     "socket.io-client": "1.7.3",
-    "atob":             "2.0.3",
-    "btoa":             "1.1.2",
-    "mime-types":       "2.1.15",
-    "nodemailer":       "3.1.8",
-    "jpegtran":         "1.0.5",
-    "http-proxy":       "1.16.2",
-    "moment":           "2.18.1",
-    "locale":           "0.1.0",
-    "redis-commander":  "git://github.com/MegaGM/redis-commander.git",
-    "minimist":         "1.2.0"
+    "stow": "1.0.1",
+    "sugar": "1.4.1"
   },
-
   "keywords": [
     "couchdb",
     "couchbox",
