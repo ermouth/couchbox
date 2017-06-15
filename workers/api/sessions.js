@@ -5,7 +5,7 @@ const couchdb = require('../../utils/couchdb');
 const config = require('../../config');
 
 
-const { EmptyRequestError } = require('../../utils/errors');
+const { HttpError } = require('../../utils/errors');
 
 const {
   SESSION_TTL,
@@ -108,7 +108,7 @@ function Sessions(props = {}) {
   };
 
   const loadSession = (request) => new Promise((resolve, reject) => {
-    if (!request) return reject(new EmptyRequestError());
+    if (!request) return reject(new HttpError(500, 'Empty request'));
     let sid, session;
 
     // Basic auth

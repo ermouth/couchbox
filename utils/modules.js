@@ -9,7 +9,7 @@ const config = require('../config');
 
 const DEBUG = config.get('debug');
 
-const { LocaleError, RejectHandlerError, TimeoutError } = require('./errors');
+const { LocaleError, HttpError, RejectHandlerError, TimeoutError } = require('./errors');
 
 const MODULE_ERROR = 'module/error';
 const PLUGIN_ERROR = 'plugin/error';
@@ -36,7 +36,11 @@ const couchGlobals = {
   isArray: Object.isArray,
   toJSON: JSON.stringify,
 };
-const customGlobals = { Promise, LocaleError };
+const customGlobals = {
+  Promise,
+  LocaleError,
+  HttpError
+};
 
 if (DEBUG) customGlobals.console = console;
 
@@ -257,7 +261,7 @@ const makeHandler = (bucketName, bucket, ddocName, handlerKey, body = {}, props 
       }
 
       return new Promise((resolve, reject0) => {
-        const reject = (error) => reject0(new RejectHandlerError(error));
+        const reject = (error) => reject0(error instanceof HttpError ? error : new RejectHandlerError(error));
         const { proxy, revoke } = Proxy.revocable(ctx, {
           get: (target, prop) => {
             if (prop in target) return target[prop];

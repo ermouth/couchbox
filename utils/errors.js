@@ -1,3 +1,5 @@
+
+
 class LocaleError extends Error {
   constructor(message, error) {
     const locales = {};
@@ -42,46 +44,12 @@ class LocaleError extends Error {
   }
 }
 
-class SendingError extends Error {
-  constructor(error) {
-    super('Error on send result');
-    this.code = 500;
-    this.reason = error.message;
-    this.error = error;
-  }
-}
-
 class TimeoutError extends Error {
   constructor(error) {
     super('gateway_timeout');
     this.code = 504;
     this.reason = error.message;
     this.error = error;
-  }
-}
-
-class NotFoundError extends Error {
-  constructor(message) {
-    super(message);
-    this.code = 404;
-    this.reason = 'missing'
-  }
-}
-
-class EmptyRequestError extends Error {
-  constructor(message) {
-    super(message || 'Empty request');
-    this.code = 500;
-  }
-}
-
-class BadRequestError extends Error {
-  constructor(error) {
-    const message = 'Bad request' + (error && error.message ? ': "'+ error.message +'"' : '');
-    super(message);
-    this.code = 500;
-    this.reason = message;
-    if (error) this.error = error;
   }
 }
 
@@ -95,20 +63,39 @@ class RejectHandlerError extends Error {
   }
 }
 
-class BadReferrerError extends Error {
-  constructor(message) {
-    super(message || 'Referrer not valid');
-    this.code = 500;
+
+// HttpError
+
+const CODES = {
+  400: 'bad_request',
+  401: 'unauthorized',
+  403: 'forbidden',
+  404: 'not_found',
+  405: 'not_allowed',
+  408: 'request_timeout',
+  409: 'conflict',
+  429: 'too_many_requests',
+  500: 'internal_server_error',
+  501: 'not_implemented',
+  503: 'service_unavailable',
+  504: 'gateway_timeout',
+  509: 'bandwidth_quota_exceeded'
+};
+
+class HttpError extends LocaleError {
+  constructor(code = 400, reason, error) {
+    if (Object.isString(reason)) reason = { EN: reason };
+    if (!reason || !Object.isObject(reason)) reason = { EN: CODES[code] || 'Bad request' };
+    super(reason);
+    this.code = code;
+    if (error) this.error = error;
   }
 }
 
+
 module.exports = {
   LocaleError,
-  NotFoundError,
-  SendingError,
   TimeoutError,
-  EmptyRequestError,
-  BadRequestError,
-  BadReferrerError,
-  RejectHandlerError
+  RejectHandlerError,
+  HttpError
 };

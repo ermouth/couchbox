@@ -16,13 +16,7 @@ const isA = Object.isArray;
 const isS = Object.isString;
 
 
-const {
-  NotFoundError,
-  SendingError,
-  BadRequestError,
-  BadReferrerError
-  //, HttpError
-} = require('../../utils/errors');
+const { LocaleError, HttpError } = require('../../utils/errors');
 
 const {
   API_URL_ROOT,
@@ -51,9 +45,9 @@ const PAGE_GENERATION_PROP = 'x-page-generation';
 const corsHeads = (request) => {
   const headers = Object.clone(API_DEFAULT_HEADERS, true);
   if (!(request && request.headers && request.headers.origin)) return Promise.resolve({ headers });
-  if (!CORS) return Promise.reject(new BadReferrerError());
+  if (!CORS) return Promise.reject(new HttpError(500, 'Referrer not valid'));
   const rule = CORS_ORIGINS['*'] ? '*' : CORS_ORIGINS[request.headers.origin] ? request.headers.origin : null;
-  if (!rule) return Promise.reject(new BadReferrerError());
+  if (!rule) return Promise.reject(new HttpError(500, 'Referrer not valid'));
   headers['access-control-allow-origin'] = rule;
   headers['access-control-allow-headers'] = CORS_HEADES || '';
   headers['access-control-allow-methods'] = CORS_METHODS || '';
@@ -183,7 +177,7 @@ function Router(props = {}) {
           event: API_REQUEST_ERROR,
           error
         });
-        throw new BadRequestError(error);
+        throw new HttpError(500, 'Bad request', error);
       })
     ])
     .then(([userCtx, body]) => {
@@ -195,26 +189,29 @@ function Router(props = {}) {
   };
 
   const makeError = (error, req) => {
-    // TODO: parse HttpError
     let code = 500;
     const json = {
-      error: 'not_found',
-      reason: 'missing'
+      reason: 'Bad action',
+      ok: false
     };
 
     if (error) {
       if (error.code > 0) code = error.code;
+
+      if (error instanceof HttpError || error instanceof LocaleError) {
+        let errorLocale = new locale.Locales(req.headers['accept-language'] || API_DEFAULT_LOCALE)[0];
+        if (errorLocale && errorLocale.language) errorLocale = errorLocale.language.toUpperCase();
+        else errorLocale = 'EN';
+        json.reason = error.toString(errorLocale);
+        if (error.error && error.error.message) json.error = error.error.message;
+
+        return { code, json };
+      }
+
       if (error.reason) json.reason = error.reason;
 
       if (error instanceof Error) {
-        if (req && req.headers && error.error) {
-          let errorLocale = new locale.Locales(req.headers['accept-language'] || API_DEFAULT_LOCALE)[0];
-          if (errorLocale && errorLocale.language) errorLocale = errorLocale.language.toUpperCase();
-          else errorLocale = 'EN';
-          json.error = error.error.toString(errorLocale);
-        } else {
-          json.error = error.message;
-        }
+        json.error = error.toString();
       } else {
         if (isO(error)) {
           json.error = new Error(error.message || error.error);
@@ -225,6 +222,7 @@ function Router(props = {}) {
     }
 
     return { code, json };
+
   };
 
   const sendResult = (req, res, result = {}) => {
@@ -245,7 +243,7 @@ function Router(props = {}) {
             error,
             type: 'warn'
           });
-          return sendResult(req, res, makeError(new SendingError(error), req));
+          return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
         })
         .pipe(res)
         .on('error', error => {
@@ -255,7 +253,7 @@ function Router(props = {}) {
             error,
             type: 'fatal'
           });
-          return sendResult(req, res, makeError(new SendingError(error), req));
+          return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
         })
     } else {
       // Body
@@ -270,7 +268,7 @@ function Router(props = {}) {
             event: API_REQUEST_ERROR,
             error
           });
-          return sendResult(req, res, makeError(new SendingError(error), req));
+          return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
         }
       }
 
@@ -289,7 +287,7 @@ function Router(props = {}) {
             event: API_REQUEST_ERROR,
             error
           });
-          return sendResult(req, res, makeError(new SendingError(error), req));
+          return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
         }
       }
       res.end((error) => {
@@ -328,7 +326,7 @@ function Router(props = {}) {
     if (DEBUG) debug('Request: '+ JSON.stringify(request));
 
     const route = getRoute(request.host, request.path, request.method);
-    if (!route) return sendError(new NotFoundError('not_found'));
+    if (!route) return sendError(new HttpError(404));
 
     let processPromise;
 
