@@ -26,7 +26,7 @@
     "email": "{\"from\":\"\",\"service\":\"Yandex\",\"host\":\"smtp.yandex.ru\",\"port\":465,\"secure\":true,\"user\":\"\", \"pass\":\"\"}",
     "sms": "{\"key\":\"\", \"from\":\"\"}",
     "kkm": "{\"url\":\"http://localhost:5893\",\"login\":\"Admin\",\"password\":\"\",\"timeout\":30,\"requestTimeout\":10000,\"company\":\"Couchbox\",\"cashier\":\"Couchbox software\",\"tax\":-1}",
-    "html2pdf": "{\"node\":\"lc\",\"ctx\":{\"name\":\"system\",\"roles\":[\"dev\"]}}"
+    "html2pdf": "{\"node\":\"lc\",\"ctx\":{\"name\":\"system\",\"roles\":[\"dev\"]},\"base\":\"/cloudwall/v2/css\"}"
   },
   "couchbox_api": {
     "localhost|": "test/test bucket socket cache jpegtran fetch email redis"

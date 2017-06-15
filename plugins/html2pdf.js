@@ -16,16 +16,20 @@ const defaults = {
 function Plugin(method, conf, log) {
   const name = '_' + (method || 'html2pdf');
 
-  const makeCouchdbHeaders = () => ({
-    base: NODES[conf && conf.node && NODES[conf.node] ? conf.node : NODE_NAME] + '/cloudwall/v2/css',
+  const pluginOptions = {
+    base: conf && conf.base && conf.base.length > 0
+      ? conf.base[0] === '/'
+        ? NODES[conf && conf.node && NODES[conf.node] ? conf.node : NODE_NAME] + conf.base
+        : conf.base
+      : null,
     httpHeaders: couchdb.makeAuthHeaders((conf && conf.ctx ? conf.ctx : null) || {})
-  });
+  };
 
   const html2pdf_method = (ref) => function(html = '', opts = {}, stream = false) {
     if (!Object.isString(html)) return Promise.reject(new Error('Bad html'));
     if (!Object.isObject(opts)) return Promise.reject(new Error('Bad options'));
 
-    const options = Object.assign({}, defaults, makeCouchdbHeaders(), opts);
+    const options = Object.assign({}, defaults, pluginOptions, opts);
 
     return new Promise((resolve, reject) => {
       if (stream === true) {
