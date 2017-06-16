@@ -17,13 +17,22 @@ function Plugin(method, conf, log) {
   const name = '_' + (method || 'html2pdf');
 
   const pluginOptions = {
-    base: conf && conf.base && conf.base.length > 0
-      ? conf.base[0] === '/'
-        ? NODES[conf && conf.node && NODES[conf.node] ? conf.node : NODE_NAME] + conf.base
-        : conf.base
-      : null,
     httpHeaders: couchdb.makeAuthHeaders((conf && conf.ctx ? conf.ctx : null) || {})
   };
+  if (conf && Object.isObject(conf)) {
+    if (conf.ctx) {
+      pluginOptions.httpHeaders = couchdb.makeAuthHeaders(conf.ctx);
+    }
+    if (conf.base && conf.base.length > 0) {
+      const base = conf.base.last() === '/' ? conf.base : conf.base + '/';
+      if (base[0] === '/') {
+        const node = conf.node && NODES[conf.node] ? conf.node : NODE_NAME;
+        pluginOptions.base = NODES[node] + base;
+      } else {
+        pluginOptions.base = base;
+      }
+    }
+  }
 
   const html2pdf_method = (ref) => function(html = '', opts = {}, stream = false) {
     if (!Object.isString(html)) return Promise.reject(new Error('Bad html'));

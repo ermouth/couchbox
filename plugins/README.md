@@ -223,6 +223,11 @@ The `__html2pdf` methods is a thin wrapper around
 * `options` object with params
 * `stream` if `true` return stream else return Buffer
 
+##### config
+* `base` base path
+* `node` if base begin at `\`
+* `ctx` ctx for auth
+
 ---
 
 ## this.\_kkm
