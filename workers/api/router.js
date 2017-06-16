@@ -196,18 +196,21 @@ function Router(props = {}) {
     };
 
     if (error) {
-      if (error.code > 0) code = error.code;
-
       if (error instanceof HttpError || error instanceof LocaleError) {
         let errorLocale = new locale.Locales(req.headers['accept-language'] || API_DEFAULT_LOCALE)[0];
         if (errorLocale && errorLocale.language) errorLocale = errorLocale.language.toUpperCase();
         else errorLocale = 'EN';
+
+        if (error.code) code = error.code;
+        else if (error && error.error && error.error.code) code = error.error.code;
+
         json.reason = error.toString(errorLocale);
         if (error.error && error.error.message) json.error = error.error.message;
 
         return { code, json };
       }
 
+      if (error.code > 0) code = error.code;
       if (error.reason) json.reason = error.reason;
 
       if (error instanceof Error) {
