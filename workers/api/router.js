@@ -205,7 +205,7 @@ function Router(props = {}) {
         else if (error && error.error && error.error.code) code = error.error.code;
 
         json.reason = error.toString(errorLocale);
-        if (error.error && error.error.message) json.error = error.error.message;
+        if (error.error) json.error = Object.isString(error.error) ? error.error : error.error.message;
 
         return { code, json };
       }
