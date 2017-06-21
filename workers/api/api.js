@@ -28,7 +28,9 @@ function API(props = {}) {
   const isRunning = () => _running === true || _closing === true;
 
   const API_PORT = props.port;
-  const API_CLOSE_DELAY = config.get('api.ports').indexOf(API_PORT) * config.get('api.restartDelta');
+  const API_CLOSE_DELAY = config.get('api.ports').indexOf(API_PORT) >= 0
+    ? config.get('api.ports').indexOf(API_PORT) * config.get('api.restart_delta')
+    : config.get('api.restart_delta');
 
   const parseEndpointsParam = (endpoints) => {
     const result = {};
