@@ -131,7 +131,7 @@ function API(props = {}) {
 
   const end = (forced) => {
     log({
-      message: 'Stop api on port: '+ API_PORT + ', forced: '+ (forced === true ? 'true' : 'false'),
+      message: 'Stop api on port: '+ API_PORT + ', forced: '+ (forced === true ? 'true' : 'false') + ', delay: '+ API_CLOSE_DELAY,
       event: API_STOP
     });
     server.close(() => {
