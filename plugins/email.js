@@ -42,7 +42,7 @@ function Plugin(method, conf = {}, log) {
       message.attachments = [];
       for(let i = 0, iMax = attachments.length, att; i < iMax; i++) {
         att = attachments[i];
-        if (!att) return Promise.reject(new Error('Bad attachment at index '+ i));
+        if (!Object.isObject(att)) return Promise.reject(new Error('Bad attachment at index '+ i));
         if (!(att.name && Object.isString(att.name))) return Promise.reject(new Error('Bad attachment name at index '+ i));
         if (!att.content) return Promise.reject(new Error('Bad attachment content at index '+ i));
         if (att.contentType && !Object.isString(att.contentType)) return Promise.reject(new Error('Bad attachment contentType at index '+ i));
