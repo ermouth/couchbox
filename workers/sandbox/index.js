@@ -243,7 +243,7 @@ module.exports = function initMaster(cluster) {
     // Map config
     Object.keys(newConf).forEach(confKey => configMap[confKey] && configMap[confKey](newConf[confKey]));
 
-    const defaults = ['couchbox', 'debug'];
+    const defaults = ['couchbox', 'logger', 'debug'];
 
     // Check redis-commander config
     const newConfigRedisCommanderHash = lib.sdbmCode(defaults.concat(['redis']).map(config.get)); // update configSocketHash by critical fields
