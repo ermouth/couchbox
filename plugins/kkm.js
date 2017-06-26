@@ -96,7 +96,7 @@ function Plugin(method, conf = {}, log) {
               (Object.isString(item.price) && (item.price = +item.price)) ||
               Object.isNumber(item.price)
             ) &&
-            (item.price > 0)
+            (item.price >= 0)
           ) &&
           (
             // item count is set and more than 0
