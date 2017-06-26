@@ -6,9 +6,6 @@ const moment = require('moment');
 const config = require('../config');
 
 
-const API_URL = 'https://3dsec.sberbank.ru/payment/rest/';
-
-
 const languages = new Set();
 const currencies = new Set();
 const transactionStatesAll = new Set();
@@ -258,6 +255,7 @@ const orderStatuses = {
 function Plugin(method, conf = {}, log) {
   const name = '_' + (method || 'bank');
 
+  const API_URL = conf.api_url;
   const BANK_LOGIN = conf.login;
   const BANK_PASSWORD = conf.pass;
   const BANK_MERCHANT = conf.merchant;
