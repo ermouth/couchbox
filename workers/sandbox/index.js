@@ -22,6 +22,7 @@ const DEBUG = config.get('debug');
 const { LOG_ERROR } = Logger.LOG_EVENTS;
 const { CONFIG_API, CONFIG_BUCKET, CONFIG_SOCKET, CONFIG_PROXY, CONFIG_REDIS_COMMANDER, CONFIG_ENDPOINTS, CONFIG_HOOKS } = config.LOG_EVENTS;
 const { SANDBOX_START, SANDBOX_CLOSE, SANDBOX_CLOSED, SANDBOX_ERROR, SANDBOX_CONFIG_ERROR } = require('./constants').LOG_EVENTS;
+const { COUCHDB_KEY_SPLITTER } = require('./constants');
 
 // Worker constants
 const { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET, WORKER_TYPE_API, WORKER_TYPE_PROXY, WORKER_TYPE_REDIS_COMMANDER, WORKER_WAIT_TIMEOUT } = require('../../utils/worker').Constants;
@@ -338,7 +339,7 @@ module.exports = function initMaster(cluster) {
     const dbs_keys = [];
 
     Object.keys(hooks).forEach((dbdocKey) => {
-      const dbdoc = dbdocKey.trim().split(/\\|\|/);
+      const dbdoc = dbdocKey.trim().split(COUCHDB_KEY_SPLITTER);
       const db = dbdoc[0];
       const ddoc = dbdoc[1];
       if (!dbsTmp[db]) dbsTmp[db] = { ddocs: {}, configHash: configBucketHash };

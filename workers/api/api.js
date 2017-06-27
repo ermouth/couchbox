@@ -14,6 +14,7 @@ const {
     API_START, API_STOP, API_ROUTE_ERROR
   }
 } = require('./constants');
+const { COUCHDB_KEY_SPLITTER } = require('../sandbox/constants');
 
 function API(props = {}) {
   const logger = new Logger({ prefix: 'API', logger: props.logger });
@@ -36,7 +37,7 @@ function API(props = {}) {
     const result = {};
     if (!(endpoints && Object.isObject(endpoints))) return result;
     Object.keys(endpoints).forEach(key => {
-      const endpointKey = key.split(/\\|\|/);
+      const endpointKey = key.split(COUCHDB_KEY_SPLITTER);
       const domain = endpointKey[0];
       const endpoint = endpointKey[1];
       const endpointVal = endpoints[key];
