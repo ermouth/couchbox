@@ -1,42 +1,79 @@
-
+// if (!('toJSON' in Error.prototype)) {
+//   Object.defineProperty(Error.prototype, 'toJSON', {
+//     value: function () {
+//       const json = {};
+//
+//       Object.getOwnPropertyNames(this).forEach(function (key) {
+//
+//         if (key === 'error') {
+//           if (Object.isFunction(this.error.toJSON)) json.error = this.error.toJSON();
+//           json.error = this.error.toString();
+//         } else {
+//           json[key] = this[key];
+//         }
+//
+//       }, this);
+//
+//       return json;
+//     },
+//     configurable: true,
+//     writable: true
+//   });
+// }
 
 class LocaleError extends Error {
-  constructor(message, error) {
-    const locales = {};
+  constructor(message, error, ext) {
+    let locales = {};
 
+    // String
     if (Object.isString(message)) {
-      const locale = message.split(' ', 1)[0];
-      if (LocaleError.checkLocale(locale)) {
-        locales[locale] = message.substr(locale.length + 1);
-      }
+      locales['EN'] = message;
+
+    // Object
     } else if (Object.isObject(message)) {
       Object.keys(message).forEach(locale => {
         if (LocaleError.checkLocale(locale)) locales[locale] = message[locale];
       });
+
+    // LocaleError
     } else if (message instanceof LocaleError) {
-      return message;
+      locales = message.locales;
+
+    // Error
     } else if (message instanceof Error) {
       if (!error) error = message;
       locales['EN'] = error.message;
     }
 
+    // locales
     if (Object.keys(locales).length === 0) {
-      locales['EN'] = 'Bad Error';
+      locales['EN'] = 'Error';
     }
 
+    // super
     super(locales['EN'] || locales[Object.keys(locales)[0]]);
-    this.locales = locales;
-    if (error) this.error = error;
+    const self = this;
+
+    // extend
+    if (ext && Object.isObject(ext)) {
+      Object.keys(ext).forEach(key => {
+        if (key !== 'message' && key !== 'error' && key !== 'locales') self[key] = ext[key];
+      });
+    }
+
+    // self props
+    self.locales = locales;
+    if (error) self.error = error;
   }
 
   toString(locale = 'EN') {
     if (locale in this.locales) {
       switch (locale) {
-        case 'RU': return 'Ошибка "'+ this.locales[locale] +'"';
-        case 'EN': return 'Error "'+ this.locales[locale] +'"';
+        case 'RU': return this.locales[locale];
+        case 'EN': return this.locales[locale];
       }
     }
-    return 'Error "'+ this.message +'"';
+    return this.message;
   }
 
   static checkLocale(locale) {
@@ -83,12 +120,11 @@ const CODES = {
 };
 
 class HttpError extends LocaleError {
-  constructor(code = 400, reason, error) {
+  constructor(code = 400, reason, error, ext) {
     if (Object.isString(reason)) reason = { EN: reason };
     if (!reason || !Object.isObject(reason)) reason = { EN: CODES[code] || 'Bad request' };
-    super(reason);
+    super(reason, error, ext);
     this.code = code;
-    if (error) this.error = error;
   }
 }
 
