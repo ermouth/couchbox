@@ -147,12 +147,12 @@ might look like this:
 
 ```
 "hooks":{
-  "db1|ddoc1": "bucket fetch sms email aws jpegtran",
-  "db2|ddoc2": "bucket"
+  "db1!ddoc1": "bucket fetch sms email aws jpegtran",
+  "db2!ddoc2": "bucket"
 }
 ```
-Vertical bar `|` character is used instead of slash `/` to overcome CouchDB config
-parser block for slashes. Key `db1|ddoc1` means: _start hooks in_ `_design/ddoc1`
+Exclamation mark `!` character is used instead of slash `/` to overcome CouchDB config
+parser block for slashes. Key `db1!ddoc1` means: _start hooks in_ `_design/ddoc1`
 _from_ `db1` _DB, also monitor changes in the ddoc and config, and restart hooks
 when needed_.
 
@@ -189,7 +189,7 @@ sections in ddocs, although without complimentary filter.
 Appropriate CouchDB config section may look like this...
 ```
 "couchbox_api":{
-  "abc.example.com|cmd|sendmail":"db1/mail bucket email",
+  "abc.example.com!cmd!sendmail":"db1/mail bucket email",
   "def.example.com":"db2/ddoc2 bucket"
 }
 ```
@@ -220,6 +220,9 @@ Unrecognized requests (no matching rules) by default return `404`. However,
 if the `couchbox/api` config key has `"fallback"` property with an URL, Couchbox proxies 
 all unrecognized requests to the URL given. The `"hostKey"` property overrides
 `Host` header for proxied requests.
+
+Exclamation mark `!` character is used in config keys to overcome CouchDB config
+parser block for slashes.
 
 ### Request object
 
