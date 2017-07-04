@@ -1,5 +1,8 @@
 module.exports = {
-  COUCHDB_KEY_SPLITTER: /!|\\|\|/,
+  // Old and bad splitter
+  // COUCHDB_KEY_SPLITTER: /!|\\|\|/,
+
+  COUCHDB_KEY_SPLITTER: '!',
 
   LOG_EVENTS: {
     SANDBOX_START: 'sandbox/start',
