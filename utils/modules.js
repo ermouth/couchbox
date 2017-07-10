@@ -133,9 +133,6 @@ const makePlugins = (ctx, methods = [], log) => {
   return Promise.map(methodsList, pluginLoader(ctx, log)).then(pluginsList => {
     const plugins = {};
     for (let i = 0, i_max = pluginsList.length, plugin; i < i_max; i++) if (plugin = pluginsList[i]) plugins[plugin.name] = plugin;
-    if (DEBUG) {
-      log('Plugins list: '+ JSON.stringify(Object.keys(plugins)));
-    }
     return plugins;
   });
 };
@@ -256,6 +253,11 @@ const makeHandler = (bucketName, bucket, ddocName, handlerKey, body = {}, props 
   }
 
   function makeLambda(plugins) {
+
+    if (DEBUG) {
+      log('Plugins list: '+ JSON.stringify(Object.keys(plugins)));
+    }
+
     function handler() {
       const params = new Array(arguments.length);
       {
