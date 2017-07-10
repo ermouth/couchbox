@@ -104,7 +104,7 @@ function resolveModule(path, mod = {}, root) {
 
 function pluginLoader(ctx, log) {
   return function loadPlugin(method) {
-    if (method in ctx) return Promise.resolve();
+    if (('_' + method) in ctx) return Promise.resolve();
     try {
       const pluginModule = require('../plugins/'+ method);
       if (pluginModule) {
