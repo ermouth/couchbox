@@ -13,6 +13,7 @@ const { LocaleError, HttpError, RejectHandlerError, TimeoutError } = require('./
 
 const MODULE_ERROR = 'module/error';
 const PLUGIN_ERROR = 'plugin/error';
+const PLUGIN_WARNING = 'plugin/warning';
 const HANDLER_LOG = 'handler/log';
 const HANDLER_ERROR = 'handler/error';
 const HANDLER_DEFAULT_TIMEOUT = 10e3;
@@ -103,7 +104,13 @@ function resolveModule(path, mod = {}, root) {
 
 function pluginLoader(ctx, log) {
   return function loadPlugin(method) {
-    if (method in ctx) return Promise.resolve();
+    if (method in ctx) {
+      log({
+        message: 'Plugin exist: "'+ method +'" '+ JSON.stringify(ctx[method], null, 2),
+        event: PLUGIN_WARNING,
+      });
+      return Promise.resolve();
+    }
     try {
       const pluginModule = require('../plugins/'+ method);
       if (pluginModule) {
