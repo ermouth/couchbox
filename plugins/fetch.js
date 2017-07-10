@@ -4,6 +4,7 @@ const fetch = require('node-fetch');
 const couchdb = require('../utils/couchdb');
 const config = require('../config');
 
+const DEBUG = config.get('debug');
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'HEAD'];
 const HTTP_METHODS_VALID = {}; HTTP_METHODS.forEach(m => HTTP_METHODS_VALID[m] = true);
 
