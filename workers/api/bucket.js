@@ -13,7 +13,7 @@ const {
 
 function Bucket(props = {}) {
   const { name } = props;
-  const logger = new Logger({ prefix: 'Bucket', scope: '_'+ name, logger: props.logger });
+  const logger = new Logger({ prefix: 'Bucket', scope: name, logger: props.logger });
   const log = logger.getLog();
 
   const bucket = couchdb.connectBucket(name);

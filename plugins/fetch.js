@@ -24,6 +24,10 @@ const hasUrlHttp = url => /^https?:/.test(url);
 function Plugin(method, conf = {}, log) {
   const name = '_' + (method || 'fetch');
 
+  if (DEBUG) {
+    log('Plugin fetch: "'+ name +'"');
+  }
+
   const nodesDomains = {
     '127.0.0.1': true
   };
