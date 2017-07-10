@@ -60,7 +60,7 @@ const availableInLambda = ['require', 'include', 'log', 'arguments', 'resolve', 
 const lambdaAvailable = Object.keys(availableGlobals).concat(availableInLambda);
 
 
-const emptyFunction = () => undefined;
+function emptyFunction() {}
 
 // Modules makers
 
@@ -219,7 +219,7 @@ const makeHandler = (bucketName, bucket, ddocName, handlerKey, body = {}, props 
   const lambdaName = ddocName.replace(/[^a-z0-9]+/g, '_') +'__'+ handlerKey.replace(/[^a-z0-9]+/g, '_');
   const logger = new Logger({
     prefix: 'Handler',
-    scope: '_'+ bucketName +'/'+ ddocName + '/'+ handlerKey,
+    scope: bucketName +'/_'+ ddocName + '/'+ handlerKey,
     logger: props.logger,
     logEvent: props.logEvent || HANDLER_LOG
   });

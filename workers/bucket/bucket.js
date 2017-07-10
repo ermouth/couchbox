@@ -21,7 +21,8 @@ const {
     BUCKET_CHANGES, BUCKET_FEED, BUCKET_FEED_STOP,
     BUCKET_STOP, BUCKET_CLOSE, BUCKET_ERROR,
     FILTER_ERROR,
-    HOOK_START, HOOK_SAVE, HOOK_RESULT, HOOK_SKIP, HOOK_ERROR, CHANGE_ERROR
+    HOOK_START, HOOK_END,
+    HOOK_SAVE, HOOK_RESULT, HOOK_SKIP, HOOK_ERROR, CHANGE_ERROR
   }
 } = require('./constants');
 
@@ -574,10 +575,11 @@ function Bucket(props = {}) {
     const hook = _hooks.get(hookKey);
 
     const hookPromise = () => {
+      const ref = name +'/'+ seq +'/'+ id;
       if (hook.mode === 'transitive' && hasFutureProcess(id, seq, hookKey)) {
         log({
           message: 'Skip hook: '+ hookKey,
-          ref: name +'/'+ seq +'/'+ id,
+          ref,
           event: HOOK_SKIP
         });
         return Promise.resolve();
@@ -585,29 +587,37 @@ function Bucket(props = {}) {
 
       log({
         message: 'Start hook: '+ hookKey,
-        ref: name +'/'+ seq +'/'+ id,
+        ref,
         event: HOOK_START
       });
 
       // run hook with cloned doc
-      return hook.handler(Object.clone(doc, true)).then((result = {}) => {
-        const { message, docs } = result;
-        if (Object.isString(message)) {
+      return hook.handler(Object.clone(doc, true))
+        .finally(() => {
           log({
-            message: 'Hook result: '+ hookKey +' = '+ message,
-            code: result.code,
-            ref: name +'/'+ seq +'/'+ id,
-            event: HOOK_RESULT
+            message: 'End hook: '+ hookKey,
+            ref,
+            event: HOOK_END
           });
-        }
-        if (Object.isArray(docs) && docs.length > 0) { // check hook results
-          return saveResults(db, docs).then(() => log({
-            message: 'Saved hook results: '+ hookKey,
-            ref: name +'/'+ seq +'/'+ id,
-            event: HOOK_SAVE
-          }));
-        }
-      });
+        })
+        .then((result = {}) => {
+          const { message, docs } = result;
+          if (Object.isString(message)) {
+            log({
+              message: 'Hook result: '+ hookKey +' = '+ message,
+              code: result.code,
+              ref,
+              event: HOOK_RESULT
+            });
+          }
+          if (Object.isArray(docs) && docs.length > 0) { // check hook results
+            return saveResults(db, docs).then(() => log({
+              message: 'Saved hook results: '+ hookKey,
+              ref,
+              event: HOOK_SAVE
+            }));
+          }
+        });
     };
 
     // dependencies for transitive or sequential mode

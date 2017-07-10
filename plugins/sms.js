@@ -1,7 +1,7 @@
 const Promise = require('bluebird');
 const { checkPhone } = require('../utils/lib');
 const fetch = require('node-fetch');
-const config = require('../../config');
+const config = require('../config');
 
 
 const DEBUG = config.get('debug');
@@ -64,7 +64,7 @@ function Plugin(method, conf, log) {
   const makeQuery = (phone, message) => 'https://sms.ru/sms/send?api_id='+ API_KEY + (SEND_FROM ? '&from='+ encodeURI(SEND_FROM) : '') +'&to='+ phone +'&text='+ encodeURI(message);
 
   if (DEBUG) {
-    log('Plugin sms: '+ name);
+    log('Plugin sms: "'+ name +'"');
   }
 
   const sms_method = (ref) => function(number, message) {

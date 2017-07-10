@@ -68,7 +68,9 @@ function DDoc(bucket, bucketName, props = {}) {
       }
     };
 
-    return Promise.map(Object.keys(body.filters || {}), (key) => makeHook(key, body.filters[key], body.hooks[key])).filter(h => h && h.key).call('sortBy', 'key');
+    return Promise.map(Object.keys(body.filters || {}), (key) => makeHook(key, body.filters[key], body.hooks[key]))
+      .filter(h => h && h.key)
+      .call('sortBy', 'key');
   }).then(handlers => {
 
     log({
