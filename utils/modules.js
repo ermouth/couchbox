@@ -130,12 +130,12 @@ function pluginLoader(ctx, log) {
 
 const makePlugins = (ctx, methods = [], log) => {
   const methodsList = methods && methods.length > 0 ? methods.compact(true).unique() : [];
-  if (DEBUG) {
-    log('Plugins list: '+ JSON.stringify(methodsList));
-  }
   return Promise.map(methodsList, pluginLoader(ctx, log)).then(pluginsList => {
     const plugins = {};
     for (let i = 0, i_max = pluginsList.length, plugin; i < i_max; i++) if (plugin = pluginsList[i]) plugins[plugin.name] = plugin;
+    if (DEBUG) {
+      log('Plugins list: '+ JSON.stringify(Object.keys(plugins)));
+    }
     return plugins;
   });
 };
