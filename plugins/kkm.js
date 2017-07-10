@@ -76,7 +76,7 @@ function Plugin(method, conf = {}, log) {
     });
   };
 
-  const kkm_method_sell = (NumDevice = 0, userContact, products = [], print = false, typeCorrection = 0) => {
+  const kkm_method_sell = (NumDevice = 0, userContact, products = [], typeCorrection = 0, print = false) => {
     if (!(Object.isNumber(NumDevice) && NumDevice >= 0)) return Promise.reject('Bad NumDevice');
     if (!(Object.isString(userContact) && userContact.length > 0)) return Promise.reject('Bad userContact');
     {
