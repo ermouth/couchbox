@@ -132,7 +132,20 @@ const makePlugins = (ctx, methods = [], log) => {
   const methodsList = methods && methods.length > 0 ? methods.compact(true).unique() : [];
   return Promise.map(methodsList, pluginLoader(ctx, log)).then(pluginsList => {
     const plugins = {};
-    for (let i = 0, i_max = pluginsList.length, plugin; i < i_max; i++) if (plugin = pluginsList[i]) plugins[plugin.name] = plugin;
+    let i = pluginsList.length;
+    let plugin;
+    while (i--) {
+      plugin = pluginsList[i];
+      if (plugin && plugin.name) plugins[plugin.name] = plugin;
+      else {
+        if (DEBUG) {
+          log('Plugin warning: '+ JSON.stringify(pluginsList[i]));
+        }
+      }
+    }
+    // for (let i = 0, i_max = pluginsList.length, plugin; i < i_max; i++) {
+    //   if (plugin = pluginsList[i]) plugins[plugin.name] = plugin;
+    // }
     return plugins;
   });
 };
