@@ -63,10 +63,6 @@ function Plugin(method, conf, log) {
   const SEND_FROM = conf.from;
   const makeQuery = (phone, message) => 'https://sms.ru/sms/send?api_id='+ API_KEY + (SEND_FROM ? '&from='+ encodeURI(SEND_FROM) : '') +'&to='+ phone +'&text='+ encodeURI(message);
 
-  if (DEBUG) {
-    log('Plugin sms: "'+ name +'"');
-  }
-
   const sms_method = (ref) => function(number, message) {
     if (!(message && message.length)) return Promise.reject(new Error('Empty message'));
     if (!((number = checkPhone(number)) && number.length)) return Promise.reject(new Error('Bad phone number'));
