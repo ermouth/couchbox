@@ -24,6 +24,7 @@ function Plugin(method, conf = {}, log) {
   const KKM_COMPANY = conf.company || 'Couchbox';
   const KKM_CASHIER = conf.cashier || (KKM_COMPANY +' ПО');
   const KKM_TAX = 'tax' in conf ? (conf.tax|0) : -1;
+  const KKM_TAX_VARIANT = 'taxVariant' in conf ? (conf.taxVariant|0) : 0;
   if (KKM_TAX === null) return Promise.reject(new Error('Bad kkm tax'));
   const KKM_DEPARTMENT = conf.department || 0;
   const KKM_PHONE = Object.isString(conf.phone) && conf.phone.length > 0 ? conf.phone : null;
@@ -128,6 +129,14 @@ function Plugin(method, conf = {}, log) {
       NotPrint: !(print || KKM_PRINT),
       CashierName: KKM_CASHIER,
       ClientAddress: userContact,
+
+      // 0 Общая ОСН
+      // 1 Упрощенная УСН (Доход)
+      // 2 Упрощенная УСН (Доход минус Расход)
+      // 3 Единый налог на вмененный доход ЕНВД
+      // 4 Единый сельскохозяйственный налог ЕСН
+      // 5 Патентная система налогообложения
+      TAX_VARIANT: KKM_TAX_VARIANT,
 
       // Дополниельные реквизиты чека (не обязательно)
       // 1005 Адрес оператора по переводу денежных средств (Строка 100)
