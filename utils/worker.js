@@ -30,7 +30,6 @@ const WORKER_ERROR = 'worker/error';
 
 
 function Worker(cluster, props = {}) {
-  const worker = this;
   EventEmitter.call(this);
   const emitter = this;
 

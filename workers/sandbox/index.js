@@ -514,7 +514,6 @@ module.exports = function initMaster(cluster) {
     if (seq > 0) { // if worker has seq
       if (getBucketWorkerByDbSeq(dbName, seq).length) { /** log('Worker '+ seq +' already started'); */ }
       else setTimeout(startWorkerBucket.fill(dbName, seq), WORKER_WAIT_TIMEOUT); // if master has no worker with seq - try to start old worker
-
     }
   }; // when detected old bucket worker
   const onBucketWorkerExit = (pid, dbName, message, code) => {
@@ -533,9 +532,9 @@ module.exports = function initMaster(cluster) {
       isClosing // master closing
       || !dbs.has(db) // in dbs no worker db
       || (seq > 0
-          ? getBucketWorkerByDbSeq(db, seq).length > 0 // seq and worker already exist
-          : getBucketWorkersByDbFeed(db).length > 0 // no seq && exist one or more workers with feed by db
-      )
+           ? getBucketWorkerByDbSeq(db, seq).length > 0 // seq and worker already exist
+           : getBucketWorkersByDbFeed(db).length > 0 // no seq && exist one or more workers with feed by db
+         )
     ) return null;
 
     if (!seq && getBucketStartingWorkerByDb(db).length > 0) {

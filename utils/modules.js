@@ -144,9 +144,6 @@ const makePlugins = (ctx, methods = [], log) => {
         }
       }
     }
-    // for (let i = 0, i_max = pluginsList.length, plugin; i < i_max; i++) {
-    //   if (plugin = pluginsList[i]) plugins[plugin.name] = plugin;
-    // }
     return plugins;
   });
 };
@@ -231,9 +228,10 @@ const makeHandler = (bucketName, bucket, ddocName, handlerKey, body = {}, props 
 
   const handlerName = ddocName.replace(/[^a-z0-9]+/g, '_') +'/'+ handlerKey.replace(/[^a-z0-9]+/g, '_');
   const lambdaName = ddocName.replace(/[^a-z0-9]+/g, '_') +'__'+ handlerKey.replace(/[^a-z0-9]+/g, '_');
+
   const logger = new Logger({
     prefix: 'Handler',
-    scope: bucketName +'/_'+ ddocName + '/'+ handlerKey,
+    scope: bucketName +'/'+ ddocName + '/'+ handlerKey,
     logger: props.logger,
     logEvent: props.logEvent || HANDLER_LOG
   });
@@ -251,6 +249,7 @@ const makeHandler = (bucketName, bucket, ddocName, handlerKey, body = {}, props 
     }
   }
 
+  // VM script
   const script = (
     '(function runner__'+ lambdaName +'(require, include, log, params){' +
       'return new Promise(' +

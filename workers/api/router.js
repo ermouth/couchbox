@@ -151,9 +151,9 @@ function Router(props = {}) {
 
   function addRoute(domain, endpoint, path, methods0 = API_DEFAULT_METHODS, handler, bucket) {
     methods0 = methods0.map(m => m.toUpperCase()).filter(m => m in API_AVAILABLE_METHODS);
-    if (!methods0 || !methods0.length) throw new Error('Empty methods');
+    if (!(methods0 && methods0.length > 0)) throw new Error('Empty methods');
     if (!(domain && isS(domain) && domain.length > 0)) domain = '*';
-    if (domain !=='*' && !path) throw new Error('Empty path');
+    if (domain !== '*' && !path) throw new Error('Empty path');
     if (!handler) throw new Error('Empty handler');
     if (domain !== '*' && !(path && path.length >= 1 && path[0] !== ROOT_PATH)) throw new Error('Bad route');
 

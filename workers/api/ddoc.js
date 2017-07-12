@@ -17,7 +17,7 @@ function DDoc(bucket, bucketName, props = {}) {
   const { name, domain, endpoint, methods } = props;
   const logger = new Logger({
     prefix: 'DDoc',
-    scope: bucketName +'/_'+ name,
+    scope: bucketName +'/'+ name,
     logger: props.logger
   });
   const log = logger.getLog();

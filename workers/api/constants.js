@@ -12,11 +12,24 @@ const CORS_METHODS = config.get('cors.methods').join(', ');
 const CORS_HEADES = config.get('cors.headers').join(', ');
 
 const API_REFERRER_PARSER = (req) => (
-  (req && Object.isString(req.peer) && req.peer.length > 0 ? req.peer : '_') +
+  (req && Object.isString(req.peer) && req.peer.length > 0
+    ? req.peer
+    : '_'
+  ) +
+
   ' ' +
-  (req && Object.isObject(req.userCtx) && 'name' in req.userCtx && Object.isString(req.userCtx.name) && req.userCtx.name.length > 0 ? req.userCtx.name : '_') +
+
+  (req && Object.isObject(req.userCtx) && 'name' in req.userCtx && Object.isString(req.userCtx.name) && req.userCtx.name.length > 0
+    ? req.userCtx.name
+    : '_'
+  ) +
+
   ' ' +
-  (req && Object.isObject(req.headers) && 'user-agent' in req.headers && Object.isString(req.headers['user-agent']) && req.headers['user-agent'].length > 0 ? req.headers['user-agent'] : '_')
+
+  (req && Object.isObject(req.headers) && 'user-agent' in req.headers && Object.isString(req.headers['user-agent']) && req.headers['user-agent'].length > 0
+    ? req.headers['user-agent']
+    : '_'
+  )
 );
 
 module.exports = {
