@@ -35,7 +35,7 @@ function Plugin(method, conf = {}, log) {
     (Object.isNumber(tax) && (tax === (tax|0)))
   ) && (
     tax === -1 || // НДС не облагается
-    tax === 0 ||  // НДС 0%
+    tax ===  0 || // НДС 0%
     tax === 10 || // НДС 10%
     tax === 18    // НДС 18%
   );
