@@ -593,13 +593,13 @@ function Bucket(props = {}) {
 
       // run hook with cloned doc
       return hook.handler(Object.clone(doc, true))
-        .finally(() => {
-          log({
-            message: 'End hook: '+ hookKey,
-            ref,
-            event: HOOK_END
-          });
-        })
+        // .finally(() => {
+        //   log({
+        //     message: 'End hook: '+ hookKey,
+        //     ref,
+        //     event: HOOK_END
+        //   });
+        // })
         .then((result = {}) => {
           const { message, docs } = result;
           if (Object.isString(message)) {
