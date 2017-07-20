@@ -5,7 +5,7 @@ const configValidator = require('./configValidator');
 const config = require('../../config');
 
 
-const { WORKER_HANDLE_EXIT, WORKER_HANDLE_UNHANDLED_ERROR } = Worker.Constants;
+const { WORKER_HANDLE_EXIT, WORKER_HANDLE_UNHANDLED_ERROR, WORKER_ACTION_LOGS_SAVE } = Worker.Constants;
 const { WORKER_START, WORKER_EXIT, WORKER_CLOSE, WORKER_ERROR } = Worker.LOG_EVENTS;
 
 module.exports = function initWorker(cluster, props = {}) {
@@ -25,9 +25,11 @@ module.exports = function initWorker(cluster, props = {}) {
 
   const api = new API(Object.assign(props.params || {}, {
     logger,
+
     onInit: (data) => {
       worker.send('init', data);
     },
+
     onClose: (data) => {
       log({
         message: 'Close',
@@ -35,7 +37,10 @@ module.exports = function initWorker(cluster, props = {}) {
       });
       worker.send('close', data);
       worker.close();
-    }
+    },
+
+    onSaveLogs: () => worker.send(WORKER_ACTION_LOGS_SAVE)
+
   }));
 
   worker.emitter.on(WORKER_HANDLE_UNHANDLED_ERROR, (error) => {

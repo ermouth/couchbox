@@ -267,10 +267,6 @@ const makeHandler = (bucketName, bucket, ddocName, handlerKey, body = {}, props 
 
   function makeLambda(plugins) {
 
-    if (DEBUG) {
-      log('Plugins list: '+ JSON.stringify(Object.keys(plugins)));
-    }
-
     function handler() {
       const params = new Array(arguments.length);
       {

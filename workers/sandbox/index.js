@@ -25,7 +25,17 @@ const { SANDBOX_START, SANDBOX_CLOSE, SANDBOX_CLOSED, SANDBOX_ERROR, SANDBOX_CON
 const { COUCHDB_KEY_SPLITTER } = require('./constants');
 
 // Worker constants
-const { WORKER_TYPE_BUCKET, WORKER_TYPE_SOCKET, WORKER_TYPE_API, WORKER_TYPE_PROXY, WORKER_TYPE_REDIS_COMMANDER, WORKER_WAIT_TIMEOUT } = require('../../utils/worker').Constants;
+const {
+  WORKER_TYPE_BUCKET,
+  WORKER_TYPE_SOCKET,
+  WORKER_TYPE_API,
+  WORKER_TYPE_PROXY,
+  WORKER_TYPE_REDIS_COMMANDER,
+
+  WORKER_ACTION_LOGS_SAVE,
+
+  WORKER_WAIT_TIMEOUT
+} = require('../../utils/worker').Constants;
 // Bucket monitor constants
 const { BUCKET_WORKER_TYPE_ACTUAL, BUCKET_WORKER_TYPE_OLD } = require('../bucket/constants');
 // REST API worker specific constants
@@ -741,6 +751,10 @@ module.exports = function initMaster(cluster) {
             timeout: data && data.timeout ? data.timeout : API_DEFAULT_TIMEOUT
           });
           break;
+        case WORKER_ACTION_LOGS_SAVE:
+          _saveLogs();
+          for (let pid of workers.keys()) sendMessage(pid, WORKER_ACTION_LOGS_SAVE);
+          break;
         default:
           break;
       }
@@ -750,6 +764,15 @@ module.exports = function initMaster(cluster) {
 
   // Init
   loadConfig();
+
+  function _saveLogs() {
+    return new Promise(function(resolve) {
+      log('Start saving logs');
+      logger.save(true)
+        .catch(error => log({ message:'Error save log', event: LOG_ERROR, error }))
+        .finally(resolve);
+    });
+  }
 
   log({
     message: 'Started',

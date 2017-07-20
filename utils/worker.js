@@ -13,11 +13,14 @@ const WORKER_HANDLE_MESSAGE = 'WORKER_HANDLE_MESSAGE';
 const WORKER_HANDLE_ERROR = 'WORKER_HANDLE_ERROR';
 const WORKER_HANDLE_UNHANDLED_ERROR = 'WORKER_HANDLE_UNHANDLED_ERROR';
 
+const WORKER_ACTION_LOGS_SAVE = 'WORKER_ACTION_LOGS_SAVE';
+
 const WORKER_TYPE_BUCKET = 'WORKER_TYPE_BUCKET';
 const WORKER_TYPE_SOCKET = 'WORKER_TYPE_SOCKET';
 const WORKER_TYPE_API = 'WORKER_TYPE_API';
 const WORKER_TYPE_PROXY = 'WORKER_TYPE_PROXY';
 const WORKER_TYPE_REDIS_COMMANDER = 'WORKER_TYPE_REDIS_COMMANDER';
+
 const WORKER_WAIT_TIMEOUT = 500;
 
 // Log events
@@ -44,12 +47,19 @@ function Worker(cluster, props = {}) {
   process.on('message', (message) => {
     const { msg } = message;
     switch (msg) {
+
       case 'exit':
         _onClose(true);
         break;
+
       case 'close':
         _onClose();
         break;
+
+      case WORKER_ACTION_LOGS_SAVE:
+        _saveLogs();
+        break;
+
       default:
         break;
     }
@@ -97,13 +107,20 @@ function Worker(cluster, props = {}) {
     else close();
   }
 
+  function _saveLogs() {
+    return new Promise(function(resolve) {
+      log('Start saving logs');
+      logger.save(true)
+        .catch(error => log({ message:'Error save log', event: LOG_ERROR, error }))
+        .finally(resolve);
+    });
+  }
+
   function close() {
-    logger.save(true)
-      .catch(error => log({ message:'Error save log', event: LOG_ERROR, error }))
-      .finally(() => {
-        logger.offline();
-        process.exit();
-      });
+    _saveLogs().then(function() {
+      logger.offline();
+      process.exit();
+    });
   }
 
   this.pid = pid;
@@ -121,6 +138,8 @@ module.exports.Constants = {
   WORKER_HANDLE_MESSAGE,
   WORKER_HANDLE_ERROR,
   WORKER_HANDLE_UNHANDLED_ERROR,
+
+  WORKER_ACTION_LOGS_SAVE,
 
   WORKER_TYPE_BUCKET,
   WORKER_TYPE_SOCKET,

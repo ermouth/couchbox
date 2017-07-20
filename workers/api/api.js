@@ -22,6 +22,7 @@ function API(props = {}) {
 
   const _onInit = props.onInit || function(){};
   const _onClose = props.onClose || function(){};
+  const _onSaveLogs = props.onSaveLogs || function(){};
 
   let _running = false;
   let _closing = false;
@@ -64,6 +65,15 @@ function API(props = {}) {
     headers: { 'Content-Type': 'text/plain' },
     body: Date.now().toString()
   }));
+
+  router.addRoute('*', '', '_logsSave', ['GET', 'POST'], (req) => {
+    _onSaveLogs();
+    return Promise.resolve({
+      code: 200,
+      headers: { 'Content-Type': 'text/plain' },
+      body: 'Start saving logs'
+    });
+  });
 
 
   // Server
