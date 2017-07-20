@@ -17,7 +17,7 @@ function Plugin(method, conf = {}, log) {
 
   connection.auth = {
     user: conf.user,
-    pass:  conf.pass
+    pass: conf.pass
   };
 
   const defaults = {

@@ -141,9 +141,11 @@ function checkType(type) {
   }
 }
 
-function LoggerBody(prefix) {
+function LoggerBody(prefix, emitSaveAction) {
   const stack_log = new Array(BULK_SIZE);
   let index_log = 0;
+
+  if (!emitSaveAction) emitSaveAction = function () {};
 
   const save = (events, bucket, type = LOG_DOCUMENT_TYPE) => new Promise((resolve, reject) => {
     const node = config.get('couchbox.nodename');
@@ -164,6 +166,7 @@ function LoggerBody(prefix) {
       const log_events = stack_log.slice(0, index_log);
       index_log = 0;
       save(log_events, db_log, LOG_DOCUMENT_TYPE).then(resolve).catch(reject);
+      if (forced === 'all') emitSaveAction();
     } else {
       resolve();
     }
@@ -225,7 +228,7 @@ function LoggerBody(prefix) {
   this.online = () => init_logs();
 }
 
-function Logger(props = {}) {
+function Logger(props = {}, emitSaveAction) {
   const prefix = props.prefix;
   const scope = props.scope || '';
   const default_log_event = props.logEvent || LOG_DEFAULT_EVENT;
@@ -235,7 +238,7 @@ function Logger(props = {}) {
     logger = props.logger;
     this.getChain = () => logger.getChain().concat([ prefix ]);
   } else {
-    logger = new LoggerBody(prefix);
+    logger = new LoggerBody(prefix, emitSaveAction);
     this.getChain = () => [ prefix ];
   }
 

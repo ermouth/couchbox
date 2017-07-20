@@ -36,12 +36,15 @@ function Worker(cluster, props = {}) {
   EventEmitter.call(this);
   const emitter = this;
 
+  function send(msg, data) {
+    process.send({ msg, data });
+  }
+
   const pid = process.pid;
   const name = props.name;
-  const logger = new Logger({ prefix: name + '_worker' });
+  const logger = new Logger({ prefix: name + '_worker' }, () => send(WORKER_ACTION_LOGS_SAVE));
   const log = logger.getLog();
 
-  const send = (msg, data) => process.send({ msg, data });
 
   // listen messages
   process.on('message', (message) => {
