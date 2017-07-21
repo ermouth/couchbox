@@ -162,11 +162,11 @@ function LoggerBody(prefix, emitSaveAction) {
   });
 
   this.save = (forced = false) => new Promise((resolve, reject) => {
+    if (forced === 'all') emitSaveAction();
     if (db_log && index_log > 0 && (forced || index_log >= BULK_SIZE)) {
       const log_events = stack_log.slice(0, index_log);
       index_log = 0;
       save(log_events, db_log, LOG_DOCUMENT_TYPE).then(resolve).catch(reject);
-      if (forced === 'all') emitSaveAction();
     } else {
       resolve();
     }
@@ -232,6 +232,7 @@ function Logger(props = {}, emitSaveAction) {
   const prefix = props.prefix;
   const scope = props.scope || '';
   const default_log_event = props.logEvent || LOG_DEFAULT_EVENT;
+
 
   let logger;
   if (props.logger) {

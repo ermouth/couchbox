@@ -40,9 +40,13 @@ function Worker(cluster, props = {}) {
     process.send({ msg, data });
   }
 
+  function sendSaveLogs() {
+    send(WORKER_ACTION_LOGS_SAVE);
+  }
+
   const pid = process.pid;
   const name = props.name;
-  const logger = new Logger({ prefix: name + '_worker' }, () => send(WORKER_ACTION_LOGS_SAVE));
+  const logger = new Logger({ prefix: name + '_worker' }, sendSaveLogs);
   const log = logger.getLog();
 
 
@@ -50,7 +54,6 @@ function Worker(cluster, props = {}) {
   process.on('message', (message) => {
     const { msg } = message;
     switch (msg) {
-
       case 'exit':
         _onClose(true);
         break;

@@ -58,22 +58,22 @@ module.exports = function initMaster(cluster) {
   // map of current workers
   const workers = new Map();
   // set worker state
-  const setWorker = (worker) => {
+  function setWorker(worker) {
     if (worker && worker.pid) {
       workers.set(worker.pid, worker);
       return worker;
     }
-  };
+  }
   // update prop in worker state
-  const setWorkerProp = (pid, prop, val) => {
+  function setWorkerProp(pid, prop, val) {
     if (workers.has(pid)) {
       const worker = workers.get(pid);
       worker[prop] = val;
       setWorker(worker);
     }
-  };
+  }
   // update props in worker state
-  const setWorkerProps = (pid, data = {}) => {
+  function setWorkerProps(pid, data = {}) {
     if (workers.has(pid)) {
       const worker = workers.get(pid);
       Object.keys(data).forEach(prop => {
@@ -81,12 +81,12 @@ module.exports = function initMaster(cluster) {
       });
       setWorker(worker);
     }
-  };
+  }
 
   let isClosing = false;
 
   // send message to worker
-  const sendMessage = (pid, msg, data) => {
+  function sendMessage(pid, msg, data) {
     const worker = workers.get(pid);
     if (worker && worker.fork) {
       switch (worker.fork.state) {
@@ -98,7 +98,7 @@ module.exports = function initMaster(cluster) {
           break;
       }
     }
-  };
+  }
   // called on SIGINT, SIGTERM worker signals
   function onClose() {
     if (isClosing) return null;
@@ -208,15 +208,17 @@ module.exports = function initMaster(cluster) {
   }; // map for couchdb config
 
   // parses config map
-  const onConfigFields = (conf, params) => params.forEach(onConfigField.fill(conf));
-  const onConfigField = (conf, param) => {
+  function onConfigFields(conf, params) {
+    params.forEach(onConfigField.fill(conf));
+  }
+  function onConfigField(conf, param) {
     const field = param[0];
     const fieldNode = param[1];
     const value = config.parse(field, conf[fieldNode]);
     if (config.check(field, value) && config.get(field) !== value) {
       config.set(field, value);
     }
-  };
+  }
   let configUpdateTimeout;
 
 
@@ -232,7 +234,8 @@ module.exports = function initMaster(cluster) {
 
   // Loads config, called repeatedly for monitoring
   // CouchDB cfg changes, and at the end of worker start sequence
-  const loadConfig = () => {
+  // load and process couchdb config
+  function loadConfig() {
     if (isClosing) return null;
     couchdb.loadConfig()
       .catch(error => {
@@ -245,9 +248,9 @@ module.exports = function initMaster(cluster) {
         onClose();
       })
       .then(onConfig);
-  }; // load and process couchdb config
-
-  const onConfig = (newConf) => {
+  }
+  // process new config
+  function onConfig(newConf) {
     // if worker is not running - don't update config and start config update timeout
     if (isClosing) return null;
 
@@ -340,7 +343,7 @@ module.exports = function initMaster(cluster) {
 
     // start timeout on next config update if worker is running
     configUpdateTimeout = setTimeout(loadConfig, config.get('system.configTimeout'));
-  };
+  }
 
   // On cfg change detects workers|hooks touched by changes
   // and restarts re-instantiate outdated workers
@@ -450,6 +453,7 @@ module.exports = function initMaster(cluster) {
 
   // Workers manipulations
 
+  // fork new worker
   const forkWorker = (function (debug) {
     if (!debug) return (props = {}) => cluster.fork(props);
     let debugPort = 0;
@@ -471,12 +475,18 @@ module.exports = function initMaster(cluster) {
       return cluster.fork(props);
     };
   })('v8debug' in global && typeof global['v8debug'] === 'object');
-
-  const getWorkers = () => Array.from(workers.values());
+  // get all workers
+  function getWorkers() {
+    return Array.from(workers.values());
+  }
   // remove worker by pid
-  const removeWorker = (pid) => workers.has(pid) ? workers.delete(pid) : null;
+  function removeWorker(pid) {
+    if (workers.has(pid)) workers.delete(pid);
+  }
   // send close to worker
-  const stopWorker = (worker) => sendMessage(worker.pid, 'close');
+  function stopWorker(worker) {
+    sendMessage(worker.pid, 'close');
+  }
 
 
   // Bucket workers manipulations
@@ -501,32 +511,36 @@ module.exports = function initMaster(cluster) {
   const stopBucketWorkersByDb = (dbName) => getBucketWorkersByDb(dbName).forEach(stopWorker);
 
   // when bucket worker started - update worker seq
-  const onBucketWorkerInit = (pid, dbName, data = {}) => {
+  function onBucketWorkerInit(pid, dbName, data = {}) {
     const { seq, type } = data;
     if (seq >= 0) {
       setWorkerProps(pid, { type, seq: +seq });
     } else {
       setWorkerProp(pid, 'type', type);
     }
-  };
-  const onBucketWorkerStartFeed = (pid) => {
+  }
+  // when bucket worker subscribed on feed - update worker's meta
+  function onBucketWorkerStartFeed(pid) {
     setWorkerProp(pid, 'feed', true);
-  }; // when bucket worker subscribed on feed - update worker's meta
-  const onBucketWorkerStopFeed = (pid, dbName) => {
+  }
+  // when bucket worker unsubscribed from feed - update worker's meta and try to start new
+  function onBucketWorkerStopFeed(pid, dbName) {
     setWorkerProps(pid, {
       feed: false,
       type: BUCKET_WORKER_TYPE_OLD
     });
     setTimeout(startWorkerBucket.fill(dbName), WORKER_WAIT_TIMEOUT);
-  }; // when bucket worker unsubscribed from feed - update worker's meta and try to start new
-  const onBucketWorkerOld = (dbName, data = {}) => {
+  }
+  // when detected old bucket worker
+  function onBucketWorkerOld(dbName, data = {}) {
     const seq = +data.seq;
     if (seq > 0) { // if worker has seq
       if (getBucketWorkerByDbSeq(dbName, seq).length) { /** log('Worker '+ seq +' already started'); */ }
       else setTimeout(startWorkerBucket.fill(dbName, seq), WORKER_WAIT_TIMEOUT); // if master has no worker with seq - try to start old worker
     }
-  }; // when detected old bucket worker
-  const onBucketWorkerExit = (pid, dbName, message, code) => {
+  }
+  // when bucket worker closed
+  function onBucketWorkerExit (pid, dbName, message, code) {
     // detect if worker killed - start new worker
     if (!message && code === 'SIGKILL' && workers.has(pid)) { // if worker crashed
       const { seq } = workers.get(pid);
@@ -535,8 +549,8 @@ module.exports = function initMaster(cluster) {
     } else { // if worker closed gracefully
       removeWorker(pid);
     }
-  }; // when bucket worker closed
-
+  }
+  // bucket worker stater
   function startWorkerBucket(db, seq) {
     if ( // don't start worker if
       isClosing // master closing
@@ -582,11 +596,15 @@ module.exports = function initMaster(cluster) {
         case 'oldWorker':
           onBucketWorkerOld(db, message.data);
           break;
+        case WORKER_ACTION_LOGS_SAVE:
+          _saveLogs();
+          for (let pid of workers.keys()) sendMessage(pid, WORKER_ACTION_LOGS_SAVE);
+          break;
         default:
           break;
       }
     });
-  } // bucket worker stater
+  }
 
 
   // Proxy workers manipulations
