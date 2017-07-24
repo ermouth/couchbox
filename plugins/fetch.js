@@ -46,7 +46,9 @@ function Plugin(method, conf = {}, log) {
 
     if (!url) return Promise.reject(new Error('Bad url: '+ url));
 
-    const queryParams = {};
+    const queryParams = {
+      headers: {}
+    };
 
     if (options.method) {
       const method = options.method.toUpperCase();
@@ -78,6 +80,10 @@ function Plugin(method, conf = {}, log) {
         'Accept': 'application/json',
         'Content-Type': 'application/json; charset=utf-8'
       });
+    }
+
+    if (options.headers && Object.isObject(options.headers)) {
+      queryParams.headers = Object.assign(queryParams.options.headers, options.headers);
     }
 
     return fetch(url, queryParams);
