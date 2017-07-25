@@ -73,7 +73,9 @@ function Plugin(method, conf = {}, log) {
 
       Object.assign(queryParams.headers, authHeaders);
 
-      return fetch(url, queryParams);
+      return fetch(url, queryParams).then(res => {
+        return res.json();
+      })
     }
   }
 
