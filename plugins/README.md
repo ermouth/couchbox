@@ -90,7 +90,7 @@ this._fetch({
 })
 ```
 Note two `.then()`s are required to receive response as an object. If receiving and
-processing data is not needed, stream may be immediately passed to a client.
+processing data is not needed, response stream may be immediately passed to a client.
 
 ```javascript
 this._fetch({url:'db/docid/filename.jpg'})
@@ -111,6 +111,10 @@ this._fetch({url:'db/docid/filename.jpg'})
 Since `this._fetch` allows not only GET, but also PUT and POST requests, it can
 write data during lambda execution. Writing data during lambda runtime is not
 recommended however.
+
+To ensure security, `this._fetch` method does not allow requesting `_config` 
+endpoints. To read `_config` of a node use `this._config` plugin, especially 
+designed for a task.
 
 ---
 
