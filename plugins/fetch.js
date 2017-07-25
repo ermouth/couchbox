@@ -32,7 +32,7 @@ function Plugin(method, conf = {}, log) {
     const domain = getUrlDomain(url);
     if (!domain) return new Error('Empty connection type');
     if (domain[0] === '/') return new Error('Bad url path');
-    if (domain in nodesDomains && url.indexOf('/_config') > 0) return new Error('Denied access');
+    if (domain in nodesDomains && url.indexOf('/_config') > 0) return new Error('Access denied');
     return null;
   };
 
@@ -83,7 +83,7 @@ function Plugin(method, conf = {}, log) {
     }
 
     if (options.headers && Object.isObject(options.headers)) {
-      queryParams.headers = Object.assign(queryParams.options.headers, options.headers);
+      Object.assign(queryParams.headers, options.headers);
     }
 
     return fetch(url, queryParams);
