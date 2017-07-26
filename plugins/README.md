@@ -22,7 +22,7 @@ this.\_jpegtran | Proxy method for jpegtran lib.
 [this.\_redis](#this_redis) | Direct access to Redis.
 this.\_sms | Sends SMS using sms.ru API.
 [this.\_socket](#this_socket) | Sends a message into a socket.
-[this.\_html2pdf](#this_html2pdf) | Sends a message into a socket.
+[this.\_html2pdf](#this_html2pdf) | Converts HTML to PDF.
 
 ----
 
@@ -219,18 +219,18 @@ Socket connections do not require user to be authorized.
 
 ## this.\_html2pdf
 
-The `__html2pdf` methods is a thin wrapper around 
+The `_html2pdf` methods is a thin wrapper for 
 [node-html-pdf](https://github.com/marcbachmann/node-html-pdf)
 
 #### this.\_html2pdf(html, options, stream = false) → Promise
-* `html` string with HTML to render
-* `options` object with params
-* `stream` if `true` return stream else return Buffer
+* `html` HTML string to render
+* `options` params obj
+* `stream` if `true` returns stream else returns Buffer
 
 ##### config
 * `base` base path
-* `node` if base begin at `\`
-* `ctx` ctx for auth
+* `node` if base starts with at `/`
+* `ctx` auth object `{uname'',roles[]}`
 
 ---
 
