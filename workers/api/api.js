@@ -85,6 +85,7 @@ function API(props = {}) {
     socket.on('close', function() {
       delete connections[id];
     });
+    // TODO: on error handler
   };
   const onRequest = (req, res) => {
     req.socket._isIdle = false;

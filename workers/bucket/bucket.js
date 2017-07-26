@@ -611,7 +611,7 @@ function Bucket(props = {}) {
             });
           }
           if (Object.isArray(docs) && docs.length > 0) { // check hook results
-            return saveResults(db, docs).then(() => log({
+            return saveResults(name, docs).then(() => log({
               message: 'Saved hook results: '+ hookKey,
               ref,
               event: HOOK_SAVE

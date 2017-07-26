@@ -3,20 +3,20 @@ const Promise = require('bluebird');
 const lib = require('../utils/lib');
 const couchdb = require('../utils/couchdb');
 
-const saveResults = (bucket, docs) => {
-  if (docs && docs.length) return saveBatch(bucket, docs.shift()).then(() => saveResults(bucket, docs));
+const saveResults = (bucketName, docs) => {
+  if (docs && docs.length) return saveBatch(bucketName, docs.shift()).then(() => saveResults(bucketName, docs));
   return Promise.resolve();
 }; // save results sequential by first order recursively
 
-const saveToBucket = (bucket) => (doc) => {
+const saveToBucket = (bucketName) => (doc) => {
   if (!doc) return Promise.reject(new Error('Bad document'));
-  const docDB = doc._db ? couchdb.connectBucket(doc._db) : bucket;
+  const docDB = couchdb.connectNodeBucket(doc._node, doc._db || bucketName);
   const newDoc = Object.reject(doc, /^(?!(_rev$|_id$|_attachments$))_.+$/);
   return getOldDoc(docDB, newDoc).then(oldDoc => updateDoc(docDB, oldDoc, newDoc));
 }; // save one doc: load old by result params and update
 
-const saveBatch = (bucket, toSave) => {
-  const saveDoc = saveToBucket(bucket);
+const saveBatch = (bucketName, toSave) => {
+  const saveDoc = saveToBucket(bucketName);
   if (Object.isObject(toSave)) return saveDoc(toSave); // if data is Object save as one document
   else if (Object.isArray(toSave)) return Promise.map(toSave, saveDoc); // if data is Array save as many docs in parallel
   else return Promise.reject(new Error('Bad results: ('+ JSON.stringify(toSave) +')')); // return error if data is not Object or Array

@@ -336,7 +336,7 @@ function Router(props = {}) {
 
     const processRequest = (request) => route.handler(request).then(result => {
       if (route.bucket && isA(result.docs) && result.docs.length > 0) {
-        return saveResults(route.bucket.getBucket(), result.docs).then(() => {
+        return saveResults(route.bucket.name, result.docs).then(() => {
           log({
             message: 'Saved api results: "' + request.raw_path + '"',
             ref: API_REFERRER_PARSER(request),

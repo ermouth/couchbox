@@ -29,7 +29,7 @@ const nanoConnect = (url) => nano({ url, requestDefaults: { pool: { maxSockets: 
 // return db connection
 const connect = (nodeName = NODE_NAME) => {
   if (!nodeName || nodeName === NODE_NAME) {
-    nodeName = 'lc';
+    nodeName = NODE_NAME;
     if (!connections.has(nodeName)) connections.set(nodeName, nanoConnect(DB_CONNECTION_URL));
   } else if (nodeName && Object.isString(nodeName) && nodeName in NODES) {
     if (!connections.has(nodeName)) {
