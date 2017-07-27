@@ -16,7 +16,8 @@ __Plugin__ | Description
 [this.\_bucket](#this_bucket) | Provides access to current CouchDB bucket.
 [this.\_cache](#this_cache) | Redis-backed fast cache.
 [this.\_email](#this_email) | Email sender.
-[this.\_fetch](#this_cache) | Access to CouchDB across nodes.
+[this.\_fetch](#this_fetch) | Access to CouchDB across nodes.
+[this.\_config](#this_config) | Access to read CouchDB config across nodes.
 this.\_jpegtran | Proxy method for jpegtran lib.
 [this.\_kkm](#this_kkm) | Fiscal reports, required in Russia since 2017.
 [this.\_redis](#this_redis) | Direct access to Redis.
@@ -71,14 +72,14 @@ reacheable.
 ```javascript
 // General use of this._fetch
 this._fetch({
-	url:'url/path?params',	// mandatory relative URL
-	node:'mb',				// default is own node
-	method:'GET',			// default is GET
-	headers:{accept:'application/json'},	// default
-	userCtx:{								// default is node service
-		name:'username',
-		roles:['role1','role2'...]
-	}
+  url:'url/path?params', // mandatory relative URL
+  node:'mb', // default is own node
+  method:'GET', // default is GET
+  headers: { accept: 'application/json' }, // default
+  userCtx:{ // default is node service
+    name:'username',
+    roles:['role1','role2'...]
+  }
 })
 .then(function(streamObj){ 
     // here we do not have result yet, 
@@ -100,11 +101,11 @@ this._fetch({url:'db/docid/filename.jpg'})
     resolve({
         code:200,
         headers:{
-    		'content-type':stream.headers.get('content-type'),
-    		'Cache-Control':'max-age=864000',
-    		'X-Accel-Buffering':'no' // disables nginx buffering
-    	}, 
-    	stream: stream.body
+        'content-type':stream.headers.get('content-type'),
+        'Cache-Control':'max-age=864000',
+        'X-Accel-Buffering':'no' // disables nginx buffering
+      }, 
+      stream: stream.body
     })
 });
 ```
@@ -115,6 +116,18 @@ recommended however.
 To ensure security, `this._fetch` method does not allow requesting `_config` 
 endpoints. To read `_config` of a node use `this._config` plugin, especially 
 designed for a task.
+
+----
+
+## this.\_config
+
+Method `this._config` provides an access to read CouchDB config across nodes.
+
+#### this.\_config(node?, userCtx?)
+
+Args
+* `node` node key (default - local node key)
+* `userCtx` userCtx to access CouchDB (default `system` with role `_admin`)
 
 ---
 
