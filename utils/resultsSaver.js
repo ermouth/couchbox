@@ -11,6 +11,7 @@ const saveResults = (bucketName, docs) => {
 const saveToBucket = (bucketName) => (doc) => {
   if (!doc) return Promise.reject(new Error('Bad document'));
   const docDB = couchdb.connectNodeBucket(doc._node, doc._db || bucketName);
+  if (!docDB) return Promise.reject(new Error('Bad bucket'));
   const newDoc = Object.reject(doc, /^(?!(_rev$|_id$|_attachments$))_.+$/);
   return getOldDoc(docDB, newDoc).then(oldDoc => updateDoc(docDB, oldDoc, newDoc));
 }; // save one doc: load old by result params and update
