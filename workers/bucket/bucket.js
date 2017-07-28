@@ -21,7 +21,7 @@ const {
     BUCKET_CHANGES, BUCKET_FEED, BUCKET_FEED_STOP,
     BUCKET_STOP, BUCKET_CLOSE, BUCKET_ERROR,
     FILTER_ERROR,
-    HOOK_START, HOOK_END,
+    HOOK_START,
     HOOK_SAVE, HOOK_RESULT, HOOK_SKIP, HOOK_ERROR, CHANGE_ERROR
   }
 } = require('./constants');
@@ -630,7 +630,7 @@ function Bucket(props = {}) {
   };
 
   let _closing = false;
-  const close = () => {
+  function close() {
     stopFeed(); // previously stop feed
     sequencesQueue.length = 0;
     sequencesHooks.clear();
@@ -645,7 +645,7 @@ function Bucket(props = {}) {
       updateBucketState(true),
       updateWorkerState(true)
     ]).then(() => _onClose(worker_seq));
-  }; // start close if bucket-worker and call _onClose
+  } // start close if bucket-worker and call _onClose
 
   return { init, close, isRunning };
 }

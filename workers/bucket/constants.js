@@ -19,9 +19,7 @@ module.exports = {
     BUCKET_CLOSE: 'bucket/close',
     BUCKET_ERROR: 'bucket/error',
     BUCKET_DDOC_ERROR: 'bucket/ddocError',
-    BUCKET_FILTER_ERROR: 'bucket/filterError',
     BUCKET_LAMBDA_ERROR: 'bucket/lambdaError',
-
     DDOC_INIT: 'ddoc/init',
 
     FILTER_ERROR: 'filter/error',
