@@ -22,7 +22,7 @@ function Sessions(props = {}) {
   feed.on('change', function (change) {
     if (change.id.indexOf('_design/') !== 0) {
       const id = change.id.split(':',2)[1];
-      if (id[1]) removeUser(id[1]);
+      if (id) removeUser(id);
     }
   });
   feed.follow();
