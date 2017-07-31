@@ -192,7 +192,8 @@ function Router(props = {}) {
     let code = 500;
     const json = {
       reason: 'Bad action',
-      ok: false
+      ok: false,
+      ref: req.peer
     };
 
     if (error) {
@@ -318,7 +319,6 @@ function Router(props = {}) {
         });
       }
       if (error && (error.code === 404 || error.code === '404') && API_FALLBACK_URL) {
-
         proxyHTTP.web(req, res, { target: API_FALLBACK_URL });
       } else {
         sendResult(req, res, makeError(error, req));
