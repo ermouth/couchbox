@@ -316,7 +316,7 @@ function Plugin(method, conf = {}, log) {
   const checkResult = (required_props) => (result) => {
     let index = required_props.length;
     if (result && result.pan) {
-      result.pan = ('***************'+ result.pan.substr(-2)).substr(-10);
+      result.pan = ('**********'+ result.pan.substr(-2)).substr(-10);
     }
     while (index--) {
       if (!(required_props[index] in result)) {
