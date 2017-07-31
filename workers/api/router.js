@@ -232,6 +232,11 @@ function Router(props = {}) {
     const code = result.code || API_DEFAULT_CODE;
     const headers = result.headers || API_DEFAULT_HEADERS;
 
+    const logProps = {
+      ref: req.peer,
+      url: req.raw_path.substr(0,200)
+    };
+
     if (result.stream && result.stream.pipe) {
       // Stream
       headers[PAGE_GENERATION_PROP] = Date.now() - req.headers[PAGE_GENERATION_PROP];
@@ -240,26 +245,22 @@ function Router(props = {}) {
 
       result.stream
         .on('error', error => {
-          log({
+          log(Object.assign(logProps, {
             message: 'Error pipe result stream',
             event: API_REQUEST_ERROR,
             error,
-            type: 'warn',
-            ref: req.peer,
-            url: req.raw_path
-          });
+            type: 'warn'
+          }));
           return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
         })
         .pipe(res)
         .on('error', error => {
-          log({
+          log(Object.assign(logProps, {
             message: 'Error pipe result',
             event: API_REQUEST_ERROR,
             error,
-            type: 'fatal',
-            ref: req.peer,
-            url: req.raw_path
-          });
+            type: 'fatal'
+          }));
           return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
         })
     } else {
@@ -270,13 +271,11 @@ function Router(props = {}) {
         try {
           result.body = JSON.stringify(result.json);
         } catch (error) {
-          log({
+          log(Object.assign(logProps, {
             message: 'Error on parse result',
             event: API_REQUEST_ERROR,
-            error,
-            ref: req.peer,
-            url: req.raw_path
-          });
+            error
+          }));
           return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
         }
       }
@@ -291,13 +290,11 @@ function Router(props = {}) {
         try {
           res.write(result.body);
         } catch (error) {
-          log({
+          log(Object.assign(logProps, {
             message: 'Error on send result',
             event: API_REQUEST_ERROR,
-            error,
-            ref: req.peer,
-            url: req.raw_path
-          });
+            error
+          }));
           return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
         }
       }
