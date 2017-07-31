@@ -192,8 +192,7 @@ function Router(props = {}) {
     let code = 500;
     const json = {
       reason: 'Bad action',
-      ok: false,
-      ref: req.peer
+      ok: false
     };
 
     if (error) {
@@ -245,7 +244,9 @@ function Router(props = {}) {
             message: 'Error pipe result stream',
             event: API_REQUEST_ERROR,
             error,
-            type: 'warn'
+            type: 'warn',
+            ref: req.peer,
+            url: req.raw_path
           });
           return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
         })
@@ -255,7 +256,9 @@ function Router(props = {}) {
             message: 'Error pipe result',
             event: API_REQUEST_ERROR,
             error,
-            type: 'fatal'
+            type: 'fatal',
+            ref: req.peer,
+            url: req.raw_path
           });
           return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
         })
@@ -270,7 +273,9 @@ function Router(props = {}) {
           log({
             message: 'Error on parse result',
             event: API_REQUEST_ERROR,
-            error
+            error,
+            ref: req.peer,
+            url: req.raw_path
           });
           return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
         }
@@ -289,7 +294,9 @@ function Router(props = {}) {
           log({
             message: 'Error on send result',
             event: API_REQUEST_ERROR,
-            error
+            error,
+            ref: req.peer,
+            url: req.raw_path
           });
           return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
         }
@@ -300,7 +307,9 @@ function Router(props = {}) {
             message: 'Error on send response',
             event: API_REQUEST_ERROR,
             error,
-            type: 'fatal'
+            type: 'fatal',
+            ref: req.peer,
+            url: req.raw_path
           });
         }
       });

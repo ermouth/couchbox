@@ -202,6 +202,7 @@ function LoggerBody(prefix, emitSaveAction) {
       }
       else msg.type = eventType || TYPE_INFO;
       if (msg.ref) row.ref = msg.ref;
+      if (msg.url) row.url = msg.url;
       if (msg.data) row.data = msg.data;
     }
     if (eventName && !row.event) row.event = eventName;
