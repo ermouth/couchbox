@@ -34,6 +34,7 @@ const {
   CORS_HEADES,
   LOG_EVENTS: {
     API_SAVE,
+    API_REQUEST,
     API_REQUEST_ERROR,
     API_REQUEST_REJECT
   }
@@ -231,6 +232,7 @@ function Router(props = {}) {
   function sendResult(req, res, result = {}) {
     const code = result.code || API_DEFAULT_CODE;
     const headers = result.headers || API_DEFAULT_HEADERS;
+    const logProps = API_LOG_PARSER(req);
 
     if (result.stream && result.stream.pipe) {
       // Stream
@@ -238,25 +240,36 @@ function Router(props = {}) {
       headers['x-accel-buffering'] = 'no';
       res.writeHead(code, headers); // disable nginx cache for stream
 
+      let hasError = false;
       result.stream
         .on('error', error => {
-          log(Object.assign(API_LOG_PARSER(req), {
+          log(Object.assign(logProps, {
             message: 'Error pipe result stream',
             event: API_REQUEST_ERROR,
             error,
             type: 'warn'
           }));
+          hasError = true;
           return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
         })
         .pipe(res)
         .on('error', error => {
-          log(Object.assign(API_LOG_PARSER(req), {
+          hasError = true;
+          log(Object.assign(logProps, {
             message: 'Error pipe result',
             event: API_REQUEST_ERROR,
             error,
             type: 'fatal'
           }));
           return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
+        })
+        .on('finish', function() {
+          if (!hasError) {
+            log(Object.assign(logProps, {
+              message: 'Request: ' + logProps.url,
+              event: API_REQUEST
+            }));
+          }
         })
     } else {
       // Body
@@ -266,7 +279,7 @@ function Router(props = {}) {
         try {
           result.body = JSON.stringify(result.json);
         } catch (error) {
-          log(Object.assign(API_LOG_PARSER(req), {
+          log(Object.assign(logProps, {
             message: 'Error on parse result',
             event: API_REQUEST_ERROR,
             error
@@ -285,7 +298,7 @@ function Router(props = {}) {
         try {
           res.write(result.body);
         } catch (error) {
-          log(Object.assign(API_LOG_PARSER(req), {
+          log(Object.assign(logProps, {
             message: 'Error on send result',
             event: API_REQUEST_ERROR,
             error
@@ -296,11 +309,16 @@ function Router(props = {}) {
 
       res.end(error => {
         if (error) {
-          log(Object.assign(API_LOG_PARSER(req), {
+          log(Object.assign(logProps, {
             message: 'Error on send response',
             event: API_REQUEST_ERROR,
             error,
             type: 'fatal'
+          }));
+        } else {
+          log(Object.assign(logProps, {
+            message: 'Request: ' + logProps.url,
+            event: API_REQUEST
           }));
         }
       });
@@ -310,7 +328,7 @@ function Router(props = {}) {
   function onRequest(httpReq, res) {
     httpReq.headers[PAGE_GENERATION_PROP] = Date.now();
     const req = makeRoute(httpReq);
-    if (DEBUG) debug('Request: '+ JSON.stringify(req, null, 2));
+    const logProps = API_LOG_PARSER(req);
 
     function sendR(result) {
       sendResult(req, res, result);
@@ -331,7 +349,7 @@ function Router(props = {}) {
     function onHandlerResult(result) {
       if (route.bucket && isA(result.docs) && result.docs.length > 0) {
         return saveResults(route.bucket.name, result.docs).then(function onResults() {
-          log(Object.assign(API_LOG_PARSER(req), {
+          log(Object.assign(logProps, {
             message: 'Saved api results: "' + req.raw_path + '"',
             event: API_SAVE
           }));
@@ -364,7 +382,7 @@ function Router(props = {}) {
     processPromise
       .then(sendR)
       .catch(error => {
-        console.log(Object.assign(API_LOG_PARSER(req), {
+        log(Object.assign(logProps, {
           message: 'Route rejection',
           event: API_REQUEST_REJECT,
           error

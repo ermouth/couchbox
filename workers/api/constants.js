@@ -82,6 +82,7 @@ module.exports = {
     API_REQUEST_ERROR: 'api/requestError',
     API_DDOC_ERROR: 'api/ddocError',
     API_LAMBDA_ERROR: 'api/lambdaError',
+    API_REQUEST: 'api/request',
     API_REQUEST_REJECT: 'api/requestReject',
     API_ROUTE_ERROR: 'api/routeError',
     API_LOG: 'api/log',
