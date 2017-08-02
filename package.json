@@ -5,7 +5,7 @@
   "repository": "https://gitlab.com/Couchbox/couchbox",
   "license": "MIT",
   "contributors": [
-    "Anton Veshnyakov <dasiderk@gmail.com>",
+    "ftescht <dasiderk@gmail.com>",
     "ermouth <ermouth@gmail.com>"
   ],
   "main": "index.js",
@@ -45,6 +45,8 @@
     "database",
     "api",
     "rest",
-    "hook"
+    "hook",
+    "trigger",
+    "stored procedure"
   ]
 }

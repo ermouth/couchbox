@@ -32,6 +32,13 @@ const API_REFERRER_PARSER = (req) => (
   )
 );
 
+function API_LOG_PARSER(req) {
+  return {
+    ref: API_REFERRER_PARSER(req),
+    url: req && req.raw_path ? req.raw_path.substr(0,200) : null
+  };
+}
+
 module.exports = {
   NODE_NAME,
 
@@ -56,6 +63,7 @@ module.exports = {
     PUT: true,
     DELETE: true
   },
+  API_LOG_PARSER,
   API_REFERRER_PARSER,
   API_FALLBACK_URL,
 

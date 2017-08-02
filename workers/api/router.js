@@ -25,7 +25,7 @@ const {
   API_DEFAULT_HEADERS,
   API_DEFAULT_METHODS,
   API_AVAILABLE_METHODS,
-  API_REFERRER_PARSER,
+  API_LOG_PARSER,
   API_FALLBACK_URL,
   CORS,
   CORS_CREDENTIALS,
@@ -42,11 +42,11 @@ const {
 const ROOT_PATH = '/';
 const PAGE_GENERATION_PROP = 'x-page-generation';
 
-const corsHeads = (request) => {
+const corsHeads = (req) => {
   const headers = Object.clone(API_DEFAULT_HEADERS, true);
-  if (!(request && request.headers && request.headers.origin)) return Promise.resolve({ headers });
+  if (!(req && req.headers && req.headers.origin)) return Promise.resolve({ headers });
   if (!CORS) return Promise.reject(new HttpError(500, 'Referrer not valid'));
-  const rule = CORS_ORIGINS['*'] ? '*' : CORS_ORIGINS[request.headers.origin] ? request.headers.origin : null;
+  const rule = CORS_ORIGINS['*'] ? '*' : CORS_ORIGINS[req.headers.origin] ? req.headers.origin : null;
   if (!rule) return Promise.reject(new HttpError(500, 'Referrer not valid'));
   headers['access-control-allow-origin'] = rule;
   headers['access-control-allow-headers'] = CORS_HEADES || '';
@@ -55,8 +55,8 @@ const corsHeads = (request) => {
   return Promise.resolve({ headers });
 };
 
-const parseBody = (req) => new Promise((resolve, reject) => {
-  switch (req.method) {
+const parseBody = (httpReq) => new Promise((resolve, reject) => {
+  switch (httpReq.method) {
     case 'DELETE':
     case 'HEAD':
       resolve('');
@@ -66,16 +66,16 @@ const parseBody = (req) => new Promise((resolve, reject) => {
       break;
     default:
       const body = [];
-      req
+      httpReq
         .on('data', chunk => body.push(chunk))
         .on('end', () => resolve(Buffer.concat(body).toString()))
         .on('error', error => reject(error));
   }
 });
 
-const makeRoute = (req) => {
-  const { method, url } = req;
-  const headers = isO(req.headers) ? req.headers : {};
+const makeRoute = (httpReq) => {
+  const { method, url } = httpReq;
+  const headers = isO(httpReq.headers) ? httpReq.headers : {};
   const hostFull = (headers[config.get('api.hostKey')] || headers.host || ':80').split(':', 2);
   const host = hostFull[0];
   const port = (hostFull[1]|0) || 80;
@@ -96,6 +96,9 @@ function Router(props = {}) {
   const log = logger.getLog();
   const debug = logger.getDebug();
 
+  const routes = new Map();
+  const paths = {};
+
   function onProxyReq(proxyReq, req, res, options) {
     let remoteAddress;
     if (req.connection) {
@@ -109,10 +112,7 @@ function Router(props = {}) {
   }
   const proxyHTTP = httpProxy.createProxyServer({}).on('proxyReq', onProxyReq);
 
-  const routes = new Map();
-  const paths = {};
-
-  const findRoute = (path, parent) => {
+  function findRoute(path, parent) {
     const p = path.shift();
     const node = (parent || paths)[p];
     if (node) {
@@ -120,15 +120,16 @@ function Router(props = {}) {
       return isO(node) ? node[ROOT_PATH] : node;
     }
     return isO(parent) ? parent[ROOT_PATH] : parent;
-  };
-  const getRoute = (host, path, method) => {
+  }
+
+  function getRoute(host, path, method) {
     const routeKey = findRoute([host].concat(path).compact(true));
     if (routeKey) {
       let route = routes.get(routeKey);
       if (route && (method === 'OPTIONS' || route.methods[method])) return route;
     }
     if (host !== '*') return getRoute('*', path, method);
-  };
+  }
 
   function addPath(path, routeKey, index = 1, separator = ROOT_PATH) {
     const p = path.slice(0, index).join(separator);
@@ -166,12 +167,12 @@ function Router(props = {}) {
     addPath(fullPath, routeKey);
   }
 
-  const makeRequest = (req, request, route) => {
-    request.cookie = cookieParser.parse(request.headers.cookie || '');
-    if (route.bucket) request.info = { update_seq: route.bucket.getSeq() };
+  function makeRequest(httpReq, req, route) {
+    req.cookie = cookieParser.parse(req.headers.cookie || '');
+    if (route.bucket) req.info = { update_seq: route.bucket.getSeq() };
     return Promise.all([
-      sessions.loadSession(request),
-      parseBody(req).catch(error => {
+      sessions.loadSession(req),
+      parseBody(httpReq).catch(error => {
         log({
           message: 'Error on parse body',
           event: API_REQUEST_ERROR,
@@ -182,13 +183,13 @@ function Router(props = {}) {
     ])
     .then(([userCtx, body]) => {
       if (route.bucket) userCtx.db = route.bucket.name;
-      request.userCtx = userCtx;
-      request.body = body;
-      return request;
+      req.userCtx = userCtx;
+      req.body = body;
+      return req;
     });
-  };
+  }
 
-  const makeError = (error, req) => {
+  function makeError(error, req) {
     let code = 500;
     const json = {
       reason: 'Bad action',
@@ -225,17 +226,11 @@ function Router(props = {}) {
     }
 
     return { code, json };
+  }
 
-  };
-
-  const sendResult = (req, res, result = {}) => {
+  function sendResult(req, res, result = {}) {
     const code = result.code || API_DEFAULT_CODE;
     const headers = result.headers || API_DEFAULT_HEADERS;
-
-    const logProps = {
-      ref: req.peer,
-      url: req.raw_path.substr(0,200)
-    };
 
     if (result.stream && result.stream.pipe) {
       // Stream
@@ -245,7 +240,7 @@ function Router(props = {}) {
 
       result.stream
         .on('error', error => {
-          log(Object.assign(logProps, {
+          log(Object.assign(API_LOG_PARSER(req), {
             message: 'Error pipe result stream',
             event: API_REQUEST_ERROR,
             error,
@@ -255,7 +250,7 @@ function Router(props = {}) {
         })
         .pipe(res)
         .on('error', error => {
-          log(Object.assign(logProps, {
+          log(Object.assign(API_LOG_PARSER(req), {
             message: 'Error pipe result',
             event: API_REQUEST_ERROR,
             error,
@@ -271,7 +266,7 @@ function Router(props = {}) {
         try {
           result.body = JSON.stringify(result.json);
         } catch (error) {
-          log(Object.assign(logProps, {
+          log(Object.assign(API_LOG_PARSER(req), {
             message: 'Error on parse result',
             event: API_REQUEST_ERROR,
             error
@@ -290,7 +285,7 @@ function Router(props = {}) {
         try {
           res.write(result.body);
         } catch (error) {
-          log(Object.assign(logProps, {
+          log(Object.assign(API_LOG_PARSER(req), {
             message: 'Error on send result',
             event: API_REQUEST_ERROR,
             error
@@ -298,87 +293,84 @@ function Router(props = {}) {
           return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
         }
       }
-      res.end((error) => {
+
+      res.end(error => {
         if (error) {
-          log({
+          log(Object.assign(API_LOG_PARSER(req), {
             message: 'Error on send response',
             event: API_REQUEST_ERROR,
             error,
-            type: 'fatal',
-            ref: req.peer,
-            url: req.raw_path
-          });
+            type: 'fatal'
+          }));
         }
       });
     }
-  };
+  }
 
+  function onRequest(httpReq, res) {
+    httpReq.headers[PAGE_GENERATION_PROP] = Date.now();
+    const req = makeRoute(httpReq);
+    if (DEBUG) debug('Request: '+ JSON.stringify(req, null, 2));
 
-  function onRequest(req, res) {
-    req.headers[PAGE_GENERATION_PROP] = Date.now();
-    const send = result => sendResult(req, res, result);
-    const sendError = error => {
-      if (DEBUG) {
-        debug({
-          message: 'Error on request',
-          error
-        });
-      }
+    function sendR(result) {
+      sendResult(req, res, result);
+    }
+    function sendE(error) {
       if (error && (error.code === 404 || error.code === '404') && API_FALLBACK_URL) {
-        proxyHTTP.web(req, res, { target: API_FALLBACK_URL });
+        proxyHTTP.web(httpReq, res, { target: API_FALLBACK_URL });
       } else {
-        sendResult(req, res, makeError(error, req));
+        sendR(makeError(error, req));
       }
-    };
+    }
 
-    const request = makeRoute(req);
-
-    if (DEBUG) debug('Request: '+ JSON.stringify(request));
-
-    const route = getRoute(request.host, request.path, request.method);
-    if (!route) return sendError(new HttpError(404));
+    const route = getRoute(req.host, req.path, req.method);
+    if (!route) return sendE(new HttpError(404));
 
     let processPromise;
 
-    const processRequest = (request) => route.handler(request).then(result => {
+    function onHandlerResult(result) {
       if (route.bucket && isA(result.docs) && result.docs.length > 0) {
-        return saveResults(route.bucket.name, result.docs).then(() => {
-          log({
-            message: 'Saved api results: "' + request.raw_path + '"',
-            ref: API_REFERRER_PARSER(request),
+        return saveResults(route.bucket.name, result.docs).then(function onResults() {
+          log(Object.assign(API_LOG_PARSER(req), {
+            message: 'Saved api results: "' + req.raw_path + '"',
             event: API_SAVE
-          });
+          }));
           return result;
         });
       }
       return result;
-    });
+    }
+    function processRequest(req) {
+      return route.handler(req).then(onHandlerResult);
+    }
 
 
-    if (request.headers.origin) {
-      if (request.method === 'OPTIONS') {
+    if (req.headers.origin) {
+      if (req.method === 'OPTIONS') {
         // send cors headers only
-        processPromise = corsHeads(request);
+        processPromise = corsHeads(req);
       } else {
         // send cors headers and router result
         processPromise = Promise.all([
-          corsHeads(request),
-          makeRequest(req, request, route).then(processRequest)
+          corsHeads(req),
+          makeRequest(httpReq, req, route).then(processRequest)
         ]).then(([corsResult, routerResult]) => Object.assign(corsResult, routerResult));
       }
     } else {
       // send router result only
-      processPromise = makeRequest(req, request, route).then(processRequest);
+      processPromise = makeRequest(httpReq, req, route).then(processRequest);
     }
 
-    processPromise.then(send).catch(error => {
-      log({
-        message: 'Route rejection',
-        event: API_REQUEST_REJECT,
-        error
+    processPromise
+      .then(sendR)
+      .catch(error => {
+        console.log(Object.assign(API_LOG_PARSER(req), {
+          message: 'Route rejection',
+          event: API_REQUEST_REJECT,
+          error
+        }));
+        sendE(error);
       });
-      sendError(error);
-    });
   }
 
   return { addRoute, onRequest };
