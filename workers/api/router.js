@@ -350,7 +350,7 @@ function Router(props = {}) {
       if (route.bucket && isA(result.docs) && result.docs.length > 0) {
         return saveResults(route.bucket.name, result.docs).then(function onResults() {
           log(Object.assign(logProps, {
-            message: 'Saved api results: "' + req.raw_path + '"',
+            message: 'Saved api results',
             event: API_SAVE
           }));
           return result;
