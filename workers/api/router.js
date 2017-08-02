@@ -244,7 +244,7 @@ function Router(props = {}) {
 
     function logRequest() {
       log(Object.assign(logProps, {
-        message: 'Request ['+ pageGen +'ms] '+ code +' ' + logProps.url,
+        message: 'Request ['+ code +'] '+ pageGen +'ms ' + logProps.url,
         data: {
           code: code,
           pageGen: pageGen
