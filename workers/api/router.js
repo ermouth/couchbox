@@ -233,10 +233,28 @@ function Router(props = {}) {
     const code = result.code || API_DEFAULT_CODE;
     const headers = result.headers || API_DEFAULT_HEADERS;
     const logProps = API_LOG_PARSER(req);
+    let pageGen = 0;
+
+    if (req && req.headers && req.headers[PAGE_GENERATION_PROP]) {
+      pageGen = Date.now() - req.headers[PAGE_GENERATION_PROP];
+      headers[PAGE_GENERATION_PROP] = pageGen;
+    } else {
+      delete headers[PAGE_GENERATION_PROP];
+    }
+
+    function logRequest() {
+      log(Object.assign(logProps, {
+        message: 'Request ['+ pageGen +'ms] '+ code +' ' + logProps.url,
+        data: {
+          code: code,
+          pageGen: pageGen
+        },
+        event: API_REQUEST
+      }));
+    }
 
     if (result.stream && result.stream.pipe) {
       // Stream
-      headers[PAGE_GENERATION_PROP] = Date.now() - req.headers[PAGE_GENERATION_PROP];
       headers['x-accel-buffering'] = 'no';
       res.writeHead(code, headers); // disable nginx cache for stream
 
@@ -264,12 +282,7 @@ function Router(props = {}) {
           return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
         })
         .on('finish', function() {
-          if (!hasError) {
-            log(Object.assign(logProps, {
-              message: 'Request: ' + logProps.url,
-              event: API_REQUEST
-            }));
-          }
+          if (!hasError) logRequest();
         })
     } else {
       // Body
@@ -288,10 +301,6 @@ function Router(props = {}) {
         }
       }
 
-      if (req && req.headers && req.headers[PAGE_GENERATION_PROP]) {
-        headers[PAGE_GENERATION_PROP] = Date.now() - req.headers[PAGE_GENERATION_PROP];
-      }
-
       res.writeHead(code, headers);
 
       if (result.body !== undefined) {
@@ -308,17 +317,13 @@ function Router(props = {}) {
       }
 
       res.end(error => {
+        logRequest();
         if (error) {
           log(Object.assign(logProps, {
             message: 'Error on send response',
             event: API_REQUEST_ERROR,
             error,
             type: 'fatal'
-          }));
-        } else {
-          log(Object.assign(logProps, {
-            message: 'Request: ' + logProps.url,
-            event: API_REQUEST
           }));
         }
       });
