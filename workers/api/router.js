@@ -43,13 +43,59 @@ const {
 const ROOT_PATH = '/';
 const PAGE_GENERATION_PROP = 'x-page-generation';
 
+
+const CORS_RULES = {
+  '*': false,
+  'http': false,
+  'https': false
+};
+
+function CORS_RULE_PARSER(rule) {
+  const protocol = rule.substr(0, rule.indexOf('://'));
+  if (CORS_RULES[protocol] === true) return null;
+
+  let address = rule.substr(protocol.length + 3);
+  if (address === '*') {
+    CORS_RULES[protocol] = true;
+  }
+
+  address = address.split('.');
+  let all = false;
+  if (address[0] === '*') {
+    all = true;
+    address = address.slice(1);
+  }
+  address = address.join('.');
+
+  if (!Object.isObject(CORS_RULES[protocol])) CORS_RULES[protocol] = {};
+  CORS_RULES[protocol][address] = all ? 2 : 1;
+}
+
+if (CORS_ORIGINS['*']) CORS_RULES['*'] = true;
+else Object.keys(CORS_ORIGINS).forEach(CORS_RULE_PARSER);
+console.log('CORS_RULES', CORS_RULES);
+
+function checkAddress(protocol, address, checkAll = false) {
+  if (CORS_RULES[protocol][address]) {
+    return checkAll ? CORS_RULES[protocol][address] === 2 : true;
+  } else {
+    address = address.split('.').slice(1).join('.');
+    if (address) return checkAddress(protocol, address, true);
+    return false;
+  }
+}
+
 const corsHeads = (req) => {
   const headers = Object.clone(API_DEFAULT_HEADERS, true);
   if (!(req && req.headers && req.headers.origin)) return Promise.resolve({ headers });
   if (!CORS) return Promise.reject(new HttpError(500, 'Referrer not valid'));
-  const rule = CORS_ORIGINS['*'] ? '*' : CORS_ORIGINS[req.headers.origin] ? req.headers.origin : null;
-  if (!rule) return Promise.reject(new HttpError(500, 'Referrer not valid'));
-  headers['access-control-allow-origin'] = rule;
+  const origin = req.headers.origin;
+  if (!CORS_RULES['*']) {
+    const protocol = origin.substr(0, origin.indexOf('://'));
+    if (!CORS_RULES[protocol]) return Promise.reject(new HttpError(500, 'Referrer not valid'));
+    if (!checkAddress(protocol, origin.substr(protocol.length + 3))) return Promise.reject(new HttpError(500, 'Referrer not valid'));
+  }
+  headers['access-control-allow-origin'] = origin;
   headers['access-control-allow-headers'] = CORS_HEADES || '';
   headers['access-control-allow-methods'] = CORS_METHODS || '';
   headers['access-control-allow-credentials'] = CORS_CREDENTIALS;
