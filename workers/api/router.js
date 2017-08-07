@@ -73,7 +73,6 @@ function CORS_RULE_PARSER(rule) {
 
 if (CORS_ORIGINS['*']) CORS_RULES['*'] = true;
 else Object.keys(CORS_ORIGINS).forEach(CORS_RULE_PARSER);
-console.log('CORS_RULES', CORS_RULES);
 
 function checkAddress(protocol, address, checkAll = false) {
   if (CORS_RULES[protocol][address]) {
