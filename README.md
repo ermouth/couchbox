@@ -107,7 +107,7 @@ The `.docs` array can be non-plain, any row can be an array of docs also.
 In this case all docs of the row are saved simultaneously, and next row is processed
 only after all docs are saved successfully.
 
-``` javascript
+```javascript
 resolve ({
   code:200, docs:[
     [{_id:'A',_node:'N1',_db:'db1'},{_id:'B',_node:'N2',_db:'db1'}],
@@ -118,6 +118,9 @@ resolve ({
 ```
 Above code will attempt to save docs `A` and `B` simultaneously. If succeed, 
 the `C` doc is saved, and, on sucess, the `D` doc.
+
+Hook may also end up with controllable failure. Calling `reject(result)` instead 
+of `resolve(result)` logs a hook error.
 
 ### Hooks modes
 
@@ -258,8 +261,11 @@ update sequence.
 
 ### Result object
 
-Api call must end up calling `resolve(result)` or `reject(result)`. The `result` 
-object should look like this:
+Api call must end up calling `resolve(result)` or `reject(result)`. Basically,
+they act nearly same, but calling `reject()` logs an error.
+
+The `result` object should look like this:
+
 ```javascript
 {
   code:200, // or any http code
@@ -276,7 +282,17 @@ object should look like this:
 Fields `.headers` and `.docs` are optional. Code and body are sent to a client only
 if all docs were saved successfully. [More about saving docs](#saving-docs).
 
-If there were any errors during saving docs, client receives `500` response.
+If there were any errors during saving docs, client always receives `500` response.
+
+The result object for `reject()` calls may have also `.error` and `.reason`
+optional properties:
+
+* `.error` property should be a String or any kind of Error;
+* `.reason` should be a String.
+
+When `reject()` is called, and all docs were successfully saved, client receives
+`.body`, `.json` or `.stream` if any present. If missing, response
+is auto-generated from `.error`, `.reason` and `.code`.
 
 ### Api and workers
 
