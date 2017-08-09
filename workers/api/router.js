@@ -16,7 +16,7 @@ const isA = Object.isArray;
 const isS = Object.isString;
 
 
-const { LocaleError, HttpError } = require('../../utils/errors');
+const { LocaleError, HttpError, HTTP_CODES } = require('../../utils/errors');
 
 const {
   API_URL_ROOT,
@@ -237,26 +237,19 @@ function Router(props = {}) {
 
   function makeError(error, req) {
     let code = 500;
-    const json = {
-      reason: 'Bad action',
-      ok: false
-    };
+    const json = { ok: false };
 
-    if (error) {
-      if (error instanceof HttpError || error instanceof LocaleError) {
-        let errorLocale = new locale.Locales(req.headers['accept-language'] || API_DEFAULT_LOCALE)[0];
-        if (errorLocale && errorLocale.language) errorLocale = errorLocale.language.toUpperCase();
-        else errorLocale = 'EN';
+    if (error instanceof HttpError || error instanceof LocaleError) {
+      let errorLocale = new locale.Locales(req.headers['accept-language'] || API_DEFAULT_LOCALE)[0];
+      if (errorLocale && errorLocale.language) errorLocale = errorLocale.language.toUpperCase();
+      else errorLocale = 'EN';
 
-        if (error.code) code = error.code;
-        else if (error && error.error && error.error.code) code = error.error.code;
+      if (error.code) code = error.code;
+      else if (error && error.error && error.error.code) code = error.error.code;
 
-        json.reason = error.toString(errorLocale);
-        if (error.error) json.error = Object.isString(error.error) ? error.error : error.error.message;
-
-        return { code, json };
-      }
-
+      json.reason = error.toString(errorLocale);
+      if (error.error) json.error = Object.isString(error.error) ? error.error : error.error.message;
+    } else if (error) {
       if (error.code > 0) code = error.code;
       if (error.reason) json.reason = error.reason;
 
@@ -264,12 +257,13 @@ function Router(props = {}) {
         json.error = error.toString();
       } else {
         if (isO(error)) {
-          json.error = new Error(error.message || error.error);
-        } else {
-          json.error = new Error(error);
+          json.error = error.body || error.message || error.error;
         }
       }
+      if (!json.error) json.error = JSON.stringify(Object.reject(error, ['code', 'ok', 'reason', 'error', 'message']));
     }
+
+    if (!json.reason) json.reason = HTTP_CODES[code] || 'Bad action';
 
     return { code, json };
   }

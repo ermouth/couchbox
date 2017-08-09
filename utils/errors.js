@@ -90,20 +90,10 @@ class TimeoutError extends Error {
   }
 }
 
-class RejectHandlerError extends Error {
-  constructor(error) {
-    const message = 'Reject handler execution' + (error && error.message ? ': '+ error.message : '');
-    super(message);
-    this.code = 500;
-    this.reason = message;
-    if (error) this.error = error;
-  }
-}
-
 
 // HttpError
 
-const CODES = {
+const HTTP_CODES = {
   400: 'bad_request',
   401: 'unauthorized',
   403: 'forbidden',
@@ -122,16 +112,15 @@ const CODES = {
 class HttpError extends LocaleError {
   constructor(code = 400, reason, error, ext) {
     if (Object.isString(reason)) reason = { EN: reason };
-    if (!reason || !Object.isObject(reason)) reason = { EN: CODES[code] || 'Bad request' };
+    if (!reason || !Object.isObject(reason)) reason = { EN: HTTP_CODES[code] || 'Bad request' };
     super(reason, error, ext);
     this.code = code;
   }
 }
 
-
 module.exports = {
+  HTTP_CODES,
   LocaleError,
   TimeoutError,
-  RejectHandlerError,
   HttpError
 };

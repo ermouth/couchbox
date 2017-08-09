@@ -9,7 +9,7 @@ const config = require('../config');
 
 const DEBUG = config.get('debug');
 
-const { LocaleError, HttpError, RejectHandlerError, TimeoutError } = require('./errors');
+const { LocaleError, HttpError, TimeoutError } = require('./errors');
 
 const MODULE_ERROR = 'module/error';
 const PLUGIN_ERROR = 'plugin/error';
@@ -274,8 +274,7 @@ const makeHandler = (bucketName, bucket, ddocName, handlerKey, body = {}, props 
         while (arg_i--) params[arg_i] = arguments[arg_i];
       }
 
-      return new Promise((resolve, reject0) => {
-        const reject = (error) => reject0(error instanceof HttpError ? error : new RejectHandlerError(error));
+      return new Promise((resolve, reject) => {
         const { proxy, revoke } = Proxy.revocable(ctx, {
           get: (target, prop) => {
             if (prop in target) return target[prop];
