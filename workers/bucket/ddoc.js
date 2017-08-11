@@ -1,10 +1,8 @@
 const Promise = require('bluebird');
-const vm = require('vm');
 const lib = require('../../utils/lib');
 const Logger = require('../../utils/logger');
 const { getDDoc } = require('../../utils/couchdb');
 const { makeContext, makeHandler } = require('../../utils/modules');
-const config = require('../../config');
 
 
 const { DDOC_INIT, FILTER_ERROR, BUCKET_LAMBDA_ERROR, HOOK_ERROR, HOOK_LOG } = require('./constants').LOG_EVENTS;
@@ -17,19 +15,19 @@ function DDoc(bucket, bucketName, props = {}) {
     logger: props.logger
   });
   const log = logger.getLog();
-  const ddoc = this;
 
   let rev = props.rev;
   let seq = 0;
 
-  return getDDoc(bucket, name, { local_seq: true, rev }).then(body => {
+  function onDdocInit(body) {
     rev = body._rev;
     seq = body._local_seq;
 
-    const referrer = ([doc]) => bucketName +'/'+ seq +'/'+ doc._id;
-    const context = makeContext(name, body, log);
+    function refParser([doc]) {
+      return bucketName +'/'+ seq +'/'+ doc._id;
+    }
 
-    const makeHook = (key, filterSrc, hookParams) => {
+    function makeHook(key, filterSrc, hookParams) {
       if (!(Object.isString(filterSrc) && Object.isObject(hookParams))) return Promise.resolve();
       let filter;
       try {
@@ -44,9 +42,9 @@ function DDoc(bucket, bucketName, props = {}) {
       }
 
       if (filter) {
-        const hookProps = Object.assign({ logger, logEvent: HOOK_LOG, errorEvent: HOOK_ERROR, methods, referrer }, context);
+        const hookProps = Object.assign({ logger, logEvent: HOOK_LOG, errorEvent: HOOK_ERROR, methods, refParser }, makeContext(name, body, log));
         return makeHandler(bucketName, bucket, name, key, hookParams, hookProps)
-          .then(handler => {
+          .then(function onHandler(handler) {
             if (handler && handler.handler) {
               return {
                 key,
@@ -59,27 +57,33 @@ function DDoc(bucket, bucketName, props = {}) {
               };
             }
           })
-          .catch((error) => log({
-            message: 'Error init hook lambda: '+ key,
-            event: BUCKET_LAMBDA_ERROR,
-            error,
-            type: 'fatal'
-          }));
+          .catch(function onHandlerError(error) {
+            log({
+              message: 'Error init hook lambda: '+ key,
+              event: BUCKET_LAMBDA_ERROR,
+              error,
+              type: 'fatal'
+            })
+          });
       }
-    };
+    }
 
     return Promise.map(Object.keys(body.filters || {}), (key) => makeHook(key, body.filters[key], body.hooks[key]))
       .filter(h => h && h.key)
       .call('sortBy', 'key');
-  }).then(handlers => {
+  }
 
+  function onHandlers(handlers) {
     log({
       message: 'Started ddoc: '+ name,
       event: DDOC_INIT
     });
-
     return { seq, rev, handlers };
-  });
+  }
+
+  return getDDoc(bucket, name, { local_seq: true, rev })
+    .then(onDdocInit)
+    .then(onHandlers);
 }
 
 module.exports = DDoc;

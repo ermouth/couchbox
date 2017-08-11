@@ -9,7 +9,7 @@ const config = require('../config');
 
 const DEBUG = config.get('debug');
 
-const { LocaleError, HttpError, TimeoutError } = require('./errors');
+const { HttpError, TimeoutError } = require('./errors');
 
 const MODULE_ERROR = 'module/error';
 const PLUGIN_ERROR = 'plugin/error';
@@ -39,7 +39,6 @@ const couchGlobals = {
 };
 const customGlobals = {
   Promise,
-  LocaleError,
   HttpError
 };
 
@@ -222,7 +221,7 @@ const makeContext = (contextName = 'modulesContext', body = {}, log) => {
 
 const makeHandler = (bucketName, bucket, ddocName, handlerKey, body = {}, props = {}) => {
 
-  const { ctx = {}, context, _include, _require, methods, referrer } = props;
+  const { ctx = {}, context, _include, _require, methods, refParser } = props;
   if (!(body && body.lambda)) return Promise.reject(new Error('No lambda'));
   if (!context) return Promise.reject(new Error('No context'));
 
@@ -279,8 +278,8 @@ const makeHandler = (bucketName, bucket, ddocName, handlerKey, body = {}, props 
           get: (target, prop) => {
             if (prop in target) return target[prop];
             if (prop in plugins) {
-              return plugins[prop].make(referrer
-                ? { bucket, ctx, params, reject, ref: referrer(params) }
+              return plugins[prop].make(refParser
+                ? { bucket, ctx, params, reject, ref: refParser(params) }
                 : { bucket, ctx, params, reject }
               );
             }

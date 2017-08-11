@@ -1,9 +1,7 @@
 const Promise = require('bluebird');
-const vm = require('vm');
 const Logger = require('../../utils/logger');
 const { getDDoc } = require('../../utils/couchdb');
 const { makeContext, makeHandler } = require('../../utils/modules');
-const config = require('../../config');
 
 const {
   API_DEFAULT_TIMEOUT,
@@ -21,66 +19,73 @@ function DDoc(bucket, bucketName, props = {}) {
     logger: props.logger
   });
   const log = logger.getLog();
-  const ddoc = this;
 
-  return getDDoc(bucket, name).then(body => {
+  function onDdocInit(body) {
     const id = body._id;
     const rev = body._rev;
     let timeout = 0;
-
-    const onHandlerError = (handlerKey, error) => {
-      log({
-        message: 'Error init api lambda: '+ handlerKey,
-        event: API_LAMBDA_ERROR,
-        error,
-        type: 'fatal'
-      });
-    };
-    const onHandlerResult = ({ methods }, handler) => {
-      if (handler && Object.isObject(handler)) {
-        return Object.assign(handler, { methods });
-      }
-    };
-    const handlerFilter = (handler) => {
-      if (handler) {
-        if (timeout < handler.timeout) timeout = handler.timeout;
-        return true;
-      }
-    };
 
     log({
       message: 'Started ddoc: "'+ name + '" with methods: "'+ methods.join(',') +'" and req path: "' + domain +'/'+ endpoint + '"',
       event: DDOC_INIT
     });
 
-    const referrer = ([request]) => API_REFERRER_PARSER(request);
-    const context = makeContext(name, body, log);
+    function refParser([request]) {
+      return API_REFERRER_PARSER(request);
+    }
 
-    const handlerProps = Object.assign(
-      { logger, logEvent: API_LOG, errorEvent: API_ERROR, methods, referrer },
-      context
+    const handlerProps = Object.assign({
+        logger,
+        logEvent: API_LOG,
+        errorEvent: API_ERROR,
+        methods,
+        refParser
+      },
+      makeContext(name, body, log)
     );
 
-    const handlerMaker = (handlerKey) => {
+    function handlerMaker(handlerKey) {
       const handlerBody = body.api[handlerKey];
       return makeHandler(bucketName, bucket, name, handlerKey, handlerBody, handlerProps)
-        .then(result => onHandlerResult(handlerBody, result))
-        .catch(error => onHandlerError(handlerKey, error));
-    };
+        .then(function onHandlerResult(handler) {
+          if (handler && Object.isObject(handler)) {
+            return Object.assign(handler, { methods: handlerBody.methods });
+          }
+        })
+        .catch(function onHandlerError(error) {
+          log({
+            message: 'Error init api lambda: '+ handlerKey,
+            event: API_LAMBDA_ERROR,
+            error,
+            type: 'fatal'
+          });
+        });
+    }
 
-    const makeDdoc = (handlers) => ({
-      name,
-      id,
-      rev,
-      domain,
-      endpoint,
-      methods,
-      api: handlers.filter(handlerFilter),
-      timeout: timeout || API_DEFAULT_TIMEOUT
-    });
+    function handlerFilter(handler) {
+      if (handler) {
+        if (timeout < handler.timeout) timeout = handler.timeout;
+        return true;
+      }
+    }
+
+    function makeDdoc(handlers) {
+      return {
+        name,
+        id,
+        rev,
+        domain,
+        endpoint,
+        methods,
+        api: handlers.filter(handlerFilter),
+        timeout: timeout || API_DEFAULT_TIMEOUT
+      };
+    }
 
     return Promise.map(Object.keys(body.api || {}), handlerMaker).then(makeDdoc);
-  });
+  }
+
+  return getDDoc(bucket, name).then(onDdocInit);
 }
 
 module.exports = DDoc;

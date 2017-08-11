@@ -68,8 +68,8 @@ function Bucket(props = {}) {
   const stateKey_changes = () => stateKey_worker() + ':CHANGES';
   const stateKey_change_hooks = (seq) => stateKey_worker() + ':SEQ:' + seq;
 
-  const getBucketInfo = () => new Promise((resolve, reject) => {
-    db.info((error, info) => {
+  const getBucketInfo = () => new Promise(function(resolve, reject){
+    db.info(function(error, info){
       if (error) {
         log({
           message: 'Error on loading bucket info',
@@ -82,8 +82,8 @@ function Bucket(props = {}) {
       resolve(info);
     });
   });
-  const getBucketState = () => new Promise((resolve, reject) => {
-    redisClient.get(stateKey_bucket, (error, data) => {
+  const getBucketState = () => new Promise(function(resolve, reject){
+    redisClient.get(stateKey_bucket, function(error, data){
       if (error) {
         log({
           message: 'Error on loading local bucket state: '+ stateKey_bucket,
@@ -95,9 +95,9 @@ function Bucket(props = {}) {
       resolve(data ? JSON.parse(data) : []);
     });
   });
-  const updateBucketState = (closing) => {
+  function updateBucketState(closing) {
     if (worker_seq === 0) return Promise.resolve();
-    return getBucketState().then((state = []) => {
+    return getBucketState().then(function(state = []){
       if (!!~state.indexOf(worker_seq)) {
         if (closing && worker_type === BUCKET_WORKER_TYPE_OLD && sequencesQueue.length === 0) {
           state = state.remove(worker_seq);
@@ -107,9 +107,9 @@ function Bucket(props = {}) {
       else state = state.add(worker_seq).sort((a, b) => b - a);
       return setBucketState(state);
     });
-  };
-  const setBucketState = (state) => new Promise((resolve, reject) => {
-    redisClient.set(stateKey_bucket, JSON.stringify(state), (error) => {
+  }
+  const setBucketState = (state) => new Promise(function(resolve, reject){
+    redisClient.set(stateKey_bucket, JSON.stringify(state), function(error){
       if (error) {
         log({
           message: 'Error on save bucket state',
@@ -122,13 +122,13 @@ function Bucket(props = {}) {
     });
   });
 
-  const getWorkerState = () => new Promise((resolve, reject) => {
+  const getWorkerState = () => new Promise(function(resolve, reject){
     if (worker_seq === 0) return Promise.resolve({});
     redisClient.multi([
       ['get', stateKey_ddocs()],
       ['get', stateKey_last_seq()],
       ['smembers', stateKey_changes()]
-    ]).exec((error, [ ddocs_state, last_seq_state = 0, sequences = [] ]) => {
+    ]).exec(function(error, [ ddocs_state, last_seq_state = 0, sequences = [] ]) {
       if (error) {
         log({
           message: 'Error on load local worker state',
@@ -178,7 +178,7 @@ function Bucket(props = {}) {
       });
     });
   });
-  const updateWorkerState = (closing) => {
+  function updateWorkerState(closing) {
     if (worker_seq === 0) return Promise.resolve();
     if (closing && worker_type === BUCKET_WORKER_TYPE_OLD && sequencesQueue.length === 0) {
       return Promise.all([
@@ -191,10 +191,10 @@ function Bucket(props = {}) {
         setDDocsState()
       ]);
     }
-  };
+  }
 
-  const setDDocsState = () => new Promise((resolve, reject) => {
-    redisClient.set(stateKey_ddocs(), JSON.stringify(_ddocs), (error) => {
+  const setDDocsState = () => new Promise(function(resolve, reject){
+    redisClient.set(stateKey_ddocs(), JSON.stringify(_ddocs), function(error){
       if (error) {
         log({
           message: 'Error on save worker state',
@@ -206,8 +206,8 @@ function Bucket(props = {}) {
       resolve();
     });
   });
-  const unsetDDocsState = () => new Promise((resolve, reject) => {
-    redisClient.del(stateKey_ddocs(), (error) => {
+  const unsetDDocsState = () => new Promise(function(resolve, reject) {
+    redisClient.del(stateKey_ddocs(), function(error) {
       if (error) {
         log({
           message: 'Error on remove old worker state',
@@ -220,64 +220,68 @@ function Bucket(props = {}) {
     });
   });
 
-  const setLastSeqState = (newSeq) => new Promise((resolve, reject) => {
+  const setLastSeqState = (newSeq) => new Promise(function(resolve, reject){
     if (!(newSeq && last_seq < newSeq)) return resolve();
     last_seq = newSeq;
-    redisClient.set(stateKey_last_seq(), last_seq, (error) => {
+    redisClient.set(stateKey_last_seq(), last_seq, function(error){
       if (error) return reject(error);
       resolve();
     });
   });
-  const unsetLastSeqState = () => new Promise((resolve, reject) => {
-    redisClient.del(stateKey_last_seq(), (error) => {
-      if (error) return reject(error);
-      resolve();
-    });
-  });
-
-  const setChangeState = (seq, id, rev) => new Promise((resolve, reject) => {
-    redisClient.sadd(stateKey_changes(), [seq, id, rev].join(CHANGE_PROPS_SEPARATOR), (error) => {
-      if (error) return reject(error);
-      resolve();
-    });
-  });
-  const unsetChangeState = (seq, id, rev) => new Promise((resolve, reject) => {
-    redisClient.srem(stateKey_changes(), [seq, id, rev].join(CHANGE_PROPS_SEPARATOR), (error) => {
+  const unsetLastSeqState = () => new Promise(function(resolve, reject){
+    redisClient.del(stateKey_last_seq(), function(error){
       if (error) return reject(error);
       resolve();
     });
   });
 
-  const setChangeHooksState = (seq, hook) => new Promise((resolve, reject) => {
-    redisClient.sadd(stateKey_change_hooks(seq), hook, (error) => {
+  const setChangeState = (seq, id, rev) => new Promise(function(resolve, reject){
+    redisClient.sadd(stateKey_changes(), [seq, id, rev].join(CHANGE_PROPS_SEPARATOR), function(error){
       if (error) return reject(error);
       resolve();
     });
   });
-  const unsetChangeHooksState = (seq, hook) => new Promise((resolve, reject) => {
-    redisClient.srem(stateKey_change_hooks(seq), hook, (error) => {
+  const unsetChangeState = (seq, id, rev) => new Promise(function(resolve, reject){
+    redisClient.srem(stateKey_changes(), [seq, id, rev].join(CHANGE_PROPS_SEPARATOR), function(error){
+      if (error) return reject(error);
+      resolve();
+    });
+  });
+
+  const setChangeHooksState = (seq, hook) => new Promise(function(resolve, reject){
+    redisClient.sadd(stateKey_change_hooks(seq), hook, function(error){
+      if (error) return reject(error);
+      resolve();
+    });
+  });
+  const unsetChangeHooksState = (seq, hook) => new Promise(function(resolve, reject){
+    redisClient.srem(stateKey_change_hooks(seq), hook, function(error){
       if (error) return reject(error);
       resolve();
     });
   });
 
 
-  const addProcess = (seq, id, rev, hookName, hookPromise) => {
+  function addProcess(seq, id, rev, hookName, hookPromise) {
     const sequences = hookProcesses.get(id) || new Map();
     const processes = sequences.has(seq) ? sequences.get(seq) : new Map();
     processes.set(hookName, hookPromise);
     sequences.set(seq, processes);
     hookProcesses.set(id, sequences);
     return hookPromise
-      .catch(error => log({
-        message: 'Hook error: '+ hookName,
-        ref: name +'/'+ seq +'/'+ id,
-        event: HOOK_ERROR,
-        error: lib.errorBeautify(error)
-      }))
-      .then(() => setOutProcess(seq, id, rev, hookName));
-  };
-  const removeProcess = (id, seq, hookName) => {
+      .catch(function(error){
+        log({
+          message: 'Hook error: '+ hookName,
+          ref: name +'/'+ seq +'/'+ id,
+          event: HOOK_ERROR,
+          error: lib.errorBeautify(error)
+        })
+      })
+      .then(function() {
+        setOutProcess(seq, id, rev, hookName)
+      });
+  }
+  function removeProcess(id, seq, hookName) {
     const sequences = hookProcesses.get(id);
     if (sequences) {
       const processes = sequences.get(seq);
@@ -289,8 +293,8 @@ function Bucket(props = {}) {
         else processes.delete(hookName);
       }
     }
-  };
-  const getPreviousProcess = (id, seq, hookName) => {
+  }
+  function getPreviousProcess(id, seq, hookName) {
     const sequences = hookProcesses.get(id);
     if (!(sequences && sequences.size > 0)) return null;
     let processes, hook, last;
@@ -299,8 +303,8 @@ function Bucket(props = {}) {
       else break;
     }
     return last;
-  };
-  const hasFutureProcess = (id, seq, hookName) => {
+  }
+  function hasFutureProcess(id, seq, hookName) {
     const sequences = hookProcesses.get(id);
     if (sequences && sequences.size > 0) {
       let processes;
@@ -309,10 +313,10 @@ function Bucket(props = {}) {
       }
     }
     return false;
-  };
+  }
 
   // add change with hooks list in process list
-  const setInProcess = (change, hookName) => {
+  function setInProcess(change, hookName) {
     const { seq, doc } = change;
     const { _id, _rev } = doc;
 
@@ -336,9 +340,9 @@ function Bucket(props = {}) {
       setChangeHooksState(seq, hookName),
       setChangeState(seq, _id, _rev)
     ]);
-  };
+  }
   // remove hook from process list by change, if hook is last in change - remove change from processes
-  const setOutProcess = (seq, id, rev, hookName) => {
+  function setOutProcess(seq, id, rev, hookName) {
     removeProcess(id, seq, hookName);
     const hooks = sequencesHooks.get(seq);
     if (hooks && hooks.has(hookName)) {
@@ -354,11 +358,11 @@ function Bucket(props = {}) {
       return unsetChangeHooksState(seq, hookName);
     }
     return Promise.resolve();
-  };
+  }
 
 
   // init bucket-worker
-  const init = () => {
+  function init() {
     getBucketInfo()
       .then(getBucketState) // load state
       .then(initDDocs) // init ddocs from state or latest in db
@@ -366,9 +370,9 @@ function Bucket(props = {}) {
       .then(subscribeChanges) // if worker old - start load changes else subscribe on changes feed
       .catch(onInitError) // catch errors on initialisation
       .then(processQueue); // start process queue
-  };
+  }
   // catch errors on initialisation
-  const onInitError = (error) => {
+  function onInitError(error) {
     log({
       message: 'Error on init db: '+ name,
       event: BUCKET_ERROR,
@@ -376,9 +380,9 @@ function Bucket(props = {}) {
       type: 'fatal'
     });
     close();
-  };
+  }
 
-  const initDDocs = (workers) => {
+  function initDDocs(workers) {
     if (worker_seq > 0 && !(workers && workers.length > 0 && !!~workers.indexOf(worker_seq))) {
       return Promise.reject(new Error('No db watcher by seq: '+ worker_seq));
     }
@@ -387,7 +391,7 @@ function Bucket(props = {}) {
       const workerIndex = workers.indexOf(worker_seq);
       if (workerIndex > 0) {
         max_seq = workers[workerIndex - 1];
-        return getWorkerState().then(ddocs_state => {
+        return getWorkerState().then(function(ddocs_state){
           worker_type = BUCKET_WORKER_TYPE_OLD;
           return Promise.map(ddocs_state, initDDoc);
         });
@@ -396,9 +400,9 @@ function Bucket(props = {}) {
 
     // Init latest worker
     return Promise.map(Object.keys(props.ddocs), (key) => initDDoc({ name: key, methods: props.ddocs[key] }))
-      .then(() => {
+      .then(function(){
         let workerIndex = -1;
-        workers.forEach((workerSeq, index) => {
+        workers.forEach(function(workerSeq, index){
           if (worker_seq === workerSeq) workerIndex = index;
           else _onOldWorker({ seq: workerSeq });
         });
@@ -406,8 +410,8 @@ function Bucket(props = {}) {
           return getWorkerState().then(() => worker_type = BUCKET_WORKER_TYPE_ACTUAL);
         }
       });
-  };
-  const initDDoc = (data) => {
+  }
+  function initDDoc(data) {
     const { name, rev } = data;
     const methods = Object.isArray(data.methods)
       ? data.methods
@@ -415,17 +419,17 @@ function Bucket(props = {}) {
         ? data.methods.split(/\s+/g).compact(true).unique()
         : [];
     return DDoc(db, props.name, { name, rev, methods, logger })
-      .then(({ seq, rev, handlers }) => {
+      .then(function({ seq, rev, handlers }){
         if (worker_seq < seq) worker_seq = seq;
         _ddocs.push({ name, rev, methods, seq });
 
-        handlers.forEach(({ key, filter, hook }) => {
+        handlers.forEach(function({ key, filter, hook }){
           key = name +'/'+ key;
           _filters.set(key, filter);
           _hooks.set(key, hook);
         });
       })
-      .catch(error => {
+      .catch(function(error){
         log({
           message: 'Error on init ddoc: '+ name,
           event: BUCKET_DDOC_ERROR,
@@ -433,8 +437,8 @@ function Bucket(props = {}) {
           type: 'fatal'
         });
       });
-  };
-  const onInitDDocs = () => {
+  }
+  function onInitDDocs() {
     const tasks = [];
     if (!last_seq) {
       if (COLD_START === 'now' && worker_type === BUCKET_WORKER_TYPE_ACTUAL && db_info && db_info.update_seq > 0) {
@@ -446,21 +450,21 @@ function Bucket(props = {}) {
     return Promise.all(tasks.concat([
       updateBucketState(),
       updateWorkerState()
-    ])).then(() => {
+    ])).then(function(){
       _onInit({ seq: worker_seq, type: worker_type });
     });
-  };
+  }
 
   // start load not in process changes
   const subscribeChanges = () => worker_type === BUCKET_WORKER_TYPE_OLD ? startChanges() : startFeed();
   // load changes between last_seq and max_seq
-  const startChanges = () => new Promise((resolve, reject) => {
+  const startChanges = () => new Promise(function(resolve, reject){
     log({
       message: 'Start changes since '+ last_seq +' between: '+ max_seq,
       event: BUCKET_CHANGES
     });
     const limit = max_seq - worker_seq;
-    db.changes({ since: last_seq, limit, include_docs: true }, (error, changes) => {
+    db.changes({ since: last_seq, limit, include_docs: true }, function(error, changes){
       if (error) return reject(error);
       if (changes && changes.results) {
         let i = changes.results.length, change;
@@ -472,7 +476,7 @@ function Bucket(props = {}) {
     });
   }); // load changes since last_seq with limit (max_seq - last_seq) and skip changes with seq greater then max_seq => push changes in queue
   // start feed from last_seq
-  const startFeed = () => {
+  function startFeed() {
     log({
       message: 'Start feed '+ worker_seq +' since: '+ last_seq,
       event: BUCKET_FEED
@@ -481,9 +485,9 @@ function Bucket(props = {}) {
     feed.on('change', onChange);
     feed.follow();
     _onStartFeed();
-  };
+  }
   // stop feed and call _onStopFeed
-  const stopFeed = () => {
+  function stopFeed() {
     if (hasFeed()) {
       log({
         message: 'Stop feed',
@@ -492,14 +496,14 @@ function Bucket(props = {}) {
       feed.stop();
       _onStopFeed();
     }
-  };
+  }
 
   // call after process last item in queue and start close if no feed
-  const onEndQueue = () => {
+  function onEndQueue() {
     if (!hasFeed()) close();
-  };
+  }
   // on change event push it to queue and run process queue
-  const onChange = (change, processNow = true) => {
+  function onChange(change, processNow = true) {
     const { seq, id } = change;
 
     // Design document
@@ -532,9 +536,9 @@ function Bucket(props = {}) {
       }
     }
     return Promise.all(tasks).then(() => processNow && processQueue());
-  };
+  }
   // load & remove first task from queue, if doc is ddoc -> run onDDoc else run onDoc
-  const processQueue = () => {
+  function processQueue() {
     // no changes in queue
     if (sequencesQueue.length === 0) return onEndQueue();
     // parallel changes limit
@@ -544,12 +548,12 @@ function Bucket(props = {}) {
 
     changesCounter++;
     (doc ? Promise.resolve(doc) : loadDoc(id, rev))
-      .then(doc => {
+      .then(function(doc){
         const hooksKeys = sequencesHooks.get(seq);
         if (hooksKeys && hooksKeys.size > 0) return Promise.mapSeries(hooksKeys, (hookKey) => startHook(seq, id, rev, doc, hookKey));
         return Promise.resolve();
       })
-      .catch(error => {
+      .catch(function(error){
         log({
           message: 'Change hooks error: '+ seq,
           ref: name +'/'+ seq +'/'+ id,
@@ -557,24 +561,24 @@ function Bucket(props = {}) {
           error: lib.errorBeautify(error)
         });
       })
-      .then(() => {
+      .then(function(){
         changesCounter--;
         processQueue();
       });
-  };
+  }
 
-  const loadDoc = (id, rev) => new Promise((resolve, reject) => {
-    db.get(id, { rev }, (error, doc) => {
+  const loadDoc = (id, rev) => new Promise(function(resolve, reject){
+    db.get(id, { rev }, function(error, doc){
       if (error) return reject(error);
       return resolve(doc);
     });
   });
 
   // start hook on change
-  const startHook = (seq, id, rev, doc, hookKey) => {
+  function startHook (seq, id, rev, doc, hookKey) {
     const hook = _hooks.get(hookKey);
 
-    const hookPromise = () => {
+    function hookPromise() {
       const ref = name +'/'+ seq +'/'+ id;
       if (hook.mode === 'transitive' && hasFutureProcess(id, seq, hookKey)) {
         log({
@@ -593,14 +597,7 @@ function Bucket(props = {}) {
 
       // run hook with cloned doc
       return hook.handler(Object.clone(doc, true))
-        // .finally(() => {
-        //   log({
-        //     message: 'End hook: '+ hookKey,
-        //     ref,
-        //     event: HOOK_END
-        //   });
-        // })
-        .then((result = {}) => {
+        .then(function(result = {}){
           const { message, docs } = result;
           if (Object.isString(message)) {
             log({
@@ -611,11 +608,13 @@ function Bucket(props = {}) {
             });
           }
           if (Object.isArray(docs) && docs.length > 0) { // check hook results
-            return saveResults(name, docs).then(() => log({
-              message: 'Saved hook results: '+ hookKey,
-              ref,
-              event: HOOK_SAVE
-            }));
+            return saveResults(name, docs).then(function(){
+              log({
+                message: 'Saved hook results: '+ hookKey,
+                ref,
+                event: HOOK_SAVE
+              })
+            });
           }
         });
     };
@@ -627,7 +626,7 @@ function Bucket(props = {}) {
     }
     // if parallel or empty dependencies
     return addProcess(seq, id, rev, hookKey, hookPromise());
-  };
+  }
 
   let _closing = false;
   function close() {
@@ -644,7 +643,9 @@ function Bucket(props = {}) {
     Promise.all([
       updateBucketState(true),
       updateWorkerState(true)
-    ]).then(() => _onClose(worker_seq));
+    ]).then(function() {
+      _onClose(worker_seq)
+    });
   } // start close if bucket-worker and call _onClose
 
   return { init, close, isRunning };

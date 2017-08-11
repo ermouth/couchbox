@@ -26,11 +26,11 @@ module.exports = function initWorker(cluster, props = {}) {
   const api = new API(Object.assign(props.params || {}, {
     logger,
 
-    onInit: (data) => {
+    onInit: function(data) {
       worker.send('init', data);
     },
 
-    onClose: (data) => {
+    onClose: function(data) {
       log({
         message: 'Close',
         event: WORKER_CLOSE
@@ -41,7 +41,8 @@ module.exports = function initWorker(cluster, props = {}) {
 
   }));
 
-  worker.emitter.on(WORKER_HANDLE_UNHANDLED_ERROR, (error) => {
+  worker.emitter.on(WORKER_HANDLE_UNHANDLED_ERROR, function(error) {
+    console.error(error);
     log({
       message: 'UnhandledError api',
       event: WORKER_ERROR,
@@ -49,7 +50,7 @@ module.exports = function initWorker(cluster, props = {}) {
     });
   });
 
-  worker.emitter.on(WORKER_HANDLE_EXIT, (forced) => {
+  worker.emitter.on(WORKER_HANDLE_EXIT, function(forced) {
     if (api.isRunning()) return api.close(forced);
     log({
       message: 'On worker exit, forced: '+ (forced === true ? 'true' : 'false'),

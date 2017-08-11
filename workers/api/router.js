@@ -10,13 +10,12 @@ const Logger = require('../../utils/logger');
 const config = require('../../config');
 
 
-const DEBUG = config.get('debug');
 const isO = Object.isObject;
 const isA = Object.isArray;
 const isS = Object.isString;
 
 
-const { LocaleError, HttpError, HTTP_CODES } = require('../../utils/errors');
+const { HttpError, HTTP_CODES } = require('../../utils/errors');
 
 const {
   API_URL_ROOT,
@@ -34,6 +33,7 @@ const {
   CORS_HEADES,
   LOG_EVENTS: {
     API_SAVE,
+    API_SAVE_ERROR,
     API_REQUEST,
     API_REQUEST_ERROR,
     API_REQUEST_REJECT
@@ -52,7 +52,7 @@ const CORS_RULES = {
 
 function CORS_RULE_PARSER(rule) {
   const protocol = rule.substr(0, rule.indexOf('://'));
-  if (CORS_RULES[protocol] === true) return null;
+  if (CORS_RULES[protocol] === true) return;
 
   let address = rule.substr(protocol.length + 3);
   if (address === '*') {
@@ -84,7 +84,7 @@ function checkAddress(protocol, address, checkAll = false) {
   }
 }
 
-const corsHeads = (req) => {
+function corsHeads(req) {
   const headers = Object.clone(API_DEFAULT_HEADERS, true);
   if (!(req && req.headers && req.headers.origin)) return Promise.resolve({ headers });
   if (!CORS) return Promise.reject(new HttpError(500, 'Referrer not valid'));
@@ -99,53 +99,55 @@ const corsHeads = (req) => {
   headers['access-control-allow-methods'] = CORS_METHODS || '';
   headers['access-control-allow-credentials'] = CORS_CREDENTIALS;
   return Promise.resolve({ headers });
-};
+}
 
-const parseBody = (httpReq) => new Promise((resolve, reject) => {
+function parseBody(httpReq) {
   switch (httpReq.method) {
     case 'DELETE':
     case 'HEAD':
-      resolve('');
-      break;
+      return Promise.resolve('');
     case 'GET':
-      resolve(undefined);
-      break;
-    default:
-      const body = [];
-      httpReq
-        .on('data', chunk => body.push(chunk))
-        .on('end', () => resolve(Buffer.concat(body).toString()))
-        .on('error', error => reject(error));
+      return Promise.resolve(undefined);
   }
-});
+  return new Promise(function parseBodyPromise(resolve, reject) {
+    const body = [];
+    httpReq
+      .on('data', function onBodyChunk(chunk) {
+        body.push(chunk)
+      })
+      .on('end', function onBodyEnd() {
+        resolve(Buffer.concat(body).toString());
+      })
+      .on('error', function onBodyError(error) {
+        reject(error)
+      });
+  });
+}
 
-const makeRoute = (httpReq) => {
+function makeReq(httpReq) {
   const { method, url } = httpReq;
   const headers = isO(httpReq.headers) ? httpReq.headers : {};
   const hostFull = (headers[config.get('api.hostKey')] || headers.host || ':80').split(':', 2);
   const host = hostFull[0];
   const port = (hostFull[1]|0) || 80;
-  const peer = headers['x-forwarded-for'] || headers.referer;
+  const peer = headers['x-forwarded-for'] || headers['referer'];
   const queryIndex = url.indexOf('?');
   const raw_path = queryIndex >= 0 ? url.substring(0, queryIndex) : url;
   const query = queryIndex >= 0 ? queryString.parse(url.substring(queryIndex + 1)) : {};
   const path = raw_path.substring(1).split(ROOT_PATH);
-
-  const routePath = ROOT_PATH + path.filter(i => i && i.length).join(ROOT_PATH);
-
-  return { host, port, method, raw_path, query, path, routePath, headers, peer };
-};
+  return { host, port, method, raw_path, query, path, headers, peer };
+}
 
 function Router(props = {}) {
   const { sessions } = props;
   const logger = new Logger({ prefix: 'Router', logger: props.logger });
   const log = logger.getLog();
-  const debug = logger.getDebug();
+  // const debug = logger.getDebug();
 
   const routes = new Map();
   const paths = {};
 
-  function onProxyReq(proxyReq, req, res, options) {
+  const proxyHTTP = httpProxy.createProxyServer({}).on('proxyReq', function onProxyReq(proxyReq, req, res, options) {
     let remoteAddress;
     if (req.connection) {
       if (req.connection.remoteAddress) remoteAddress = req.connection.remoteAddress;
@@ -155,8 +157,7 @@ function Router(props = {}) {
 
     proxyReq.setHeader('host', req.headers.host || '');
     proxyReq.setHeader('x-forwarded-for', remoteAddress);
-  }
-  const proxyHTTP = httpProxy.createProxyServer({}).on('proxyReq', onProxyReq);
+  });
 
   function findRoute(path, parent) {
     const p = path.shift();
@@ -205,7 +206,9 @@ function Router(props = {}) {
     if (domain !== '*' && !(path && path.length >= 1 && path[0] !== ROOT_PATH)) throw new Error('Bad route');
 
     const methods = {};
-    methods0.forEach(m => methods[m] = true);
+    methods0.forEach(function onMethod(method) {
+      methods[method] = true;
+    });
 
     const routeKey = domain + API_URL_ROOT + endpoint + ROOT_PATH + path;
     routes.set(routeKey, { handler, bucket, methods });
@@ -218,16 +221,16 @@ function Router(props = {}) {
     if (route.bucket) req.info = { update_seq: route.bucket.getSeq() };
     return Promise.all([
       sessions.loadSession(req),
-      parseBody(httpReq).catch(error => {
+      parseBody(httpReq).catch(function onParseBodyError(error) {
         log({
           message: 'Error on parse body',
           event: API_REQUEST_ERROR,
           error
         });
-        throw new HttpError(500, 'Bad request', error);
+        throw new HttpError(500, 'Bad request');
       })
     ])
-    .then(([userCtx, body]) => {
+    .then(function onMakeRequest([userCtx, body]) {
       if (route.bucket) userCtx.db = route.bucket.name;
       req.userCtx = userCtx;
       req.body = body;
@@ -235,37 +238,67 @@ function Router(props = {}) {
     });
   }
 
-  function makeError(error, req) {
+  function parseError(error) {
+    if (!error) return 'Undefined error';
+    if (Object.isString(error)) return error;
+    if (Object.isObject(error)) return JSON.stringify(error);
+    if (error instanceof Error) return error.toString();
+  }
+
+  function makeError(errorData) {
     let code = 500;
-    const json = { ok: false };
+    let error, reason;
+    const errorRes = {};
 
-    if (error instanceof HttpError || error instanceof LocaleError) {
-      let errorLocale = new locale.Locales(req.headers['accept-language'] || API_DEFAULT_LOCALE)[0];
-      if (errorLocale && errorLocale.language) errorLocale = errorLocale.language.toUpperCase();
-      else errorLocale = 'EN';
+    // HttpError
+    if (errorData instanceof HttpError) {
+      reason = errorData;
+      if (errorData.code) code = errorData.code;
+      if (errorData.error) error = errorData.error;
+    }
+    // Error
+    else if (errorData instanceof Error || errorData.stack) {
+      reason = errorData;
+      if (errorData.code) code = errorData.code;
+    }
+    // String
+    else if (Object.isString(errorData)) {
+      reason = errorData;
+    }
+    // Number
+    else if (Object.isNumber(errorData)) {
+      code = errorData;
+    }
+    // Object
+    else if (Object.isObject(errorData)) {
+      if (errorData.code) code = +errorData.code;
+      if (errorData.reason) reason = errorData.reason;
+      if (errorData.error) error = errorData.error;
 
-      if (error.code) code = error.code;
-      else if (error && error.error && error.error.code) code = error.error.code;
-
-      json.reason = error.toString(errorLocale);
-      if (error.error) json.error = Object.isString(error.error) ? error.error : error.error.message;
-    } else if (error) {
-      if (error.code > 0) code = error.code;
-      if (error.reason) json.reason = error.reason;
-
-      if (error instanceof Error) {
-        json.error = error.toString();
-      } else {
-        if (isO(error)) {
-          json.error = error.body || error.message || error.error;
-        }
-      }
-      if (!json.error) json.error = JSON.stringify(Object.reject(error, ['code', 'ok', 'reason', 'error', 'message']));
+      if (errorData.stream) errorRes.stream = errorData.stream;
+      else if (errorData.body) errorRes.body = errorData.body;
+      else if (errorData.json) errorRes.json = errorData.json;
+    }
+    // Any .toString
+    else if (errorData && errorData.toString) {
+      reason = errorData.toString();
     }
 
-    if (!json.reason) json.reason = HTTP_CODES[code] || 'Bad action';
+    if (!error) error = HTTP_CODES[code] || 'bad_action';
+    if (!reason || reason === 'Handler rejection') reason = 'Route rejection';
+    errorRes.code = code;
+    errorRes.reason = reason;
+    errorRes.error = error;
 
-    return { code, json };
+    if (!(errorRes.stream || errorRes.body || errorRes.json) && (!API_FALLBACK_URL || (code !== 404 && API_FALLBACK_URL))) {
+      errorRes.json = {
+        ok: false,
+        reason: parseError(reason),
+        error: parseError(error)
+      };
+    }
+
+    return errorRes;
   }
 
   function sendResult(req, res, result = {}) {
@@ -281,15 +314,17 @@ function Router(props = {}) {
       delete headers[PAGE_GENERATION_PROP];
     }
 
-    function logRequest() {
-      log(Object.assign(logProps, {
+    function logRequest(error) {
+      const msg = Object.assign(logProps, {
         message: 'Request ['+ code +'] '+ pageGen +'ms ' + logProps.url,
         data: {
           code: code,
           pageGen: pageGen
         },
         event: API_REQUEST
-      }));
+      });
+      if (error) msg.error = error;
+      log(msg);
     }
 
     if (result.stream && result.stream.pipe) {
@@ -299,7 +334,7 @@ function Router(props = {}) {
 
       let hasError = false;
       result.stream
-        .on('error', error => {
+        .on('error', function onStreamError(error) {
           log(Object.assign(logProps, {
             message: 'Error pipe result stream',
             event: API_REQUEST_ERROR,
@@ -307,10 +342,10 @@ function Router(props = {}) {
             type: 'warn'
           }));
           hasError = true;
-          return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
+          return sendResult(req, res, makeError(new HttpError(500, 'Error pipe result stream')));
         })
         .pipe(res)
-        .on('error', error => {
+        .on('error', function onStreamPipeError(error) {
           hasError = true;
           log(Object.assign(logProps, {
             message: 'Error pipe result',
@@ -318,14 +353,14 @@ function Router(props = {}) {
             error,
             type: 'fatal'
           }));
-          return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
+          return sendResult(req, res, makeError(new HttpError(500, 'Error pipe result')));
         })
         .on('finish', function() {
           if (!hasError) logRequest();
         })
     } else {
       // Body
-      if (result.json) {
+      if (!result.body && result.json) {
         // JSON sugar
         headers['content-type'] = 'application/json; charset=UTF-8';
         try {
@@ -336,7 +371,7 @@ function Router(props = {}) {
             event: API_REQUEST_ERROR,
             error
           }));
-          return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
+          return sendResult(req, res, makeError(new HttpError(500, 'Error on parse result')));
         }
       }
 
@@ -351,12 +386,12 @@ function Router(props = {}) {
             event: API_REQUEST_ERROR,
             error
           }));
-          return sendResult(req, res, makeError(new HttpError(500, error.message, error), req));
+          return sendResult(req, res, makeError(new HttpError(500, 'Error on send result')));
         }
       }
 
-      res.end(error => {
-        logRequest();
+      res.end(function onReqEnd(error) {
+        logRequest(error);
         if (error) {
           log(Object.assign(logProps, {
             message: 'Error on send response',
@@ -371,41 +406,61 @@ function Router(props = {}) {
 
   function onRequest(httpReq, res) {
     httpReq.headers[PAGE_GENERATION_PROP] = Date.now();
-    const req = makeRoute(httpReq);
+    const req = makeReq(httpReq);
     const logProps = API_LOG_PARSER(req);
 
-    function sendR(result) {
-      sendResult(req, res, result);
-    }
-    function sendE(error) {
-      if (error && (error.code === 404 || error.code === '404') && API_FALLBACK_URL) {
+    function send(result) {
+      if (API_FALLBACK_URL && (result.code === 404 || result.code === '404') && !(result.body || result.body || result.json)) {
         proxyHTTP.web(httpReq, res, { target: API_FALLBACK_URL });
       } else {
-        sendR(makeError(error, req));
+        sendResult(req, res, result);
       }
     }
 
     const route = getRoute(req.host, req.path, req.method);
-    if (!route) return sendE(new HttpError(404));
+    if (!route) return send(makeError(new HttpError(404)));
 
     let processPromise;
 
-    function onHandlerResult(result) {
-      if (route.bucket && isA(result.docs) && result.docs.length > 0) {
-        return saveResults(route.bucket.name, result.docs).then(function onResults() {
-          log(Object.assign(logProps, {
-            message: 'Saved api results',
-            event: API_SAVE
-          }));
-          return result;
-        });
-      }
-      return result;
-    }
-    function processRequest(req) {
-      return route.handler(req).then(onHandlerResult);
+    function saveDocs(result) {
+      return new Promise(function saveDocsPromise(resolve) {
+        if (!(route.bucket && isA(result.docs) && result.docs.length > 0)) {
+          return resolve(result);
+        }
+        saveResults(route.bucket.name, result.docs)
+          .then(function saveDocsResults() {
+            log(Object.assign(logProps, {
+              message: 'Saved api results',
+              event: API_SAVE
+            }));
+            return resolve(result);
+          })
+          .catch(function saveDocsError(error) {
+            log(Object.assign(logProps, {
+              message: 'Error on saving api results',
+              event: API_SAVE_ERROR,
+              error
+            }));
+            return resolve(result);
+          });
+      });
+
     }
 
+    function onHandlerError(error) {
+      if (Object.isObject(error) && Object.isArray(error.docs)) {
+        return saveDocs(error).then(function onHandlerDocs() {
+          return Promise.reject(error);
+        });
+      }
+      return Promise.reject(error);
+    }
+
+    function processHandler() {
+      return route.handler(req)
+        .catch(onHandlerError)
+        .then(saveDocs);
+    }
 
     if (req.headers.origin) {
       if (req.method === 'OPTIONS') {
@@ -415,24 +470,27 @@ function Router(props = {}) {
         // send cors headers and router result
         processPromise = Promise.all([
           corsHeads(req),
-          makeRequest(httpReq, req, route).then(processRequest)
-        ]).then(([corsResult, routerResult]) => Object.assign(corsResult, routerResult));
+          makeRequest(httpReq, req, route).then(processHandler)
+        ]).then(function ([corsResult, routerResult]) {
+          return Object.assign(corsResult, routerResult);
+        });
       }
     } else {
       // send router result only
-      processPromise = makeRequest(httpReq, req, route).then(processRequest);
+      processPromise = makeRequest(httpReq, req, route).then(processHandler);
     }
 
     processPromise
-      .then(sendR)
-      .catch(error => {
+      .catch(function onRouteError(error) {
+        const errorRes = makeError(error);
         log(Object.assign(logProps, {
-          message: 'Route rejection',
+          message: errorRes.reason,
           event: API_REQUEST_REJECT,
-          error
+          error: errorRes.error
         }));
-        sendE(error);
-      });
+        return errorRes;
+      })
+      .then(send);
   }
 
   return { addRoute, onRequest };

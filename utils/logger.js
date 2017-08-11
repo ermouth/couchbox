@@ -32,7 +32,7 @@ function init_logs() {
 function init_db_log() {
   if (db_log) return db_log;
   db_log = couchdb.connectBucket(LOG_DB);
-  db_log.info((error, info) => {
+  db_log.info(function(error, info){
     if (error) log('No log db: '+ LOG_DB);
     else if (!info) log('No log db info: '+ LOG_DB);
     else return null;
@@ -42,16 +42,18 @@ function init_db_log() {
   return db_log;
 }
 
-const execBash = (cmd, env = {}) => new Promise((resolve, reject) => {
-  if (!(Object.isString(cmd) && cmd.length)) return reject(new Error('Bad command'));
-  exec(cmd, { env }, (error, stdout, stderr) => {
-    if (error) return reject(error);
-    if (stderr) return reject(new Error(stderr));
-    resolve(stdout);
+function execBash(cmd, env = {}) {
+  return new Promise(function(resolve, reject){
+    if (!(Object.isString(cmd) && cmd.length)) return reject(new Error('Bad command'));
+    exec(cmd, { env }, function(error, stdout, stderr){
+      if (error) return reject(error);
+      if (stderr) return reject(new Error(stderr));
+      resolve(stdout);
+    });
   });
-});
+}
 
-const sendMail = (recipients = config.get('couchbox.mail.recipients'), mailMessage, subject, from = config.get('couchbox.mail.from')) => {
+function sendMail (recipients = config.get('couchbox.mail.recipients'), mailMessage, subject, from = config.get('couchbox.mail.from')) {
   if(!Object.isString(mailMessage)) mailMessage = cleanJSON(mailMessage, ' ');
   if (mailMessage.length === 0) return Promise.reject(new Error('Empty message'));
   mailMessage = [
@@ -67,8 +69,11 @@ const sendMail = (recipients = config.get('couchbox.mail.recipients'), mailMessa
   return execBash('printf "${mailMessage}" | sendmail "$recipients"', {
     mailMessage,
     recipients
-  });
-};
+  }).catch(function (error) {
+    console.error(mailMessage);
+    console.error(error);
+  })
+}
 
 function fatal_action(errorMessage) {
   if (config.get('couchbox.mail.active')) {
@@ -90,11 +95,16 @@ function fatal_action(errorMessage) {
         console.error(e);
       }
     }
-    sendMail(config.get('couchbox.mail.recipients'), errorMessage, subj).catch(sendError => console.error(sendError));
+    sendMail(config.get('couchbox.mail.recipients'), errorMessage, subj)
+      .catch(function(sendError){
+        console.error(sendError)
+      });
   }
 }
 
-const cover = t => t ? '['+ t +']' : '';
+function cover(t) {
+  return t ? '['+ t +']' : '';
+}
 function log(text, chain = ['Logger'], type = TYPE_WARN, scope = '', event, time = new Date()) {
   const message = (
     time.iso() +
@@ -121,11 +131,11 @@ function log(text, chain = ['Logger'], type = TYPE_WARN, scope = '', event, time
   }
 }
 
-function errorMessageMap(msg) {
-  let detect = msg.match(/^Invalid require path: Object has no property ".+"\.\s/);
-  if (detect && detect.length === 1) msg = detect[0].slice(0,-2);
-  return msg;
-}
+// function errorMessageMap(msg) {
+//   let detect = msg.match(/^Invalid require path: Object has no property ".+"\.\s/);
+//   if (detect && detect.length === 1) msg = detect[0].slice(0,-2);
+//   return msg;
+// }
 
 function checkType(type) {
   switch (type) {
@@ -142,72 +152,109 @@ function checkType(type) {
 }
 
 function LoggerBody(prefix, emitSaveAction) {
+  const that = this;
   const stack_log = new Array(BULK_SIZE);
   let index_log = 0;
 
   if (!emitSaveAction) emitSaveAction = function () {};
 
-  const save = (events, bucket, type = LOG_DOCUMENT_TYPE) => new Promise((resolve, reject) => {
-    const node = config.get('couchbox.nodename');
-    const stamp = Date.now();
-    const _id = uuid(stamp);
+  function save(events, bucket, type = LOG_DOCUMENT_TYPE) {
+    return new Promise(function(resolve, reject){
+      const node = config.get('couchbox.nodename');
+      const stamp = Date.now();
+      const _id = uuid(stamp);
 
-    (bucket || db_log).insert({ _id, events, type, node, stamp }, (error) => {
-      if (error) {
-        log(JSON.stringify({ error }), [prefix]);
-        return reject(error);
-      }
-      resolve();
+      (bucket || db_log).insert({ _id, events, type, node, stamp }, function(error){
+        if (error) {
+          log(JSON.stringify({ error }), [prefix]);
+          return reject(error);
+        }
+        resolve();
+      });
     });
-  });
+  }
 
-  this.save = (forced = false) => new Promise((resolve, reject) => {
-    if (forced === 'all') emitSaveAction();
-    if (db_log && index_log > 0 && (forced || index_log >= BULK_SIZE)) {
-      const log_events = stack_log.slice(0, index_log);
-      index_log = 0;
-      save(log_events, db_log, LOG_DOCUMENT_TYPE).then(resolve).catch(reject);
-    } else {
-      resolve();
-    }
-  });
+  that.save = function(forced = false){
+    return new Promise(function(resolve, reject){
+        if (forced === 'all') emitSaveAction();
+      if (db_log && index_log > 0 && (forced || index_log >= BULK_SIZE)) {
+        const log_events = stack_log.slice(0, index_log);
+        index_log = 0;
+        save(log_events, db_log, LOG_DOCUMENT_TYPE).then(resolve).catch(reject);
+      } else {
+        resolve();
+      }
+    });
+  };
 
-  this.log = (data, forced) => {
+  that.log = function(data, forced){
     const { time, chain, msg, scope, eventName, eventType } = data;
 
-    const row = { };
-    let message;
+    let message = '';
+    let isError = false;
+    const row = {
+      type: eventType || TYPE_INFO,
+      event: eventName
+    };
+    if (scope) row.scope = scope;
+
+    // String
     if (Object.isString(msg)) {
-      row.message = message = msg;
-    } else if (!Object.isObject(msg) || (!msg.message && !msg.error && !msg.principal && !msg.event && !msg.ref)) {
-      row.message = message = JSON.stringify(msg);
-    } else {
-      message = '';
-      if (msg.message) {
-        row.message = Object.isString(msg.message) ? msg.message : JSON.stringify(msg.message);
-        message += row.message;
-      }
-      if (msg.error) {
-        row.error = JSON.stringify(msg.error);
-        if (msg.error.message) message += (message.length ? ' ' : '') +'"'+ errorMessageMap(msg.error.message) +'"';
-        else message += (message.length ? ' ' : '') + row.error;
-        if ((!msg.type || !checkType(msg.type)) && eventType !== TYPE_DEBUG) msg.type = TYPE_ERROR;
-      }
+      message = row.message = msg;
+    }
+    // Error
+    else if (msg instanceof Error) {
+      row.type = TYPE_ERROR;
+      message = row.message = msg.toString();
+      row.error = msg.stack;
       if (msg.code) row.code = msg.code;
-      if (msg.principal) row.principal = msg.principal;
+    }
+    // Object
+    else if (Object.isObject(msg)) {
+      // Parse message for console
+      if (msg.message) {
+        if (msg.message instanceof Error || msg.message.stack) {
+          message = row.message = msg.message.toString();
+          row.messageStack = msg.message.stack;
+          isError = true;
+        } else {
+          row.message = msg.message;
+          if (Object.isString(msg.message)) message = msg.message;
+          else message = JSON.stringify(msg.message);
+        }
+      }
+
+      // Parse error
+      if (msg.error) {
+        if (msg.error instanceof Error || msg.error.stack) {
+          row.error = msg.error.toString();
+          row.errorStack = msg.error.stack;
+        }
+        else if (Object.isString(msg.error)) row.error = msg.error;
+        else row.error = JSON.stringify(msg.error);
+        // if (row.error) message += '\n ('+ row.error +')';
+        isError = true;
+      }
+
       if (msg.event) row.event = msg.event;
-      if (msg.ref) row.ref = msg.ref;
       if (msg.type) {
         if (!checkType(msg.type)) msg.type = TYPE_WARN;
+        row.type = msg.type;
       }
-      else msg.type = eventType || TYPE_INFO;
+      if (msg.principal) row.principal = msg.principal;
       if (msg.ref) row.ref = msg.ref;
+      if (msg.code) row.code = msg.code;
       if (msg.url) row.url = msg.url;
       if (msg.data) row.data = msg.data;
     }
-    if (eventName && !row.event) row.event = eventName;
-    if (scope && !row.scope) row.scope = scope;
-    if (msg.type || eventType) row.type = msg.type || eventType;
+    else {
+      row.type = TYPE_WARN;
+      message = row.message = JSON.stringify(msg);
+    }
+    if (!row.message) row.message = message;
+    if (isError && (row.type !== TYPE_ERROR && row.type !== TYPE_FATAL && row.type !== TYPE_WARN && row.type !== TYPE_DEBUG)) {
+      row.type = TYPE_ERROR;
+    }
 
     if (LOG_CONSOLE) log(message, chain, row.type, row.scope, row.event, time);
 
@@ -218,19 +265,22 @@ function LoggerBody(prefix, emitSaveAction) {
       if (row.type === TYPE_FATAL) fatal_action(row);
       if (save_log) {
         stack_log[index_log++] = row;
-        this.save(forced);
+        that.save(forced);
       }
     }
   };
 
-  this.offline = () => {
+  that.offline = function(){
     index_log = 0;
     db_log = undefined;
   };
-  this.online = () => init_logs();
+  that.online = function() {
+    return init_logs();
+  };
 }
 
 function Logger(props = {}, emitSaveAction) {
+  const that = this;
   const prefix = props.prefix;
   const scope = props.scope || '';
   const default_log_event = props.logEvent || LOG_DEFAULT_EVENT;
@@ -239,25 +289,38 @@ function Logger(props = {}, emitSaveAction) {
   let logger;
   if (props.logger) {
     logger = props.logger;
-    this.getChain = () => logger.getChain().concat([ prefix ]);
+    that.getChain = function() {
+      return logger.getChain().concat([ prefix ]);
+    };
   } else {
     logger = new LoggerBody(prefix, emitSaveAction);
-    this.getChain = () => [ prefix ];
+    that.getChain = function() {
+      return [ prefix ];
+    };
   }
 
 
-  this.log = ({ time, chain, msg, scope, eventName = default_log_event, eventType = TYPE_INFO }, forced = false) => {
+  that.log = function({ time, chain, msg, scope, eventName = default_log_event, eventType = TYPE_INFO }, forced = false){
     if (!time) time = new Date();
     if (!chain) chain = [];
     chain.push(prefix);
     logger.log({ time, chain, msg, scope, eventName, eventType }, forced);
   };
 
-  this.getLog = () => (msg, forced) => this.log({ msg, scope }, forced);
-  this.getDebug = () => (msg, forced) => this.log({ msg, eventName: DEBUG_DEFAULT_EVENT, eventType: TYPE_DEBUG }, forced);
-  this.online = logger.online;
-  this.offline = logger.offline;
-  this.save = logger.save;
+  that.getLog = function(){
+    return function(msg, forced) {
+      that.log({ msg, scope }, forced);
+    };
+  };
+
+  that.getDebug = function() {
+    return function (msg, forced) {
+      that.log({msg, eventName: DEBUG_DEFAULT_EVENT, eventType: TYPE_DEBUG}, forced);
+    };
+  };
+  that.online = logger.online;
+  that.offline = logger.offline;
+  that.save = logger.save;
 }
 
 init_logs();
