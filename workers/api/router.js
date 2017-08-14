@@ -3,7 +3,7 @@ const Promise = require('bluebird');
 const httpProxy = require('http-proxy');
 const cookieParser = require('cookie');
 const queryString = require('query-string');
-const locale = require('locale');
+// const locale = require('locale');
 const lib = require('../../utils/lib');
 const saveResults = require('../../utils/resultsSaver');
 const Logger = require('../../utils/logger');
@@ -284,8 +284,8 @@ function Router(props = {}) {
       reason = errorData.toString();
     }
 
+    if (!reason || reason === 'Handler rejection') reason = error || 'Route rejection';
     if (!error) error = HTTP_CODES[code] || 'bad_action';
-    if (!reason || reason === 'Handler rejection') reason = 'Route rejection';
     errorRes.code = code;
     errorRes.reason = reason;
     errorRes.error = error;
