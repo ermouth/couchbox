@@ -242,7 +242,7 @@ function Router(props = {}) {
     if (!error) return 'Undefined error';
     if (Object.isString(error)) return error;
     if (Object.isObject(error)) return JSON.stringify(error);
-    if (error instanceof Error) return error.toString();
+    if (error instanceof Error || error.toString) return error.toString();
   }
 
   function makeError(errorData) {
