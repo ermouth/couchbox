@@ -264,6 +264,7 @@ function Router(props = {}) {
       reason = errorData;
       if (errorData.code) code = errorData.code;
       if (errorData.event) errorRes.event = errorData.event;
+      if (errorData.headers) errorRes.headers = errorData.headers;
     }
     // String
     else if (Object.isString(errorData)) {
@@ -279,6 +280,7 @@ function Router(props = {}) {
       if (errorData.reason) reason = errorData.reason;
       if (errorData.error) error = errorData.error;
       if (errorData.event) errorRes.event = errorData.event;
+      if (errorData.headers) errorRes.headers = errorData.headers;
 
       if (errorData.stream) errorRes.stream = errorData.stream;
       else if (errorData.body) errorRes.body = errorData.body;
