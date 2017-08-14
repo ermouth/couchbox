@@ -202,13 +202,6 @@ function LoggerBody(prefix, emitSaveAction) {
     if (Object.isString(msg)) {
       message = row.message = msg;
     }
-    // Error
-    else if (msg instanceof Error) {
-      row.type = TYPE_ERROR;
-      message = row.message = msg.toString();
-      row.error = msg.stack;
-      if (msg.code) row.code = msg.code;
-    }
     // Object
     else if (Object.isObject(msg)) {
       // Parse message for console
@@ -246,6 +239,13 @@ function LoggerBody(prefix, emitSaveAction) {
       if (msg.code) row.code = msg.code;
       if (msg.url) row.url = msg.url;
       if (msg.data) row.data = msg.data;
+    }
+    // Error
+    else if (msg instanceof Error || (msg.toString && msg.stack)) {
+      row.type = TYPE_ERROR;
+      message = row.message = msg.toString();
+      if (msg.stack) row.error = msg.stack;
+      if (msg.code) row.code = msg.code;
     }
     else {
       row.type = TYPE_WARN;
@@ -289,12 +289,12 @@ function Logger(props = {}, emitSaveAction) {
   let logger;
   if (props.logger) {
     logger = props.logger;
-    that.getChain = function() {
+    that.getChain = function getChain() {
       return logger.getChain().concat([ prefix ]);
     };
   } else {
     logger = new LoggerBody(prefix, emitSaveAction);
-    that.getChain = function() {
+    that.getChain = function getChainBase() {
       return [ prefix ];
     };
   }
@@ -307,17 +307,18 @@ function Logger(props = {}, emitSaveAction) {
     logger.log({ time, chain, msg, scope, eventName, eventType }, forced);
   };
 
-  that.getLog = function(){
+  that.getLog = function getLog(){
     return function(msg, forced) {
       that.log({ msg, scope }, forced);
     };
   };
 
-  that.getDebug = function() {
+  that.getDebug = function getDebug() {
     return function (msg, forced) {
-      that.log({msg, eventName: DEBUG_DEFAULT_EVENT, eventType: TYPE_DEBUG}, forced);
+      that.log({ msg, eventName: DEBUG_DEFAULT_EVENT, eventType: TYPE_DEBUG }, forced);
     };
   };
+
   that.online = logger.online;
   that.offline = logger.offline;
   that.save = logger.save;
