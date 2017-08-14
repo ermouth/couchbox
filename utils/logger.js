@@ -246,6 +246,11 @@ function LoggerBody(prefix, emitSaveAction) {
       message = row.message = msg.toString();
       if (msg.stack) row.error = msg.stack;
       if (msg.code) row.code = msg.code;
+      if (msg.event) row.event = msg.event;
+      if (msg.type) {
+        if (!checkType(msg.type)) msg.type = TYPE_WARN;
+        row.type = msg.type;
+      }
     }
     else {
       row.type = TYPE_WARN;

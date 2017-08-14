@@ -248,18 +248,22 @@ function Router(props = {}) {
   function makeError(errorData) {
     let code = 500;
     let error, reason;
-    const errorRes = {};
+    const errorRes = {
+      event: API_REQUEST_REJECT
+    };
 
     // HttpError
     if (errorData instanceof HttpError) {
       reason = errorData;
       if (errorData.code) code = errorData.code;
       if (errorData.error) error = errorData.error;
+      if (errorData.event) errorRes.event = errorData.event;
     }
     // Error
     else if (errorData instanceof Error || errorData.stack) {
       reason = errorData;
       if (errorData.code) code = errorData.code;
+      if (errorData.event) errorRes.event = errorData.event;
     }
     // String
     else if (Object.isString(errorData)) {
@@ -274,6 +278,7 @@ function Router(props = {}) {
       if (errorData.code) code = +errorData.code;
       if (errorData.reason) reason = errorData.reason;
       if (errorData.error) error = errorData.error;
+      if (errorData.event) errorRes.event = errorData.event;
 
       if (errorData.stream) errorRes.stream = errorData.stream;
       else if (errorData.body) errorRes.body = errorData.body;
@@ -485,8 +490,8 @@ function Router(props = {}) {
         const errorRes = makeError(error);
         log(Object.assign(logProps, {
           message: errorRes.reason,
-          event: API_REQUEST_REJECT,
-          error: errorRes.error
+          error: errorRes.error,
+          event: errorRes.event || API_REQUEST_REJECT
         }));
         return errorRes;
       })
