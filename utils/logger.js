@@ -265,7 +265,7 @@ function LoggerBody(prefix, emitSaveAction) {
       if (row.type === TYPE_FATAL) fatal_action(row);
       if (save_log) {
         stack_log[index_log++] = row;
-        that.save(forced);
+        that.save(forced || (row.type === TYPE_FATAL));
       }
     }
   };
