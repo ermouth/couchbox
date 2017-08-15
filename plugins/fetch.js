@@ -22,6 +22,30 @@ const getUrlDomain = (url, startInd) => {
 };
 const hasUrlHttp = url => /^https?:/.test(url);
 
+function toQS(query = {}) {
+  let queryString = Object.keys(query).map(function(key){
+    let value = query[key];
+    if (Object.isString(value)) value = encodeURIComponent(value);
+    else value = JSON.stringify(value);
+    return key +'=' + value;
+  });
+  return queryString.length > 0 ? '?' + queryString.join('&') : '';
+}
+
+function checkResult(res) {
+  if (!res.ok) return Promise.reject(res.status +' '+ res.statusText);
+  return Promise.resolve(res);
+}
+function onBuffer(res) {
+  return res.buffer();
+}
+function onText(res) {
+  return res.text();
+}
+function onJSON(res) {
+  return res.json();
+}
+
 function Plugin(method, conf = {}, log) {
   const name = '_' + (method || 'fetch');
 
@@ -44,7 +68,22 @@ function Plugin(method, conf = {}, log) {
     const options = Object.isObject(arguments[0]) ? arguments[0] : {};
     let url = Object.isString(arguments[0]) ? arguments[0] : options.url;
 
-    if (!url) return Promise.reject(new Error('Bad url: '+ url));
+    if (Object.isArray(url)) {
+      let urlParams = url.slice();
+      let urlQuery = {};
+      url = '';
+      urlParams.forEach(function (param) {
+        if (Object.isString(param)) {
+          if (param) url += url ? '/' + param : param;
+        }
+        else if (Object.isObject(param)) {
+          Object.assign(urlQuery, param);
+        }
+      });
+      url = url + toQS(urlQuery);
+    }
+
+    if (!(Object.isString(url) && url.length > 0)) return Promise.reject(new Error('Bad url: '+ url));
 
     const queryParams = {
       headers: {}
@@ -86,6 +125,14 @@ function Plugin(method, conf = {}, log) {
       Object.assign(queryParams.headers, options.headers);
     }
 
+    if (options.lift) switch (options.lift) {
+      case 'buffer':
+        return fetch(url, queryParams).then(checkResult).then(onBuffer);
+      case 'text':
+        return fetch(url, queryParams).then(checkResult).then(onText);
+      case 'json':
+        return fetch(url, queryParams).then(checkResult).then(onJSON);
+    }
     return fetch(url, queryParams);
   };
 
