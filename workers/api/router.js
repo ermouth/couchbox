@@ -18,8 +18,8 @@ const isS = Object.isString;
 const { HttpError, HTTP_CODES } = require('../../utils/errors');
 
 const {
-  API_URL_ROOT,
-  API_DEFAULT_LOCALE,
+  // API_URL_ROOT,
+  // API_DEFAULT_LOCALE,
   API_DEFAULT_CODE,
   API_DEFAULT_HEADERS,
   API_DEFAULT_METHODS,
@@ -132,10 +132,9 @@ function makeReq(httpReq) {
   const port = (hostFull[1]|0) || 80;
   const peer = headers['x-forwarded-for'] || headers['referer'];
   const queryIndex = url.indexOf('?');
-  const raw_path = queryIndex >= 0 ? url.substring(0, queryIndex) : url;
+  const path = (queryIndex >= 0 ? url.substring(0, queryIndex) : url).substring(1).split(ROOT_PATH).filter(i => i && i.length > 0);
   const query = queryIndex >= 0 ? queryString.parse(url.substring(queryIndex + 1)) : {};
-  const path = raw_path.substring(1).split(ROOT_PATH);
-  return { host, port, method, raw_path, query, path, headers, peer };
+  return { host, port, method, raw_path: '/' + path.join(ROOT_PATH), query, path, headers, peer };
 }
 
 function Router(props = {}) {
@@ -206,11 +205,9 @@ function Router(props = {}) {
     if (domain !== '*' && !(path && path.length >= 1 && path[0] !== ROOT_PATH)) throw new Error('Bad route');
 
     const methods = {};
-    methods0.forEach(function onMethod(method) {
-      methods[method] = true;
-    });
+    methods0.forEach(function onMethod(method) { methods[method] = true; });
 
-    const routeKey = domain + API_URL_ROOT + endpoint + ROOT_PATH + path;
+    const routeKey = [domain, endpoint, path].compact(true).join(ROOT_PATH);
     routes.set(routeKey, { handler, bucket, methods });
     const fullPath = [domain, endpoint].concat(path.split(ROOT_PATH)).compact(true);
     addPath(fullPath, routeKey);
