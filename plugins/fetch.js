@@ -10,8 +10,16 @@ const HTTP_METHODS_VALID = {}; HTTP_METHODS.forEach(m => HTTP_METHODS_VALID[m] =
 
 const NODE_NAME = config.get('couchbox.nodename');
 const NODES = config.get('couchbox.nodes') || {};
-const getNodeURL = node => NODES[node];
-const getUrlDomain = (url, startInd) => {
+
+function getNodeURL(node) {
+  return NODES[node];
+}
+
+function hasUrlHttp(url) {
+  return /^http[s]?:/.test(url);
+}
+
+function getUrlDomain(url, startInd) {
   if (url && url.length > 7 && url.substr(0, 4) === 'http') {
     if (!startInd) startInd = url.indexOf(':', 3) + 3;
     let endInd = url.indexOf(':', startInd);
@@ -19,8 +27,7 @@ const getUrlDomain = (url, startInd) => {
     if (endInd < 1) endInd = url.length;
     return url.substring(startInd, endInd);
   }
-};
-const hasUrlHttp = url => /^https?:/.test(url);
+}
 
 function toQS(query = {}) {
   let queryString = Object.keys(query).map(function(key){
@@ -30,6 +37,43 @@ function toQS(query = {}) {
     return key +'=' + value;
   });
   return queryString.length > 0 ? '?' + queryString.join('&') : '';
+}
+
+
+
+
+function qsCover(paramObj) {
+  Object.keys(paramObj).forEach(function (key) {
+    switch (key) {
+      case 'key':
+      case 'keys':
+      case 'startkey':
+      case 'start_key':
+      case 'endkey':
+      case 'end_key':
+        paramObj[key] = JSON.stringify(paramObj[key]);
+        break;
+    }
+  });
+  return paramObj;
+}
+
+function parseUrlSugar(url) {
+  if (Object.isArray(url)) {
+    let urlParams = url.slice();
+    let urlQuery = {};
+    url = '';
+    urlParams.forEach(function (param) {
+      if (Object.isString(param)) {
+        if (param) url += url ? '/' + param : param;
+      }
+      else if (Object.isObject(param)) {
+        Object.assign(urlQuery, param);
+      }
+    });
+    url = url + toQS(qsCover(urlQuery));
+  }
+  return url;
 }
 
 function checkResult(res) {
@@ -52,37 +96,22 @@ function Plugin(method, conf = {}, log) {
   const nodesDomains = {
     '127.0.0.1': true
   };
-  const checkUrl = (url) => {
-    const domain = getUrlDomain(url);
-    if (!domain) return new Error('Empty connection type');
-    if (domain[0] === '/') return new Error('Bad url path');
-    if (domain in nodesDomains && url.indexOf('/_config') > 0) return new Error('Access denied');
-    return null;
-  };
 
-  Object.keys(NODES).map(getNodeURL).filter(u => checkUrl(u) === null).forEach(u => {
+  function checkUrl(url) {
+    const domain = getUrlDomain(url);
+    if (!domain) return 'Empty connection type';
+    if (domain[0] === '/') return 'Bad url path';
+    if (nodesDomains.hasOwnProperty(domain) && url.indexOf('/_config') > 0) return 'Access denied';
+    return null;
+  }
+
+  Object.keys(NODES).map(getNodeURL).filter(u => !checkUrl(u)).forEach(u => {
     nodesDomains[getUrlDomain(u)] = true;
   });
 
   const fetch_method = (ref) => function () {
     const options = Object.isObject(arguments[0]) ? arguments[0] : {};
-    let url = Object.isString(arguments[0]) ? arguments[0] : options.url;
-
-    if (Object.isArray(url)) {
-      let urlParams = url.slice();
-      let urlQuery = {};
-      url = '';
-      urlParams.forEach(function (param) {
-        if (Object.isString(param)) {
-          if (param) url += url ? '/' + param : param;
-        }
-        else if (Object.isObject(param)) {
-          Object.assign(urlQuery, param);
-        }
-      });
-      url = url + toQS(urlQuery);
-    }
-
+    let url = Object.isString(arguments[0]) ? arguments[0] : parseUrlSugar(options.url);
     if (!(Object.isString(url) && url.length > 0)) return Promise.reject(new Error('Bad url: '+ url));
 
     const queryParams = {
@@ -107,7 +136,7 @@ function Plugin(method, conf = {}, log) {
       url = getNodeURL(options.node) + (url[0] === '/' ? '' : '/') + url;
     }
     const urlError = checkUrl(url);
-    if (urlError) return Promise.reject(new Error('Bad url: "'+ url + '" reason: '+ urlError.toString()));
+    if (urlError) return Promise.reject(new Error('Bad url: "'+ url + '" reason: '+ urlError));
 
     if (options.body) {
       queryParams.body = options.body;
