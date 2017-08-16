@@ -72,26 +72,35 @@ reacheable.
 ```javascript
 // General use of this._fetch
 this._fetch({
-  url:'url/path?params', // mandatory relative URL
-  node:'mb', // default is own node
-  method:'GET', // default is GET
-  headers: { accept: 'application/json' }, // default
-  userCtx:{ // default is node service
+  url:'url/path?params',                    // mandatory relative URL as a string…
+  //url: ['url','path',{key:'value'}]       // …or URL as an array of parts
+  node:'mb',                                // default is own node
+  method:'GET',                             // default is GET
+  headers: { accept: 'application/json' },  // default is json
+  userCtx:{                                 // default is 'node' ['service']
     name:'username',
     roles:['role1','role2'...]
-  }
+  },
+  lift: false   // 'json', 'text' or 'buffer' skips pre-step, resolve w/ result
 })
-.then(function(streamObj){ 
-    // here we do not have result yet, 
-    // but have a stream ready to pipe a result
+.then(function(streamObj){                  // 1st .then()
+    // Here we do not have result yet, 
+    // but have a stream ready to pipe a result.
+    // This step is off-stage if .lift param is defined
     return streamObj.json() 
 })
-.then(function(result){
+.then(function(result){                     // 2nd .then()
     // here we have result as an object
 })
 ```
-Note two `.then()`s are required to receive response as an object. If receiving and
-processing data is not needed, response stream may be immediately passed to a client.
+If `.lift` param is explicitly set to a string `"json"`,`"text"` or `"buffer"`,
+1st `.then()` happens off-stage, and you define only 2nd `.then()`, which
+simplifies syntax.
+
+
+If no `.lift` param defined, two `.then()`-s required to receive response as an object. 
+If receiving and processing data is not needed, response stream may be immediately 
+passed to a client, like this:
 
 ```javascript
 this._fetch({url:'db/docid/filename.jpg'})
@@ -115,7 +124,7 @@ recommended however.
 
 To ensure security, `this._fetch` method does not allow requesting `_config` 
 endpoints. To read `_config` of a node use `this._config` plugin, especially 
-designed for a task.
+designed for the task.
 
 ----
 
