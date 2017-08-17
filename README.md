@@ -382,7 +382,7 @@ __nodes__ | {node1,node2} | List of nodes, JSON; nodenames as keys, URLs as valu
 __max_parallel_changes__ | 16 | Maximum changes ticks processed simultaneously
 __cold\_start__ | now | Defines if first run starts from current sequences or DB first seq ('normal')
 __api__ | {active,ports,restart_delta,hostKey,fallback} | Configures REST API
-__proxy__ | {active,port,path,fallback} | Proxy settings, JSON
+__proxy__ | {active,port,path} | Proxy settings, JSON
 __socket__ | {active,port,path}} | Socket.io config
 __mail__ | {active,from,recepients} | Emergency notifications email
 __redis\_ip__ | localhost | Redis domain or IP address
