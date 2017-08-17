@@ -77,7 +77,7 @@ this._fetch({
   node:'mb',                                // default is own node
   method:'GET',                             // default is GET
   headers: { accept: 'application/json' },  // default is json
-  userCtx:{                                 // default is 'node' ['service']
+  userCtx:{                                 // default is null
     name:'username',
     roles:['role1','role2'...]
   },
