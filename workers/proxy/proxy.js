@@ -94,10 +94,19 @@ function ProxyWorker(props = {}) {
   }
 
   if (API_ENABLED) {
-    processors.push((req, res) => {
-      proxyHTTP.web(req, res, { target: getApiWorker() });
-      return true;
-    });
+    if (PROXY_PATH !== '/') {
+      processors.push((req, res) => {
+        if (req.url.indexOf(PROXY_PATH) === 0) {
+          proxyHTTP.web(req, res, {target: getApiWorker()});
+          return true;
+        }
+      });
+    } else {
+      processors.push((req, res) => {
+        proxyHTTP.web(req, res, {target: getApiWorker()});
+        return true;
+      });
+    }
   }
 
   function router(req, res) {
