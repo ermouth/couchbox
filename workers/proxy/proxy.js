@@ -5,7 +5,7 @@ const lib = require('../../utils/lib');
 
 
 const {
-  PROXY_PORT, PROXY_PATH,
+  PROXY_PORT, PROXY_PATH, PROXY_DEFAULT,
 
   API_ENABLED, API_PORTS,
   SOCKET_ENABLED, SOCKET_PORT, SOCKET_PATH,
@@ -14,6 +14,17 @@ const {
     PROXY_START, PROXY_STOP
   }
 } = require('./constants');
+
+function cleanPath(path) {
+  let p = (path + '').replace(/\/\/+/g, '/');
+  if (p[0] !== '/') {
+    p = '/' + p;
+  }
+  if (p.length > 1 && p[p.length - 1] !== '/') {
+    p = p + '/';
+  }
+  return p || '/';
+}
 
 function ProxyWorker(props = {}) {
   const logger = new Logger({ prefix: 'Proxy', logger: props.logger });
@@ -27,6 +38,7 @@ function ProxyWorker(props = {}) {
 
   let lastApiWorker = 0;
   const maxApiWorker = API_PORTS.length;
+
 
   const getApiWorker = () => ({
     host: 'localhost',
@@ -52,7 +64,7 @@ function ProxyWorker(props = {}) {
 
   const proxyHTTP = httpProxy.createProxyServer({}).on('proxyReq', onProxyReq);
   const proxySOCKET = new httpProxy.createProxyServer({ target: getSocketWorker() }).on('proxyReq', onProxyReq);
-
+  const proxyPath = cleanPath(PROXY_PATH);
 
   const connections = {};
   let connectionCounter = 0;
@@ -94,19 +106,24 @@ function ProxyWorker(props = {}) {
   }
 
   if (API_ENABLED) {
-    if (PROXY_PATH !== '/') {
-      processors.push((req, res) => {
-        if (req.url.indexOf(PROXY_PATH) === 0) {
-          proxyHTTP.web(req, res, {target: getApiWorker()});
-          return true;
+
+    let defaultURL = null;
+    if (PROXY_DEFAULT && Object.isString(PROXY_DEFAULT) && PROXY_DEFAULT.length > 0) {
+      defaultURL = cleanPath(PROXY_DEFAULT);
+      if (defaultURL && defaultURL.length > 1 && defaultURL[defaultURL.length - 1] === '/') {
+        defaultURL = defaultURL.substring(0, defaultURL.length - 1);
+      }
+    }
+
+    processors.push((req, res) => {
+      if (req.url.indexOf(proxyPath) === 0) {
+        if (defaultURL && cleanPath(req.url) === proxyPath) {
+          req.url = defaultURL;
         }
-      });
-    } else {
-      processors.push((req, res) => {
         proxyHTTP.web(req, res, {target: getApiWorker()});
         return true;
-      });
-    }
+      }
+    });
   }
 
   function router(req, res) {
