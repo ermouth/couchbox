@@ -46,7 +46,6 @@ function qsCover(paramObj) {
   Object.keys(paramObj).forEach(function (key) {
     switch (key) {
       case 'key':
-      case 'keys':
       case 'startkey':
       case 'start_key':
       case 'endkey':
