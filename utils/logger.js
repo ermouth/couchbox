@@ -78,7 +78,7 @@ function sendMail (recipients = config.get('couchbox.mail.recipients'), mailMess
 function fatal_action(errorMessage) {
   if (config.get('couchbox.mail.active')) {
     const subj = 'Node '+ config.get('couchbox.nodename') +' - Fatal Alert';
-    if ('error' in errorMessage) {
+    if (errorMessage.hasOwnProperty('error')) {
       try {
         const error = JSON.parse(errorMessage.error);
         if (error && error.message && error.stack) {

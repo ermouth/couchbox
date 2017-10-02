@@ -4,7 +4,6 @@ const http = require('http');
 const Bucket = require('./bucket');
 const Router = require('./router');
 const Sessions = require('./sessions');
-const lib = require('../../utils/lib');
 const Logger = require('../../utils/logger');
 const config = require('../../config');
 
@@ -69,6 +68,12 @@ function API(props = {}) {
     })
   });
 
+  // Max sockets param
+  if (config.get('api.maxSockets') && config.get('api.maxSockets') > 0) {
+    http.globalAgent.maxSockets = config.get('api.maxSockets')|0;
+  } else {
+    http.globalAgent.maxSockets = Infinity;
+  }
 
   // Server
   const server = http.createServer(router.onRequest);

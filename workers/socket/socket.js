@@ -19,6 +19,15 @@ function Socket(props = {}) {
   const logger = new Logger({ prefix: 'Socket', logger: props.logger });
   const log = logger.getLog();
 
+  // Max sockets param
+  if (config.get('socket.maxSockets') && config.get('socket.maxSockets') > 0) {
+    http.globalAgent.maxSockets = config.get('socket.maxSockets')|0;
+  } else if (config.get('api.maxSockets') && config.get('api.maxSockets') > 0) {
+    http.globalAgent.maxSockets = config.get('api.maxSockets')|0;
+  } else {
+    http.globalAgent.maxSockets = Infinity;
+  }
+
   const server = http.Server();
   const io = socketio(server, { path: SOCKET_PATH });
 

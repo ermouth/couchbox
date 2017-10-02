@@ -146,7 +146,12 @@ function Router(props = {}) {
   const routes = new Map();
   const paths = {};
 
-  const proxyHTTP = httpProxy.createProxyServer({}).on('proxyReq', function onProxyReq(proxyReq, req, res, options) {
+  const proxyHTTP = httpProxy.createProxyServer({});
+  proxyHTTP.on('error', function onProxyError(err, req, res) {
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end('Server error');
+  });
+  proxyHTTP.on('proxyReq', function onProxyReq(proxyReq, req) {
     let remoteAddress;
     if (req.connection) {
       if (req.connection.remoteAddress) remoteAddress = req.connection.remoteAddress;
@@ -448,7 +453,6 @@ function Router(props = {}) {
             return resolve(result);
           });
       });
-
     }
 
     function onHandlerError(error) {

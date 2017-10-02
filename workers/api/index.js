@@ -1,4 +1,3 @@
-const lib = require('../../utils/lib');
 const Worker = require('../../utils/worker');
 const API = require('./api');
 const configValidator = require('./configValidator');

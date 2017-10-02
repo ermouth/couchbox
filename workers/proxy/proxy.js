@@ -1,7 +1,7 @@
 const http = require('http');
 const httpProxy = require('http-proxy');
 const Logger = require('../../utils/logger');
-const lib = require('../../utils/lib');
+const config = require('../../config');
 
 
 const {
@@ -39,6 +39,14 @@ function ProxyWorker(props = {}) {
   let lastApiWorker = 0;
   const maxApiWorker = API_PORTS.length;
 
+  // Max sockets param
+  if (config.get('proxy.maxSockets') && config.get('proxy.maxSockets') > 0) {
+    http.globalAgent.maxSockets = config.get('proxy.maxSockets')|0;
+  } else if (config.get('api.maxSockets') && config.get('api.maxSockets') > 0) {
+    http.globalAgent.maxSockets = config.get('api.maxSockets')|0;
+  } else {
+    http.globalAgent.maxSockets = Infinity;
+  }
 
   const getApiWorker = () => ({
     host: 'localhost',
