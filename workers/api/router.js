@@ -160,7 +160,7 @@ function Router(props = {}) {
     if (!remoteAddress && req.socket && req.socket.remoteAddress) remoteAddress = req.socket.remoteAddress;
 
     proxyReq.setHeader('host', req.headers.host || '');
-    proxyReq.setHeader('x-forwarded-for', remoteAddress);
+    if (remoteAddress) proxyReq.setHeader('x-forwarded-for', remoteAddress);
   });
 
   function findRoute(path, parent) {
