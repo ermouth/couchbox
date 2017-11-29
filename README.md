@@ -32,8 +32,9 @@ There exist special repository, [Couchbox/install](https://gitlab.com/Couchbox/i
 containing installation scripts. Scripts install nginx, CouchDB 1.6.1, Redis and 
 Couchbox itself, with all dependencies. Also special script configures autostarts.
 
-Couchbox node deployment over clean OS takes 3–5 min and requires nearly zero 
-user interaction.
+Couchbox node deployment over clean OS takes 5–10 min and requires nearly zero 
+user interaction. Watch [YouTube video](https://youtu.be/SzRzMZVN5NU) showing 
+installation process for Ubuntu.
 
 ## Hooks
 
