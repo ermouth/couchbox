@@ -87,11 +87,11 @@ function checkAddress(protocol, address, checkAll = false) {
 function corsHeads(req) {
   const headers = Object.clone(API_DEFAULT_HEADERS, true);
   if (!(req && req.headers && req.headers.origin)) return Promise.resolve({ headers });
-  if (!CORS) return Promise.reject(new HttpError(500, 'Referrer not valid'));
-  const origin = req.headers.origin;
+  if (!CORS_RULES) return Promise.reject(new HttpError(500, 'Referrer not valid, no CORS'));
+  const origin = (req.headers.origin || '')+'';
   if (!CORS_RULES['*']) {
     const protocol = origin.substr(0, origin.indexOf('://'));
-    if (!CORS_RULES[protocol]) return Promise.reject(new HttpError(500, 'Referrer not valid'));
+    if (!CORS_RULES[protocol]) return Promise.reject(new HttpError(500, 'Referrer not valid, unsupported protocol'));
     if (!checkAddress(protocol, origin.substr(protocol.length + 3))) return Promise.reject(new HttpError(500, 'Referrer not valid'));
   }
   headers['access-control-allow-origin'] = origin;
