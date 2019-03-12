@@ -13,22 +13,24 @@ function Plugin(method, conf = {}, log) {
 
   if (!(Object.isString(conf.url) && conf.url.length > 0)) return Promise.reject(new Error('Bad kkm server url'));
 
-  const KKM_SERVER_URL = conf.url.replace(/\/+$/, '');
-  const KKM_SERVER_LOGIN = conf.login;
+  const KKM_SERVER_URL      = conf.url.replace(/\/+$/, '');
+  const KKM_SERVER_LOGIN    = conf.login;
   const KKM_SERVER_PASSWORD = conf.password;
   const KKM_SERVER_AUTH_ROW = 'Basic '+ btoa(KKM_SERVER_LOGIN +':'+ KKM_SERVER_PASSWORD);
 
-  const KKM_TIMEOUT = conf.timeout || 30;
+  const KKM_TIMEOUT         = conf.timeout || 30;
   const KKM_REQUEST_TIMEOUT = conf.requestTimeout || (KKM_TIMEOUT * 1000);
 
-  const KKM_COMPANY = conf.company || 'Couchbox';
-  const KKM_CASHIER = conf.cashier || (KKM_COMPANY +' ПО');
-  const KKM_TAX = 'tax' in conf ? (conf.tax|0) : -1;
-  const KKM_TAX_VARIANT = 'taxVariant' in conf ? (conf.taxVariant|0) : 0;
+  const KKM_COMPANY         = conf.company || 'Couchbox';
+  const KKM_CASHIER         = conf.cashier || (KKM_COMPANY +' ПО');
+  const KKM_TAX             = 'tax' in conf ? (conf.tax|0) : -1;
+  const KKM_TAX_VARIANT     = 'taxVariant' in conf ? (conf.taxVariant|0) : 0;
+  
   if (KKM_TAX === null) return Promise.reject(new Error('Bad kkm tax'));
-  const KKM_DEPARTMENT = conf.department || 0;
-  const KKM_PHONE = Object.isString(conf.phone) && conf.phone.length > 0 ? conf.phone : null;
-  const KKM_PRINT = !!conf.print;
+  
+  const KKM_DEPARTMENT      = conf.department || 0;
+  const KKM_PHONE           = Object.isString(conf.phone) && conf.phone.length > 0 ? conf.phone : null;
+  const KKM_PRINT           = !!conf.print;
 
   const kkm_valid_tax = tax => (
     (Object.isString(tax) && (+tax === (tax|0)) && (tax = tax|0)) ||
@@ -37,7 +39,7 @@ function Plugin(method, conf = {}, log) {
     tax === -1 || // НДС не облагается
     tax ===  0 || // НДС 0%
     tax === 10 || // НДС 10%
-    tax === 18    // НДС 18%
+    tax === 20    // НДС 20%
   );
 
 
@@ -122,13 +124,13 @@ function Plugin(method, conf = {}, log) {
 
     const sellRequest = {
       NumDevice,
-      Timeout: KKM_TIMEOUT, // Таймаут в секундах
-      IsFiscalCheck: true,
-      TypeCheck: typeCorrection, // 0 – продажа; 1 – возврат продажи; 10 – покупка; 11 - возврат покупки; 8 - продажа только по ЕГАИС; 9 - возврат продажи только по ЕГАИС;
-      CancelOpenedCheck: true, // Аннулировать открытый чек если ранее чек не был завершен до конца
-      NotPrint: !(print || KKM_PRINT),
-      CashierName: KKM_CASHIER,
-      ClientAddress: userContact,
+      Timeout:              KKM_TIMEOUT, // Таймаут в секундах
+      IsFiscalCheck:        true,
+      TypeCheck:            typeCorrection, // 0 продажа; 1 возврат; 10 покупка; 11 возврат покупки; 8 продажа по ЕГАИС; 9 возврат по ЕГАИС;
+      CancelOpenedCheck:    true, // Аннулировать открытый чек если ранее чек не был завершен до конца
+      NotPrint:             !(print || KKM_PRINT),
+      CashierName:          KKM_CASHIER,
+      ClientAddress:        userContact,
 
       // 0 Общая ОСН
       // 1 Упрощенная УСН (Доход)
@@ -159,10 +161,11 @@ function Plugin(method, conf = {}, log) {
       // Строки чека
       CheckStrings: [],
 
-      Cash: 0,          // нал
-      CashLessType1: 0, // безнал - карта
-      CashLessType2: 0, // безнал - кредит
-      CashLessType3: 0  // безнал - сертификат
+      Cash: 0,
+      ElectronicPayment: 0,
+      AdvancePayment: 0,
+      Credit: 0,
+      CashProvision: 0
     };
 
     if (KKM_PHONE) {
@@ -183,7 +186,9 @@ function Plugin(method, conf = {}, log) {
         Price: product.price,       // Цена за шт. без скидки
         Amount: product.amount,     // Конечная сумма строки с учетом всех скидок/наценок;
         Department: KKM_DEPARTMENT, // Отдел, по которому ведется продажа
-        Tax: KKM_TAX                // НДС в процентах или ТЕГ НДС: 0 (НДС 0%), 10 (НДС 10%), 18 (НДС 18%), -1 (НДС не облагается)
+        Tax: KKM_TAX,               // НДС в процентах или ТЕГ НДС: 0 (НДС 0%), 10, 20, -1 (НДС не облагается)
+        SignMethodCalculation: 4,   // Тип оплаты: 4 безнал электронно, 1 нал
+        SignCalculationObject: 4    // Тип товара: 4 услуга, 1 товар
       };
 
       if (product.department) Register.Department = product.department;
@@ -191,7 +196,7 @@ function Plugin(method, conf = {}, log) {
       if (product.ean13) Register.EAN13 = product.EAN13; //Штрих-код EAN13 для передачи в ОФД (не печатется)
 
       sellRequest.CheckStrings.push({ Register });
-      sellRequest.CashLessType1 += product.amount;
+      sellRequest.ElectronicPayment += product.amount;
     });
 
     return kkm_method_send('RegisterCheck', sellRequest);
@@ -211,16 +216,16 @@ function Plugin(method, conf = {}, log) {
 
   const kkm_method = (ref) => function (action) {
     switch (action) {
-      case 'devices': return kkm_method_devices.apply(this);
-      case 'sell': return kkm_method_sell.apply(this, Array.from(arguments).slice(1));
-      case 'open': return kkm_method_open.apply(this, Array.from(arguments).slice(1));
-      case 'zreport': return kkm_method_zreport.apply(this, Array.from(arguments).slice(1));
-      case 'xreport': return kkm_method_xreport.apply(this, Array.from(arguments).slice(1));
-      case 'status': return kkm_method_status.apply(this, Array.from(arguments).slice(1));
-      case 'checkCommand': return kkm_method_checkCommand.apply(this, Array.from(arguments).slice(1));
-      case 'lineLength': return kkm_method_lineLength.apply(this, Array.from(arguments).slice(1));
+      case 'devices':       return kkm_method_devices.apply(this);
+      case 'sell':          return kkm_method_sell.apply(this, Array.from(arguments).slice(1));
+      case 'open':          return kkm_method_open.apply(this, Array.from(arguments).slice(1));
+      case 'zreport':       return kkm_method_zreport.apply(this, Array.from(arguments).slice(1));
+      case 'xreport':       return kkm_method_xreport.apply(this, Array.from(arguments).slice(1));
+      case 'status':        return kkm_method_status.apply(this, Array.from(arguments).slice(1));
+      case 'checkCommand':  return kkm_method_checkCommand.apply(this, Array.from(arguments).slice(1));
+      case 'lineLength':    return kkm_method_lineLength.apply(this, Array.from(arguments).slice(1));
     }
-    return Promise.reject(new Error('Bad action name'))
+    return Promise.reject(new Error('Bad action name'));
   };
 
   function make(env) {
