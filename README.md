@@ -25,7 +25,7 @@ __Contents__ | Description
 
 ## Install
 
-Special repository [couchbox-install](https://github.com/ermouth/couchbox-install)  
+Special repository [couchbox-install](https://github.com/ermouth/couchbox-install) 
 contains installation script and configs. Script installs nodejs, nginx, CouchDB, 
 Redis and Couchbox itself, with all dependencies. Also script configures autostarts.
 
