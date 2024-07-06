@@ -25,15 +25,15 @@ __Contents__ | Description
 
 ## Install
 
-Special repository [couchbox-install](https://github.com/ermouth/couchbox-install), 
+Special repository [couchbox-install](https://github.com/ermouth/couchbox-install)  
 contains installation script and configs. Script installs nodejs, nginx, CouchDB, 
 Redis and Couchbox itself, with all dependencies. Also script configures autostarts.
 
-Couchbox node deployment over clean Ubuntu takes 5–10 min and requires nearly zero 
+Couchbox deployment over clean Ubuntu takes 5–10 min and requires nearly zero 
 user interaction. Watch [YouTube video](https://youtu.be/SzRzMZVN5NU) showing 
 installation process for Ubuntu.
 
-### Debug port and security
+#### Debug port and security
 
 Installator opens 8888 port which gives direct access to CouchDB for debug. Don’t 
 forget to close it with `sudo ufw deny 8888` for production nodes.
