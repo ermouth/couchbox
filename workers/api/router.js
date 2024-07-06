@@ -41,7 +41,7 @@ const {
 } = require('./constants');
 
 const ROOT_PATH = '/';
-const PAGE_GENERATION_PROP = 'x-page-generation';
+const PAGE_GENERATION_PROP = 'X-Page-Generation';
 
 
 const CORS_RULES = {

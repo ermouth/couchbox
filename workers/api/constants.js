@@ -35,7 +35,8 @@ const API_REFERRER_PARSER = (req) => (
 function API_LOG_PARSER(req) {
   return {
     ref: API_REFERRER_PARSER(req),
-    url: req && req.raw_path ? req.raw_path.substr(0,200) : null
+    url:(req && req.headers && req.headers.host ? req.headers.host+'' : '-')
+        +(req && req.raw_path ? req.raw_path.substr(0,200) : '')
   };
 }
 
