@@ -1,5 +1,5 @@
-FROM ubuntu:16.04
-MAINTAINER ftescht "dasiderk@gmail.com"
+FROM ubuntu:20.04
+MAINTAINER ermouth "ermouth@gmail.com"
 
 # Update system
 RUN apt-get -y update && \
@@ -9,7 +9,7 @@ RUN apt-get -y update && \
 RUN apt-get install -y sudo curl wget
 
 # Install node.js
-RUN curl -sL https://deb.nodesource.com/setup_7.x | sudo -E bash - && \
+RUN curl -sL https://deb.nodesource.com/setup_18.x | sudo -E bash - && \
     apt-get install -y sendmail libjpeg-progs build-essential nodejs
 
 # Create app directory
@@ -28,5 +28,5 @@ COPY ./package.json /usr/app/package.json
 RUN npm install
 
 VOLUME ["/usr/app/src"]
-EXPOSE 8888
+EXPOSE 8888 8000 8001
 CMD [ "npm", "start" ]

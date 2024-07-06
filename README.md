@@ -1,4 +1,4 @@
-# <img align="right" src="http://jquerymy.com/i/couchbox130.png" /> Couchbox
+# <img align="right" src="https://cdn.cloudwall.me/couchbox/couchbox-github.svg" /> Couchbox
 
 Couchbox extends CouchDB query server with backstage \_changes feed hooks and
 configurable REST API. Both [hooks](#hooks) and [REST API](#rest-api) are functions
@@ -10,8 +10,8 @@ Couchbox is multi-worker and employs [native CouchDB config](#configs). Once sta
 Couchbox tracks changes in both CouchDB config and ddocs, and seamlessly restarts 
 appropriate workers.
 
-Unlike CouchDB, Couchbox only tracks ddocs explicitly listed in configs,
-and each ddoc has own set of available aux methods (plugins), also defined in CouchDB config. 
+Unlike CouchDB, Couchbox only tracks ddocs explicitly listed in configs,and each ddoc 
+has own set of available aux methods (plugins), also defined in CouchDB config. 
 To manage feed states properly, Couchbox requires [Redis](#redis).
 
 __Contents__ | Description
@@ -25,16 +25,18 @@ __Contents__ | Description
 
 ## Install
 
-Couchbox is intended for CouchDB 1.5–1.6.1 and specially designed for large 
-multi-node projects.
+Special repository [couchbox-install](https://github.com/ermouth/couchbox-install), 
+contains installation script and configs. Script installs nodejs, nginx, CouchDB, 
+Redis and Couchbox itself, with all dependencies. Also script configures autostarts.
 
-There exist special repository, [Couchbox/install](https://gitlab.com/Couchbox/install), 
-containing installation scripts. Scripts install nginx, CouchDB 1.6.1, Redis and 
-Couchbox itself, with all dependencies. Also special script configures autostarts.
-
-Couchbox node deployment over clean OS takes 5–10 min and requires nearly zero 
+Couchbox node deployment over clean Ubuntu takes 5–10 min and requires nearly zero 
 user interaction. Watch [YouTube video](https://youtu.be/SzRzMZVN5NU) showing 
 installation process for Ubuntu.
+
+### Debug port and security
+
+Installator opens 8888 port which gives direct access to CouchDB for debug. Don’t 
+forget to close it with `sudo ufw deny 8888` for production nodes.
 
 ## Hooks
 
@@ -427,4 +429,4 @@ your code can use `require("Underscore")` to have lodash onboard inside lambda.
 CouchDB QS native methods `isArray()`, `toJSON()` are also emulated.
 
 -----------
-(c) 2017 ftescht, ermouth. Couchbox is MIT licensed.
+(c) 2024 ermouth, ftescht. Couchbox is MIT licensed.
