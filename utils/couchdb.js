@@ -68,7 +68,7 @@ const auth = () => new Promise((resolve, reject) => {
 }); // authenticate in db by credentials in config and update auth cookie in config
 
 // load couchdb _config, auth by cookie in param or in config
-const getConfig = (cookie) => fetch(DB_URL +'/_config', {
+const getConfig = (cookie) => fetch(DB_URL +'/_node/_local/_config', {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
@@ -83,7 +83,7 @@ const getConfig = (cookie) => fetch(DB_URL +'/_config', {
         config.clean('couchdb.cookie');
         return loadConfig();
       }
-      throw new Error('Bad config');
+      throw new Error('Bad config: '+json.error);
     }
     return json;
   });
