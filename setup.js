@@ -118,7 +118,7 @@ const removeConfigItem = (path) => {
   console.log('Remove config item');
   console.log('>', path);
 
-  return dbQuery('_config/' + encodeURI(path), 'DELETE').then(res => {
+  return dbQuery('_node/_local/_config/' + encodeURI(path), 'DELETE').then(res => {
     if (res && res.error && res.reason) {
       throw new Error('Error remove '+ path +' ' + res.reason);
     }
@@ -133,7 +133,7 @@ const saveConfigItem = (path, val) => {
 
   if (isB(val) || isN(val)) val = val.toString();
 
-  return dbQuery('_config/' + encodeURI(path), 'PUT', val).then(res => {
+  return dbQuery('_node/_local/_config/' + encodeURI(path), 'PUT', val).then(res => {
     if (res && res.error && res.reason) {
       throw new Error('Error save '+ path +' ' + res.reason);
     }
@@ -248,7 +248,7 @@ const onSetup = ([params, conf, json, docs]) => {
 // validate params, load couchbox.json & docs
 const tasks = [
   checkParams(),
-  dbQuery('/_config'),
+  dbQuery('/_node/_local/_config'),
   getConfigFile(CONFIG_PATH),
   getDocs(DOCS)
 ];
