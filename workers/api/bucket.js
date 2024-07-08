@@ -20,7 +20,8 @@ function Bucket(props = {}) {
 
   const ddocs = new Set();
   let timeout = 0;
-  let seq = 0;
+  //! let seq = 0;
+  var seq = 0;
   let feed;
 
   function getSeq() {
