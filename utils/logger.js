@@ -267,7 +267,7 @@ function LoggerBody(prefix, emitSaveAction) {
       row.chain = chain.reverse().join(LOG_CHAIN_DELIMITER);
       if (!row.principal) row.principal = config.get('couchdb.user');
       row.stamp = time.getTime();
-      if (row.type === TYPE_FATAL) fatal_action(row);
+      if (row.type === TYPE_FATAL) try{fatal_action(row);}catch(e0){}
       if (save_log) {
         stack_log[index_log++] = row;
         that.save(forced || (row.type === TYPE_FATAL));

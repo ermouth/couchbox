@@ -25,7 +25,7 @@
     "mime-types": "^2.1.16",
     "minimist": "1.2.0",
     "moment": "2.18.1",
-    "nano": "^6.4.0",
+    "nano": "^8.2.0",
     "node-fetch": "^1.7.2",
     "nodemailer": "^4.0.1",
     "query-string": "^5.0.0",
