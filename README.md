@@ -352,7 +352,7 @@ module.exports = Plugin;
 ### Built-in plugins
 
 Couchbox have several built-in plugins (e-mail, SMS, cache etc). Plugins are located 
-in `/plugins` folder. APIs are described in [/plugins/README.md](https://gitlab.com/Couchbox/couchbox/tree/master/plugins).
+in `/plugins` folder. APIs are described in [/plugins/README.md](https://github.com/ermouth/couchbox/blob/master/plugins/README.md).
 
 ## Redis
 
