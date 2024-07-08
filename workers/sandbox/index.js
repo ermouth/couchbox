@@ -492,9 +492,9 @@ module.exports = function initMaster(cluster) {
   // Bucket workers manipulations
 
   // filter worker with feed
-  const bucketWorkerHasFeed = (worker) => worker.seq >= 0 && worker.type === BUCKET_WORKER_TYPE_ACTUAL && worker.feed === true;
+  const bucketWorkerHasFeed = (worker) => parseInt(worker.seq) >= 0 && worker.type === BUCKET_WORKER_TYPE_ACTUAL && worker.feed === true;
   // filter initialised workers
-  const bucketWorkerIsReady = (worker) => worker.seq >= 0 && (worker.type === BUCKET_WORKER_TYPE_OLD || (worker.type === BUCKET_WORKER_TYPE_ACTUAL && worker.feed === true));
+  const bucketWorkerIsReady = (worker) => parseInt(worker.seq) >= 0 && (worker.type === BUCKET_WORKER_TYPE_OLD || (worker.type === BUCKET_WORKER_TYPE_ACTUAL && worker.feed === true));
   // filter not initialised workers
   const bucketWorkerNotReady = (worker) => !bucketWorkerIsReady(worker);
 
@@ -504,7 +504,7 @@ module.exports = function initMaster(cluster) {
   // returns bucket workers by bucket with changes feed attached
   const getBucketWorkersByDbFeed = (dbName) => getBucketWorkersByDb(dbName).filter(bucketWorkerHasFeed);
   // returns bucket workers by bucket and seq
-  const getBucketWorkerByDbSeq = (dbName, seq) => seq >= 0 ? getBucketWorkersByDb(dbName).filter(worker => worker.seq === seq) : [];
+  const getBucketWorkerByDbSeq = (dbName, seq) => parseInt(seq) >= 0 ? getBucketWorkersByDb(dbName).filter(worker => worker.seq === seq) : [];
   // returns bucket workers by bucket and seq
   const getBucketStartingWorkerByDb = (dbName) => getBucketWorkersByDb(dbName).filter(bucketWorkerNotReady);
   // stops bucket workers by bucket
@@ -513,8 +513,10 @@ module.exports = function initMaster(cluster) {
   // when bucket worker started - update worker seq
   function onBucketWorkerInit(pid, dbName, data = {}) {
     const { seq, type } = data;
-    if (seq >= 0) {
-      setWorkerProps(pid, { type, seq: +seq });
+    //! if (seq >= 0) {
+    if (seq!==undefined && (seq===null || parseInt(seq) >= 0)) {
+      //! setWorkerProps(pid, { type, seq: +seq });
+      setWorkerProps(pid, { type, seq: seq===null ? 0 : seq });
     } else {
       setWorkerProp(pid, 'type', type);
     }
@@ -533,8 +535,9 @@ module.exports = function initMaster(cluster) {
   }
   // when detected old bucket worker
   function onBucketWorkerOld(dbName, data = {}) {
-    const seq = +data.seq;
-    if (seq > 0) { // if worker has seq
+    // const seq = +data.seq;
+    const seq = data.seq;
+    if (parseInt(seq) > 0) { // if worker has seq
       if (getBucketWorkerByDbSeq(dbName, seq).length) { /** log('Worker '+ seq +' already started'); */ }
       else setTimeout(startWorkerBucket.fill(dbName, seq), WORKER_WAIT_TIMEOUT); // if master has no worker with seq - try to start old worker
     }
@@ -545,7 +548,7 @@ module.exports = function initMaster(cluster) {
     if (!message && code === 'SIGKILL' && workers.has(pid)) { // if worker crashed
       const { seq } = workers.get(pid);
       removeWorker(pid);
-      if (seq > 0) setTimeout(startWorkerBucket.fill(dbName, seq), WORKER_WAIT_TIMEOUT); // try restart worker
+      if (parseInt(seq) > 0) setTimeout(startWorkerBucket.fill(dbName, seq), WORKER_WAIT_TIMEOUT); // try restart worker
     } else { // if worker closed gracefully
       removeWorker(pid);
     }
@@ -555,7 +558,7 @@ module.exports = function initMaster(cluster) {
     if ( // don't start worker if
       isClosing // master closing
       || !dbs.has(db) // in dbs no worker db
-      || (seq > 0
+      || (parseInt(seq) > 0
            ? getBucketWorkerByDbSeq(db, seq).length > 0 // seq and worker already exist
            : getBucketWorkersByDbFeed(db).length > 0 // no seq && exist one or more workers with feed by db
          )

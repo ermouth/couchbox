@@ -127,7 +127,23 @@ const makeAuthHeaders = (userCtx) => {
 }; // return HTTP header for virtual auth by userCtx
 
 const getDDoc = (bucket, name, params = {}) => new Promise((resolve, reject) => {
-  bucket.get('_design/'+ name, params, (error, body) => error ? reject(error) : resolve(body));
+  //! bucket.get('_design/'+ name, params, (error, body) => error ? reject(error) : resolve(body));
+  
+  // Dirty trick to get real DB sequence
+  bucket.get('_design/'+ name, params, function (error, body){
+    if (error) return reject(error);
+    bucket.changes({
+      filter:'_doc_ids',
+      doc_ids:JSON.stringify(['_design/'+ name])
+    }, 
+    function (error, docinfo){
+      if (error) return reject(error);
+      var dseq;
+      try{dseq = docinfo.results[0].seq}catch(e){}
+      if (dseq) body._local_seq=dseq;
+      resolve(body);
+    });
+  });
 });
 
 module.exports = {

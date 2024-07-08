@@ -94,7 +94,8 @@ function Bucket(props = {}) {
     if (feed) return null;
     feed = bucket.follow({ since: 'now' });
     feed.on('change', function (change) {
-      if (seq < change.seq) seq = change.seq;
+      //! if (seq < change.seq) seq = change.seq;
+      if (parseInt(seq) < parseInt(change.seq)) seq = change.seq;
       if (change && change.id && ddocs.has(change.id)) {
         feed.stop();
         callback(true);

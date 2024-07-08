@@ -157,7 +157,7 @@ const createDB = (dbName) => {
   console.log('Create db');
   console.log('>', dbName);
 
-  return dbQuery(dbName, 'PUT').then(res => {
+  return dbQuery(dbName+'?q=1&n=1', 'PUT').then(res => {
     if (res && res.ok === true) return true;
     throw new Error('Error on create db '+ dbName + (res && res.error && res.reason ? ' ' + res.reason : ''));
   });

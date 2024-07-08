@@ -536,7 +536,8 @@ function Bucket(props = {}) {
     // already in queue
     if (sequencesHooks.has(seq)) return null;
 
-    const tasks = [ setLastSeqState(+seq) ];
+    //! const tasks = [ setLastSeqState(+seq) ];
+    const tasks = [ setLastSeqState(seq) ];
     for (let [hookKey, filter] of _filters) {
       try  {
         if (filter(change.doc)) tasks.push(setInProcess(change, hookKey));
