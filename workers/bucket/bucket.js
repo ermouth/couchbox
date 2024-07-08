@@ -48,7 +48,8 @@ function Bucket(props = {}) {
   const sequencesHooks = new Map();
   const hookProcesses = new Map(); // hooks promises
 
-  let worker_seq = +(props.seq || 0); // worker sequence - by latest ddoc seq
+  //! let worker_seq = +(props.seq || 0); // worker sequence - by latest ddoc seq
+  let worker_seq = props.seq || 0; // worker sequence - by latest ddoc seq
   let last_seq = 0; // sequence of last doc in queue
   let max_seq = 0; // max sequence - if worker is old then worker close on change with this sequence
   let feed;
@@ -96,7 +97,7 @@ function Bucket(props = {}) {
     });
   });
   function updateBucketState(closing) {
-    if (worker_seq === 0) return Promise.resolve();
+    if (worker_seq == 0) return Promise.resolve();
     return getBucketState().then(function(state = []){
       if (!!~state.indexOf(worker_seq)) {
         if (closing && worker_type === BUCKET_WORKER_TYPE_OLD && sequencesQueue.length === 0) {
@@ -104,7 +105,8 @@ function Bucket(props = {}) {
         }
         else return state;
       }
-      else state = state.add(worker_seq).sort((a, b) => b - a);
+      //! else state = state.add(worker_seq).sort((a, b) => b - a);
+      else state = state.add(worker_seq).sort((a, b) => parseInt(b) - parseInt(a));
       return setBucketState(state);
     });
   }
@@ -123,7 +125,7 @@ function Bucket(props = {}) {
   });
 
   const getWorkerState = () => new Promise(function(resolve, reject){
-    if (worker_seq === 0) return Promise.resolve({});
+    if (worker_seq == 0) return Promise.resolve({});
     redisClient.multi([
       ['get', stateKey_ddocs()],
       ['get', stateKey_last_seq()],
@@ -150,13 +152,15 @@ function Bucket(props = {}) {
         return reject(error);
       }
 
-      if (last_seq_state = +last_seq_state || 0) {
-        last_seq = last_seq_state;
+      //! if (last_seq_state = +last_seq_state || 0) {
+      if (last_seq_state = /^[0-9]+$/.test(last_seq_state+'')? 0 : last_seq_state) {
+          last_seq = last_seq_state;
       }
 
       if (!(sequences && sequences.length > 0)) return resolve(ddocs_state);
 
-      sequences = sequences.map(str => str.split(CHANGE_PROPS_SEPARATOR)).sort((a, b) => a[0] - b[0]);
+      //! sequences = sequences.map(str => str.split(CHANGE_PROPS_SEPARATOR)).sort((a, b) => a[0] - b[0]);
+      sequences = sequences.map(str => str.split(CHANGE_PROPS_SEPARATOR)).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
 
       redisClient.multi(sequences.map(([seq]) => ['smembers', stateKey_change_hooks(seq)])).exec((error, results) => {
         if (error) {
@@ -179,7 +183,7 @@ function Bucket(props = {}) {
     });
   });
   function updateWorkerState(closing) {
-    if (worker_seq === 0) return Promise.resolve();
+    if (worker_seq == 0) return Promise.resolve();
     if (closing && worker_type === BUCKET_WORKER_TYPE_OLD && sequencesQueue.length === 0) {
       return Promise.all([
         unsetLastSeqState(),
@@ -221,7 +225,8 @@ function Bucket(props = {}) {
   });
 
   const setLastSeqState = (newSeq) => new Promise(function(resolve, reject){
-    if (!(newSeq && last_seq < newSeq)) return resolve();
+  //! if (!(newSeq && last_seq < newSeq)) return resolve();
+  if (!(newSeq && parseInt(last_seq+'') < parseInt(newSeq+''))) return resolve();
     last_seq = newSeq;
     redisClient.set(stateKey_last_seq(), last_seq, function(error){
       if (error) return reject(error);
@@ -383,11 +388,13 @@ function Bucket(props = {}) {
   }
 
   function initDDocs(workers) {
-    if (worker_seq > 0 && !(workers && workers.length > 0 && !!~workers.indexOf(worker_seq))) {
+    //! if (worker_seq > 0 && !(workers && workers.length > 0 && !!~workers.indexOf(worker_seq))) {
+    if (parseInt(worker_seq) > 0 && !(workers && workers.length > 0 && !!~workers.indexOf(worker_seq))) {
       return Promise.reject(new Error('No db watcher by seq: '+ worker_seq));
     }
 
-    if (worker_seq > 0) {
+    //! if (worker_seq > 0) {
+    if (parseInt(worker_seq) > 0) {
       const workerIndex = workers.indexOf(worker_seq);
       if (workerIndex > 0) {
         max_seq = workers[workerIndex - 1];
@@ -420,7 +427,8 @@ function Bucket(props = {}) {
         : [];
     return DDoc(db, props.name, { name, rev, methods, logger })
       .then(function({ seq, rev, handlers }){
-        if (worker_seq < seq) worker_seq = seq;
+        //! if (worker_seq < seq) worker_seq = seq;
+        if (parseInt(worker_seq) < parseInt(seq)) worker_seq = seq;
         _ddocs.push({ name, rev, methods, seq });
 
         handlers.forEach(function({ key, filter, hook }){
@@ -441,7 +449,8 @@ function Bucket(props = {}) {
   function onInitDDocs() {
     const tasks = [];
     if (!last_seq) {
-      if (COLD_START === 'now' && worker_type === BUCKET_WORKER_TYPE_ACTUAL && db_info && db_info.update_seq > 0) {
+      //! if (COLD_START === 'now' && worker_type === BUCKET_WORKER_TYPE_ACTUAL && db_info && db_info.update_seq > 0) {
+      if (COLD_START === 'now' && worker_type === BUCKET_WORKER_TYPE_ACTUAL && db_info && parseInt(db_info.update_seq) > 0) {
         tasks.push(setLastSeqState(db_info.update_seq));
       } else {
         tasks.push(setLastSeqState(worker_seq));
@@ -463,12 +472,15 @@ function Bucket(props = {}) {
       message: 'Start changes since '+ last_seq +' between: '+ max_seq,
       event: BUCKET_CHANGES
     });
-    const limit = max_seq - worker_seq;
-    db.changes({ since: last_seq, limit, include_docs: true }, function(error, changes){
+    //! const limit = max_seq - worker_seq;
+    const limit = parseInt(max_seq+'') - parseInt(worker_seq+'');
+    //! db.changes({ since: last_seq, limit, include_docs: true }, function(error, changes){
+    db.changes({ since: /^\d+$/.test(last_seq+'')?'now':last_seq, limit, include_docs: true }, function(error, changes){
       if (error) return reject(error);
       if (changes && changes.results) {
         let i = changes.results.length, change;
-        while (i--) if ((change = changes.results[i]) && change.seq < max_seq) {
+        //! while (i--) if ((change = changes.results[i]) && change.seq < max_seq) {
+        while (i--) if ((change = changes.results[i]) && parseInt(change.seq) < parseInt(max_seq+'')) {
           onChange(change, false);
         }
       }
@@ -481,7 +493,8 @@ function Bucket(props = {}) {
       message: 'Start feed '+ worker_seq +' since: '+ last_seq,
       event: BUCKET_FEED
     });
-    feed = db.follow({ since: last_seq, include_docs: true });
+    //! feed = db.follow({ since: last_seq, include_docs: true });
+    feed = db.follow({ since: /^\d+$/.test(last_seq+'')?'now':last_seq, include_docs: true });
     feed.on('change', onChange);
     feed.follow();
     _onStartFeed();
@@ -523,7 +536,8 @@ function Bucket(props = {}) {
     // already in queue
     if (sequencesHooks.has(seq)) return null;
 
-    const tasks = [ setLastSeqState(+seq) ];
+    //! const tasks = [ setLastSeqState(+seq) ];
+    const tasks = [ setLastSeqState(seq) ];
     for (let [hookKey, filter] of _filters) {
       try  {
         if (filter(change.doc)) tasks.push(setInProcess(change, hookKey));

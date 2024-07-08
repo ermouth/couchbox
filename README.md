@@ -71,8 +71,9 @@ section in `.hooks` object. For example:
     }
 }}
 ```
-Filter part is an ordinary filter function, except hook filters never receive `req`
-argument, since there are no inbound http requests for action.
+Filter part is an ordinary filter function in CouchDB style. 
+Unlike in Couch a hook filter function never receive 2nd argument 
+since there is no inbound http request.
 
 A hook object has 3 properties: 
 
@@ -186,6 +187,16 @@ and then terminates itself.
 
 Worker may command supervisor to restart itself, if decides there were too many hanged
 jobs and memory might have leaked.
+
+### Hooks and sharding
+
+A hook guarantees processing of each changes feed event only once if and only if 
+the bucket has one shard and a single data copy (q=1,n=1). 
+
+With other sharding configs hook may receive a document more than one time, or get 
+changes in bizzare order. That issue could be be somewhat covered if a processed doc 
+stores internal history, hook code should take care of it.
+
 
 ## REST API
 
