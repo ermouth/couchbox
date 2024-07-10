@@ -21,7 +21,7 @@ const getUrlDomain = (url, startInd) => {
   }
 };
 
-const configPath = '/_config';
+const configPath = '/_node/_local/_config';
 
 function Plugin(method, conf = {}, log) {
   const name = '_' + (method || 'fetch');
