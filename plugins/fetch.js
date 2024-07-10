@@ -93,14 +93,15 @@ function Plugin(method, conf = {}, log) {
   const name = '_' + (method || 'fetch');
 
   const nodesDomains = {
-    '127.0.0.1': true
+    '127.0.0.1': true,
+    'localhost': true
   };
 
   function checkUrl(url) {
     const domain = getUrlDomain(url);
     if (!domain) return 'Empty connection type';
     if (domain[0] === '/') return 'Bad url path';
-    if (nodesDomains.hasOwnProperty(domain) && url.indexOf('/_config') > 0) return 'Access denied';
+    if (nodesDomains.hasOwnProperty(domain) && url.indexOf('/_config') > -1) return 'Access denied';
     return null;
   }
 
